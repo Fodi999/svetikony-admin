@@ -15,6 +15,13 @@ export default defineConfig({
     url: "http://localhost:3000",
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
+    // Plain `npm run test:e2e` must exercise the mock adapter, same as
+    // before Stage 2 — real-API e2e specs are opt-in via RUN_REAL_API_E2E
+    // and skip themselves otherwise (see e2e/*-real-api.spec.ts). This only
+    // takes effect when Playwright spawns a fresh server (CI, or no server
+    // already on :3000); reuseExistingServer means a server you started
+    // manually keeps whatever NEXT_PUBLIC_USE_REAL_API it was started with.
+    env: { NEXT_PUBLIC_USE_REAL_API: process.env.RUN_REAL_API_E2E === "true" ? "true" : "false" },
   },
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },

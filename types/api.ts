@@ -24,6 +24,7 @@ export type ApiErrorCode =
   | "validation_error"
   | "conflict"
   | "server_error"
+  | "not_implemented"
   | "unknown";
 
 export interface ApiFieldError {
@@ -52,4 +53,20 @@ export class ApiError extends Error {
 export interface ListQuery extends PaginationParams {
   search?: string;
   sort?: string;
+}
+
+/**
+ * Stage 2D: the response shape of svet-ikony's real R2-backed media upload
+ * endpoint (see svet-ikony's lib/media/types.ts — kept identical on purpose,
+ * this is the one contract both projects agree on). Deliberately small.
+ */
+export type MediaKind = "image" | "audio";
+
+export interface MediaObjectDto {
+  key: string;
+  url: string;
+  contentType: string;
+  size: number;
+  etag?: string;
+  kind: MediaKind;
 }

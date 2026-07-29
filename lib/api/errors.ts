@@ -21,6 +21,7 @@ export const ERROR_MESSAGES: Record<string, string> = {
   validation_error: "Перевірте правильність заповнення полів.",
   conflict: "Такий запис уже існує.",
   server_error: "Помилка сервера. Спробуйте пізніше.",
+  not_implemented: "Операція поки не підключена.",
   unknown: "Щось пішло не так.",
 };
 

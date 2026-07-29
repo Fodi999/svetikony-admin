@@ -10,7 +10,7 @@ import type { ProductCategoryFormValues } from "@/lib/validation/category.schema
 import type { PrayerFormValues } from "@/lib/validation/prayer.schema";
 import type { ProductFormValues } from "@/lib/validation/product.schema";
 import type { SaintFormValues } from "@/lib/validation/saint.schema";
-import type { ListQuery, PaginatedResult } from "@/types/api";
+import type { ListQuery, MediaObjectDto, PaginatedResult } from "@/types/api";
 import type {
   AlphabetLetter,
   Article,
@@ -97,6 +97,15 @@ export interface MediaApi {
   upload(file: File, onProgress?: UploadProgressHandler): Promise<MediaAsset>;
   list(): Promise<MediaAsset[]>;
   remove(id: string): Promise<void>;
+  /**
+   * Stage 2D: real R2-backed upload via svet-ikony's admin media endpoint.
+   * Purely additive — `upload`/`list`/`remove` above are the Stage 1 mock
+   * media library and are unchanged; existing callers (e.g.
+   * features/media/media-library-view.tsx) keep working exactly as before
+   * whether this method exists or not. Optional because MockApiAdapter does
+   * not implement it — only HttpApiAdapter does.
+   */
+  uploadObject?(input: { file: File; module: string; entityId: string; purpose: string }): Promise<MediaObjectDto>;
 }
 
 export interface ChurchInfoApi {
