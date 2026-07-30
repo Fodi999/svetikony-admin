@@ -75,3 +75,68 @@ export async function httpGet<T>(path: string): Promise<T> {
     throw new ApiError("unknown", "Некоректна відповідь сервера (invalid JSON)");
   }
 }
+
+/** Shared implementation for httpPost/httpPut/httpDelete below — same
+ * error handling/timeout/JSON parsing as httpGet, generalized for a
+ * method + optional JSON body. */
+async function httpWrite<T>(path: string, method: "POST" | "PUT" | "DELETE", body?: unknown): Promise<T> {
+  const { signal, clear } = createAbortTimeout(REQUEST_TIMEOUT_MS);
+
+  let response: Response;
+  try {
+    response = await fetch(path, {
+      method,
+      signal,
+      cache: "no-store",
+      headers: {
+        Accept: "application/json",
+        ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
+      },
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw new ApiError("network_error", "Час очікування відповіді сплив");
+    }
+    throw new ApiError("network_error", "Немає з'єднання з сервером. Перевірте інтернет і спробуйте ще раз.");
+  } finally {
+    clear();
+  }
+
+  const rawText = await response.text();
+
+  if (!response.ok) {
+    let errorBody: BackendErrorBody = {};
+    try {
+      errorBody = rawText ? (JSON.parse(rawText) as BackendErrorBody) : {};
+    } catch {
+      // Non-JSON error body from somewhere unexpected — fall through with a generic message.
+    }
+    const code: ApiErrorCode = (errorBody.code && BACKEND_CODE_MAP[errorBody.code]) || "unknown";
+    throw new ApiError(code, errorBody.details || errorBody.message || `HTTP ${response.status}`, {
+      status: response.status,
+    });
+  }
+
+  if (!rawText) {
+    return undefined as T;
+  }
+
+  try {
+    return JSON.parse(rawText) as T;
+  } catch {
+    throw new ApiError("unknown", "Некоректна відповідь сервера (invalid JSON)");
+  }
+}
+
+export function httpPost<T>(path: string, body: unknown): Promise<T> {
+  return httpWrite<T>(path, "POST", body);
+}
+
+export function httpPut<T>(path: string, body: unknown): Promise<T> {
+  return httpWrite<T>(path, "PUT", body);
+}
+
+export function httpDelete(path: string, body?: unknown): Promise<void> {
+  return httpWrite<void>(path, "DELETE", body);
+}

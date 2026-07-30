@@ -1,8 +1,9 @@
 import type { z } from "zod";
-import type { BffPrayerDto } from "@/app/api/bff/prayers/_contract";
+import type { BffPrayerDto, WorkerPrayerWritePayload } from "@/app/api/bff/prayers/_contract";
 import type { ApiClient, TranslatableQuery } from "@/lib/api/client";
 import { BFF_ENDPOINTS } from "@/lib/api/endpoints";
 import { createHttpListResource } from "@/lib/api/http/resource-factory";
+import { httpDelete, httpPost, httpPut } from "@/lib/api/http/transport";
 import {
   contentStatusSchema,
   languageSchema,
@@ -12,6 +13,7 @@ import {
   prayerTypeSchema,
   sceneTimelineEventSchema,
   subtitleCueSchema,
+  type PrayerFormValues,
 } from "@/lib/validation/prayer.schema";
 import type { ContentStatus, Language, ParticleColorMode, Prayer, PrayerType, SceneTimelineEvent, SubtitleCue } from "@/types/entities";
 
@@ -92,13 +94,50 @@ function toEntity(dto: BffPrayerDto): Prayer {
 }
 
 /**
+ * Admin form -> Worker write payload (Stage 2I). `prayerType` and
+ * `particleColorMode` are sent as-is: the Worker's CHECK constraints for
+ * both columns were relaxed in migration 0004 specifically because they
+ * never overlapped with the admin's own taxonomy (see that migration's
+ * header) — the admin's Zod schema is now the only enum enforcement, same
+ * as Calendar Day's `eventType`/`dayType` in Stage 2H.
+ */
+function toPayload(values: PrayerFormValues): WorkerPrayerWritePayload {
+  return {
+    title: values.title,
+    slug: values.slug,
+    text: values.text,
+    language: values.language,
+    prayerType: values.prayerType,
+    status: values.status,
+    iconId: values.iconId || null,
+    calendarDayId: values.calendarDayId || null,
+    audioUrl: values.audioUrl ?? "",
+    qrCodeUrl: values.qrCodeUrl ?? "",
+    imageUrl: values.imageUrl ?? "",
+    source: values.source ?? "",
+    sourceUrl: values.sourceUrl ?? "",
+    note: values.note ?? "",
+    visualizerEnabled: values.visualizerEnabled,
+    visualizerImageUrl: values.visualizerImageUrl ?? "",
+    particleCountDesktop: values.particleCountDesktop,
+    particleCountMobile: values.particleCountMobile,
+    particleSize: values.particleSize,
+    particleColorMode: values.particleColorMode,
+    backgroundColor: values.backgroundColor,
+    audioReactivity: values.audioReactivity,
+    sceneTimeline: values.sceneTimeline,
+    subtitleCues: values.subtitleCues,
+  };
+}
+
+/**
  * Backend supports a `language` filter server-side but no search/status
  * filter/pagination — search, status-filter, and pagination are done by the
  * shared factory to preserve the ApiClient contract and match what
  * features/prayers/prayer-list-view.tsx already sends (status is a real
  * query param there, unlike Alphabet).
  */
-export const prayersHttpResource: ApiClient["prayers"] = createHttpListResource<BffPrayerDto, Prayer, TranslatableQuery>({
+const baseResource = createHttpListResource<BffPrayerDto, Prayer, TranslatableQuery>({
   listPath: BFF_ENDPOINTS.prayers,
   itemPath: (id) => `${BFF_ENDPOINTS.prayers}/${encodeURIComponent(id)}`,
   toEntity,
@@ -111,3 +150,18 @@ export const prayersHttpResource: ApiClient["prayers"] = createHttpListResource<
   searchFields: (prayer) => [prayer.title, prayer.text, prayer.slug],
   sort: (a, b) => a.title.localeCompare(b.title),
 });
+
+export const prayersHttpResource: ApiClient["prayers"] = {
+  ...baseResource,
+  async create(values: PrayerFormValues): Promise<Prayer> {
+    const dto = await httpPost<BffPrayerDto>(BFF_ENDPOINTS.prayers, toPayload(values));
+    return toEntity(dto);
+  },
+  async update(id: string, values: PrayerFormValues): Promise<Prayer> {
+    const dto = await httpPut<BffPrayerDto>(`${BFF_ENDPOINTS.prayers}/${encodeURIComponent(id)}`, toPayload(values));
+    return toEntity(dto);
+  },
+  async remove(id: string): Promise<void> {
+    await httpDelete(`${BFF_ENDPOINTS.prayers}/${encodeURIComponent(id)}`);
+  },
+};

@@ -2,13 +2,14 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, Eye } from "lucide-react";
-import { useEffect, useState } from "react";
+import { AlertTriangle, Eye, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { SceneTimelineEditor } from "@/features/prayers/scene-timeline-editor";
 import { SubtitleCuesEditor } from "@/features/prayers/subtitle-cues-editor";
 import { PrayerPreviewSheet } from "@/features/prayers/prayer-preview-sheet";
+import { MediaUploadButton } from "@/components/forms/media-upload-button";
 import { NumberField } from "@/components/forms/number-field";
 import { SelectField } from "@/components/forms/select-field";
 import { SwitchField } from "@/components/forms/switch-field";
@@ -59,6 +60,33 @@ function toFormValues(prayer: Prayer): PrayerFormValues {
   };
 }
 
+/** Best-effort orphan cleanup for a not-yet-saved upload. No-op in mock
+ * mode (nothing real to clean up) — same real-mode detection
+ * MediaUploadButton uses. */
+async function cleanupOrphanUpload(key: string) {
+  if (!apiClient.media.uploadObject) return;
+  try {
+    await apiClient.media.remove(key);
+  } catch {
+    // Best-effort; nothing to do if it fails.
+  }
+}
+
+/** Prayer's audioUrl/imageUrl store the resolved absolute R2 URL, not the
+ * bare key (unlike Calendar Day's imageId) — MediaUploadButton's `id` is
+ * always the key though, so replacing/clearing an already-persisted value
+ * needs the key extracted back out of it to clean up R2. Any URL that
+ * doesn't look like one of our own R2 media URLs (external link, Stage 1
+ * mock path) yields undefined — nothing is ever deleted that this admin
+ * didn't itself upload. */
+function extractMediaKey(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const marker = "/media/";
+  const index = value.indexOf(marker);
+  if (index === -1) return undefined;
+  return `media/${value.slice(index + marker.length)}`;
+}
+
 interface PrayerFormProps {
   mode: "create" | "edit";
   prayer?: Prayer;
@@ -73,6 +101,27 @@ export function PrayerForm({ mode, prayer, onSubmit, onDelete, submitting }: Pra
   const [tab, setTab] = useState("text");
   const [previewOpen, setPreviewOpen] = useState(false);
   const [jsonMode, setJsonMode] = useState(false);
+  // Uploads made this session, not yet confirmed saved — distinct from the
+  // form's persisted audioUrl/imageUrl so an in-progress edit can never
+  // delete an already-published asset, only ever its own unsaved upload.
+  const [pendingAudioKey, setPendingAudioKey] = useState<string | undefined>(undefined);
+  const [pendingImageKey, setPendingImageKey] = useState<string | undefined>(undefined);
+  const pendingKeysRef = useRef({ audio: pendingAudioKey, image: pendingImageKey });
+
+  useEffect(() => {
+    pendingKeysRef.current = { audio: pendingAudioKey, image: pendingImageKey };
+  }, [pendingAudioKey, pendingImageKey]);
+
+  // Cleans up an upload the user never saved (navigated away, closed the
+  // tab, etc.) — registered once so it fires on unmount, reading the
+  // latest keys via the ref above rather than a stale closure.
+  useEffect(() => {
+    return () => {
+      if (pendingKeysRef.current.audio) void cleanupOrphanUpload(pendingKeysRef.current.audio);
+      if (pendingKeysRef.current.image) void cleanupOrphanUpload(pendingKeysRef.current.image);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const form = useForm<PrayerFormValues>({
     resolver: zodResolver(prayerSchema),
@@ -111,7 +160,21 @@ export function PrayerForm({ mode, prayer, onSubmit, onDelete, submitting }: Pra
       setTab("text");
       return;
     }
-    await onSubmit(form.getValues());
+    const values = form.getValues();
+    await onSubmit(values);
+    setPendingAudioKey(undefined); // now persisted — no longer an orphan candidate
+    setPendingImageKey(undefined);
+
+    // The previously-persisted asset (if any) is now superseded — clean it
+    // up only after the save actually succeeded, so a cancelled edit can
+    // never orphan-delete a still-published file.
+    if (prayer) {
+      const oldAudioKey = extractMediaKey(prayer.audioUrl);
+      if (oldAudioKey && oldAudioKey !== extractMediaKey(values.audioUrl)) void cleanupOrphanUpload(oldAudioKey);
+      const oldImageKey = extractMediaKey(prayer.imageUrl);
+      if (oldImageKey && oldImageKey !== extractMediaKey(values.imageUrl)) void cleanupOrphanUpload(oldImageKey);
+    }
+
     setDirty(false);
   }
 
@@ -165,14 +228,78 @@ export function PrayerForm({ mode, prayer, onSubmit, onDelete, submitting }: Pra
           </TabsContent>
 
           <TabsContent value="audio" className="space-y-4">
-            <TextField control={form.control} name="audioUrl" label="Посилання на аудіо" placeholder="/mock-audio/….mp3" />
+            <div className="space-y-2">
+              <TextField control={form.control} name="audioUrl" label="Посилання на аудіо" placeholder="/mock-audio/….mp3" />
+              <div className="flex gap-2">
+                <MediaUploadButton
+                  kind="audio"
+                  module="prayers"
+                  entityId={prayer?.id ?? "draft"}
+                  purpose="audio"
+                  onUploaded={({ id, url }) => {
+                    const previous = pendingAudioKey;
+                    form.setValue("audioUrl", url, { shouldDirty: true });
+                    setPendingAudioKey(id);
+                    if (previous) void cleanupOrphanUpload(previous);
+                  }}
+                />
+                {audioUrl ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      const previous = pendingAudioKey;
+                      form.setValue("audioUrl", "", { shouldDirty: true });
+                      setPendingAudioKey(undefined);
+                      if (previous) void cleanupOrphanUpload(previous);
+                    }}
+                  >
+                    <X className="size-4" />
+                    Видалити аудіо
+                  </Button>
+                ) : null}
+              </div>
+            </div>
             {audioUrl ? (
               <audio controls src={audioUrl} className="w-full">
                 <track kind="captions" />
               </audio>
             ) : null}
             <TextField control={form.control} name="qrCodeUrl" label="Посилання на QR-код" />
-            <TextField control={form.control} name="imageUrl" label="Посилання на зображення" />
+            <div className="space-y-2">
+              <TextField control={form.control} name="imageUrl" label="Посилання на зображення" />
+              <div className="flex gap-2">
+                <MediaUploadButton
+                  kind="image"
+                  module="prayers"
+                  entityId={prayer?.id ?? "draft"}
+                  purpose="image"
+                  onUploaded={({ id, url }) => {
+                    const previous = pendingImageKey;
+                    form.setValue("imageUrl", url, { shouldDirty: true });
+                    setPendingImageKey(id);
+                    if (previous) void cleanupOrphanUpload(previous);
+                  }}
+                />
+                {imageUrl ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      const previous = pendingImageKey;
+                      form.setValue("imageUrl", "", { shouldDirty: true });
+                      setPendingImageKey(undefined);
+                      if (previous) void cleanupOrphanUpload(previous);
+                    }}
+                  >
+                    <X className="size-4" />
+                    Видалити зображення
+                  </Button>
+                ) : null}
+              </div>
+            </div>
             {imageUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={imageUrl} alt="Попередній перегляд" className="h-40 w-auto rounded-md border object-cover" />

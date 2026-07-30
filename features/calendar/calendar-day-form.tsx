@@ -2,10 +2,11 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
-import { Eye } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Eye, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { MediaUploadButton } from "@/components/forms/media-upload-button";
 import { RelationPickerField } from "@/components/forms/relation-picker-field";
 import { SelectField } from "@/components/forms/select-field";
 import { TextField } from "@/components/forms/text-field";
@@ -43,6 +44,20 @@ const EMPTY_DEFAULTS: CalendarDayFormValues = {
   relatedGospelIds: [],
 };
 
+/**
+ * Best-effort orphan cleanup for a not-yet-saved upload. No-op in mock
+ * mode (nothing real to clean up) — same real-mode detection
+ * MediaUploadButton uses. A failure here must never block the user.
+ */
+async function cleanupOrphanUpload(key: string) {
+  if (!apiClient.media.uploadObject) return;
+  try {
+    await apiClient.media.remove(key);
+  } catch {
+    // Best-effort; nothing to do if it fails.
+  }
+}
+
 interface CalendarDayFormProps {
   mode: "create" | "edit";
   day?: CalendarDay;
@@ -55,6 +70,26 @@ export function CalendarDayForm({ mode, day, onSubmit, onDelete, submitting }: C
   const { setDirty } = useUnsavedChanges();
   const [tab, setTab] = useState("basic");
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | undefined>(undefined);
+  // The most recent upload not yet confirmed saved — distinct from the
+  // form's persisted `imageId` so an in-progress edit can never delete an
+  // already-published image, only ever its own not-yet-saved replacement.
+  const [pendingUploadKey, setPendingUploadKey] = useState<string | undefined>(undefined);
+  const pendingUploadKeyRef = useRef<string | undefined>(undefined);
+
+  useEffect(() => {
+    pendingUploadKeyRef.current = pendingUploadKey;
+  }, [pendingUploadKey]);
+
+  // Cleans up an upload the user never saved (navigated away, closed the
+  // tab, etc.) — registered once so it fires on unmount, reading the
+  // latest key via the ref above rather than a stale closure.
+  useEffect(() => {
+    return () => {
+      if (pendingUploadKeyRef.current) void cleanupOrphanUpload(pendingUploadKeyRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const form = useForm<CalendarDayFormValues>({
     resolver: zodResolver(calendarDaySchema),
@@ -87,6 +122,7 @@ export function CalendarDayForm({ mode, day, onSubmit, onDelete, submitting }: C
       return;
     }
     await onSubmit(form.getValues());
+    setPendingUploadKey(undefined); // now persisted — no longer an orphan candidate
     setDirty(false);
   }
 
@@ -137,7 +173,46 @@ export function CalendarDayForm({ mode, day, onSubmit, onDelete, submitting }: C
           </TabsContent>
 
           <TabsContent value="media" className="space-y-4">
-            <TextField control={form.control} name="imageId" label="ID зображення" description="Посилання на медіатеку (Stage 1: введіть ID вручну)" />
+            <div className="space-y-2">
+              <TextField control={form.control} name="imageId" label="ID зображення" description="Фото для картки календаря. Посилання на медіатеку (Stage 1: введіть ID вручну)" />
+              <MediaUploadButton
+                kind="image"
+                module="calendar"
+                entityId={day?.id ?? "draft"}
+                purpose="main"
+                label="Завантажити фото"
+                onUploaded={({ id, url }) => {
+                  // Replacing a not-yet-saved upload with another one —
+                  // the previous pending key is now orphaned, clean it up.
+                  const previous = pendingUploadKey;
+                  form.setValue("imageId", id, { shouldDirty: true });
+                  setImagePreviewUrl(url);
+                  setPendingUploadKey(id);
+                  if (previous) void cleanupOrphanUpload(previous);
+                }}
+              />
+            </div>
+            {imagePreviewUrl ? (
+              <div className="space-y-2">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={imagePreviewUrl} alt="Попередній перегляд" className="h-40 w-auto rounded-md border object-cover" />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    const previous = pendingUploadKey;
+                    form.setValue("imageId", undefined, { shouldDirty: true });
+                    setImagePreviewUrl(undefined);
+                    setPendingUploadKey(undefined);
+                    if (previous) void cleanupOrphanUpload(previous);
+                  }}
+                >
+                  <X className="size-4" />
+                  Прибрати фото
+                </Button>
+              </div>
+            ) : null}
           </TabsContent>
 
           <TabsContent value="publication" className="space-y-4">

@@ -124,6 +124,84 @@ export async function proxyAndMap<TIn, TOut>(
  * content passes through unmodified without this code ever touching the
  * boundary string by hand.
  */
+/**
+ * Forwards a JSON write (POST/PUT/DELETE) to an upstream Worker admin
+ * endpoint. Same auth/timeout/no-store conventions as fetchUpstream()
+ * above, and — like proxyAndMap() — replaces the raw Worker DTO with
+ * `mapFn(raw)` on success, so write responses stay on the same stable BFF
+ * contract as reads. Non-2xx responses pass through unchanged. A `body`
+ * of `undefined` sends no request body (used by DELETE).
+ */
+export async function proxyJsonWrite<TIn, TOut>(
+  upstreamPath: string,
+  method: "POST" | "PUT" | "DELETE",
+  body: unknown,
+  mapFn: (raw: TIn) => TOut,
+): Promise<Response> {
+  const baseUrl = process.env.SVET_IKONY_API_BASE_URL;
+  const token = process.env.SVET_IKONY_ADMIN_TOKEN;
+
+  if (!baseUrl) {
+    return errorResponse(401, "AUTHENTICATION_ERROR", "Authentication failed", "SVET_IKONY_API_BASE_URL is not configured");
+  }
+  if (!token) {
+    return errorResponse(401, "AUTHENTICATION_ERROR", "Authentication failed", "SVET_IKONY_ADMIN_TOKEN is not configured");
+  }
+
+  const url = new URL(upstreamPath, baseUrl);
+  const { signal, clear } = createAbortTimeout(REQUEST_TIMEOUT_MS);
+
+  let upstreamResponse: Response;
+  try {
+    upstreamResponse = await fetch(url, {
+      method,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+        ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
+      },
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+      signal,
+    });
+  } catch (error) {
+    const details = isAbortError(error)
+      ? "Upstream request timed out"
+      : error instanceof Error
+        ? error.message
+        : "Network error contacting upstream API";
+    return errorResponse(502, "NETWORK_ERROR", "Network error", details);
+  } finally {
+    clear();
+  }
+
+  const bodyText = await upstreamResponse.text();
+
+  if (!upstreamResponse.ok) {
+    return new Response(bodyText, {
+      status: upstreamResponse.status,
+      headers: {
+        "content-type": upstreamResponse.headers.get("content-type") ?? "application/json",
+        ...NO_STORE_HEADERS,
+      },
+    });
+  }
+
+  if (!bodyText) {
+    // 204 No Content (e.g. DELETE) — nothing to map, pass through as-is.
+    return new Response(null, { status: upstreamResponse.status, headers: NO_STORE_HEADERS });
+  }
+
+  let mapped: TOut;
+  try {
+    const raw = JSON.parse(bodyText) as TIn;
+    mapped = mapFn(raw);
+  } catch {
+    return errorResponse(502, "INTERNAL_ERROR", "Invalid upstream response", "Upstream response was not valid JSON or failed to map");
+  }
+
+  return Response.json(mapped, { status: upstreamResponse.status, headers: NO_STORE_HEADERS });
+}
+
 export async function proxyMultipartUpload(upstreamPath: string, formData: FormData): Promise<Response> {
   const baseUrl = process.env.SVET_IKONY_API_BASE_URL;
   const token = process.env.SVET_IKONY_ADMIN_TOKEN;

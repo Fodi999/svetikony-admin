@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ApiError } from "@/types/api";
 import { prayersHttpResource } from "./prayers";
 
 function dto(overrides: Partial<Record<string, unknown>> = {}) {
@@ -265,7 +264,7 @@ describe("prayersHttpResource", () => {
     });
   });
 
-  describe("write operations (READ-only Stage 2C)", () => {
+  describe("write operations (Stage 2I — real CRUD)", () => {
     const formValues = {
       title: "Отче наш",
       slug: "otche-nash",
@@ -284,28 +283,43 @@ describe("prayersHttpResource", () => {
       subtitleCues: [],
     };
 
-    it("create throws a controlled not_implemented ApiError without calling fetch", async () => {
-      const fetchMock = vi.fn();
+    it("create POSTs the mapped payload to the BFF and returns the created Prayer", async () => {
+      const fetchMock = vi.fn().mockResolvedValue(jsonResponse(dto({ title: "Отче наш" }), 201));
       vi.stubGlobal("fetch", fetchMock);
-      await expect(prayersHttpResource.create(formValues)).rejects.toMatchObject({ code: "not_implemented" });
-      expect(fetchMock).not.toHaveBeenCalled();
+
+      const prayer = await prayersHttpResource.create(formValues);
+
+      expect(prayer.title).toBe("Отче наш");
+      expect(fetchMock).toHaveBeenCalledWith("/api/bff/prayers", expect.objectContaining({ method: "POST" }));
+      const [, init] = fetchMock.mock.calls[0];
+      const body = JSON.parse(init.body as string);
+      expect(body).toMatchObject({ title: "Отче наш", slug: "otche-nash", prayerType: "general" });
     });
 
-    it("update throws a controlled not_implemented ApiError without calling fetch", async () => {
-      const fetchMock = vi.fn();
+    it("update PUTs the mapped payload to the BFF single-prayer route", async () => {
+      const fetchMock = vi.fn().mockResolvedValue(jsonResponse(dto()));
       vi.stubGlobal("fetch", fetchMock);
-      await expect(prayersHttpResource.update("prayer-1", formValues)).rejects.toBeInstanceOf(ApiError);
-      expect(fetchMock).not.toHaveBeenCalled();
+
+      await prayersHttpResource.update("prayer-1", formValues);
+
+      expect(fetchMock).toHaveBeenCalledWith("/api/bff/prayers/prayer-1", expect.objectContaining({ method: "PUT" }));
     });
 
-    it("remove throws a controlled not_implemented ApiError without calling fetch", async () => {
-      const fetchMock = vi.fn();
+    it("remove DELETEs the BFF single-prayer route", async () => {
+      const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
       vi.stubGlobal("fetch", fetchMock);
-      await expect(prayersHttpResource.remove("prayer-1")).rejects.toMatchObject({ code: "not_implemented" });
-      expect(fetchMock).not.toHaveBeenCalled();
+
+      await prayersHttpResource.remove("prayer-1");
+
+      expect(fetchMock).toHaveBeenCalledWith("/api/bff/prayers/prayer-1", expect.objectContaining({ method: "DELETE" }));
     });
 
-    it("createTranslation throws a controlled not_implemented ApiError without calling fetch", async () => {
+    it("propagates a validation_error ApiError from create on a 400", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ code: "VALIDATION_ERROR" }, 400)));
+      await expect(prayersHttpResource.create(formValues)).rejects.toMatchObject({ code: "validation_error" });
+    });
+
+    it("createTranslation throws a controlled not_implemented ApiError without calling fetch (no real translation-group concept for prayers)", async () => {
       const fetchMock = vi.fn();
       vi.stubGlobal("fetch", fetchMock);
       await expect(prayersHttpResource.createTranslation?.("group-1", "ru", formValues)).rejects.toMatchObject({

@@ -123,3 +123,32 @@ export function toBffPrayerDto(worker: WorkerPrayerDto): BffPrayerDto {
 export function toBffPrayerDtoList(workers: WorkerPrayerDto[]): BffPrayerDto[] {
   return workers.map(toBffPrayerDto);
 }
+
+/** Admin -> Worker payload for create/update (Stage 2I). Same whitelist in
+ * reverse: only fields the Worker's ChurchPrayerPayload actually accepts. */
+export interface WorkerPrayerWritePayload {
+  iconId?: string | null;
+  calendarDayId?: string | null;
+  slug?: string;
+  title?: string;
+  text?: string;
+  audioUrl?: string;
+  qrCodeUrl?: string;
+  imageUrl?: string;
+  source?: string;
+  sourceUrl?: string;
+  note?: string;
+  language?: string;
+  prayerType?: string;
+  status?: string;
+  visualizerEnabled?: boolean;
+  visualizerImageUrl?: string;
+  particleCountDesktop?: number;
+  particleCountMobile?: number;
+  particleSize?: number;
+  particleColorMode?: string;
+  backgroundColor?: string;
+  audioReactivity?: number;
+  sceneTimeline?: unknown;
+  subtitleCues?: unknown;
+}

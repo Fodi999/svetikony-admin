@@ -84,11 +84,35 @@ describe("mediaHttpResource legacy methods (not wired to any form yet)", () => {
     await expect(mediaHttpResource.list()).rejects.toMatchObject({ code: "not_implemented" });
     expect(fetchMock).not.toHaveBeenCalled();
   });
+});
 
-  it("remove throws a controlled not_implemented ApiError without calling fetch", async () => {
-    const fetchMock = vi.fn();
+describe("mediaHttpResource.remove (Stage 2H — real, keyed by R2 object key)", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("DELETEs the BFF media endpoint with the R2 key as the JSON body", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
     vi.stubGlobal("fetch", fetchMock);
-    await expect(mediaHttpResource.remove("id")).rejects.toMatchObject({ code: "not_implemented" });
-    expect(fetchMock).not.toHaveBeenCalled();
+
+    await mediaHttpResource.remove("media/calendar/draft/main/uuid.png");
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/bff/media", expect.objectContaining({ method: "DELETE" }));
+    const [, init] = fetchMock.mock.calls[0];
+    expect(JSON.parse(init.body as string)).toEqual({ key: "media/calendar/draft/main/uuid.png" });
+  });
+
+  it("propagates a not_found ApiError for a 404", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ code: "NOT_FOUND" }, 404)));
+    await expect(mediaHttpResource.remove("media/calendar/draft/main/uuid.png")).rejects.toMatchObject({
+      code: "not_found",
+    });
+  });
+
+  it("propagates a network_error ApiError when fetch fails", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
+    await expect(mediaHttpResource.remove("media/calendar/draft/main/uuid.png")).rejects.toMatchObject({
+      code: "network_error",
+    });
   });
 });

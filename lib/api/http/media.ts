@@ -2,6 +2,7 @@ import type { ApiClient } from "@/lib/api/client";
 import { BFF_ENDPOINTS } from "@/lib/api/endpoints";
 import { createAbortTimeout, isAbortError } from "@/lib/api/http/timeout";
 import { notImplementedError } from "@/lib/api/http/resource-factory";
+import { httpDelete } from "@/lib/api/http/transport";
 import { ApiError, type ApiErrorCode, type MediaObjectDto } from "@/types/api";
 
 const REQUEST_TIMEOUT_MS = 30_000; // uploads take longer than a plain JSON GET
@@ -73,11 +74,21 @@ async function uploadObject(input: { file: File; module: string; entityId: strin
 }
 
 /**
- * Only `uploadObject` is real (Stage 2D). `upload`/`list`/`remove` are not
+ * `remove` takes the R2 object key (as returned by `uploadObject`'s `key`),
+ * not a mock media-library asset id — see MediaApi.remove's doc comment.
+ * Stage 2H's first caller is Calendar Day's orphan-upload cleanup, but this
+ * is generic and reusable by any module.
+ */
+async function remove(key: string): Promise<void> {
+  await httpDelete(BFF_ENDPOINTS.media, { key });
+}
+
+/**
+ * `uploadObject`/`remove` are real (Stage 2D/2H). `upload`/`list` are not
  * wired to any form yet and throw the same controlled `not_implemented`
  * guard every other HttpApiAdapter write path uses — this resource is not
  * spread into MockApiAdapter's `media`, it fully replaces it when active
- * (see lib/api/http-adapter.ts), so those three must not silently no-op.
+ * (see lib/api/http-adapter.ts), so those must not silently no-op.
  */
 export const mediaHttpResource: ApiClient["media"] = {
   async upload() {
@@ -86,8 +97,6 @@ export const mediaHttpResource: ApiClient["media"] = {
   async list() {
     notImplementedError();
   },
-  async remove() {
-    notImplementedError();
-  },
+  remove,
   uploadObject,
 };
