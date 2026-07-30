@@ -2,8 +2,9 @@ import { expect, test, type Page } from "@playwright/test";
 
 /**
  * Stage 2C, Prayers READ smoke test. Requires a second local dev server
- * (svet-ikony on :3001) plus NEXT_PUBLIC_USE_REAL_API=true in .env.local —
- * so plain `npm run test:e2e` must never depend on it. Opt in explicitly:
+ * (svet-ikony on :3001) — the real HttpApiAdapter is the default now (see
+ * lib/api/index.ts), so plain `npm run test:e2e` forces mock mode via
+ * NEXT_PUBLIC_FORCE_MOCK_API instead. Opt in explicitly:
  *
  *   RUN_REAL_API_E2E=true npm run test:e2e -- e2e/prayers-real-api.spec.ts
  *

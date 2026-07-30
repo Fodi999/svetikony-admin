@@ -6,17 +6,20 @@ import { prayersHttpResource } from "@/lib/api/http/prayers";
 import { mockApiAdapter } from "@/lib/api/mock-adapter";
 
 /**
+ * This is what `getApiClient()` returns by default now (see lib/api/index.ts) —
+ * only `NEXT_PUBLIC_FORCE_MOCK_API=true` bypasses it in favor of the plain
+ * mock adapter.
+ *
  * Alphabet is READ-only against the real svet-ikony API; its
  * create/update/remove throw a controlled `not_implemented` ApiError (see
  * lib/api/http/alphabet.ts) rather than falling back to the mock store, so
- * a write attempted in real-API mode never silently "succeeds" without
- * touching D1.
+ * a write attempt never silently "succeeds" without touching D1.
  *
  * `calendarDays` (Stage 2H) and `prayers` (Stage 2I) have full real CRUD —
  * list/get/create/update/remove all reach real D1 (and, via
  * `imageId`/`imageUrl`/`audioUrl`, real R2). Both fully replace
  * MockApiAdapter's resource; no sessionStorage fallback is reachable for
- * either module in real-API mode.
+ * either module.
  *
  * `media`: `uploadObject` (Stage 2D) and `remove` (Stage 2H, keyed by R2
  * object key, not a mock asset id) are real. `upload`/`list` — the Stage 1

@@ -32,10 +32,11 @@ interface MediaUploadButtonProps {
 
 /**
  * Uses the real R2 upload (`apiClient.media.uploadObject`) when the active
- * adapter implements it (NEXT_PUBLIC_USE_REAL_API=true), and falls back to
- * the Stage 1 mock media library (`apiClient.media.upload`) otherwise —
- * `uploadObject` is optional on MediaApi precisely so this can detect which
- * one is available instead of assuming a mode.
+ * adapter implements it (the default — see lib/api/index.ts), and falls
+ * back to the Stage 1 mock media library (`apiClient.media.upload`)
+ * otherwise (`NEXT_PUBLIC_FORCE_MOCK_API=true`) — `uploadObject` is
+ * optional on MediaApi precisely so this can detect which one is
+ * available instead of assuming a mode.
  */
 export function MediaUploadButton({ kind, module, entityId, purpose, onUploaded, label }: MediaUploadButtonProps) {
   const inputRef = useRef<HTMLInputElement>(null);
