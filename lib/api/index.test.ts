@@ -40,18 +40,22 @@ describe("getApiClient adapter toggle", () => {
     expect(getApiClient()).toBe(mockApiAdapter);
   });
 
-  it("switches alphabetLetters, prayers, calendarDays, and media to the real HTTP resource by default, leaving other resources on mock", async () => {
+  it("switches alphabetLetters, prayers, calendarDays, categories, products, and media to the real HTTP resource by default, leaving other resources on mock", async () => {
     delete process.env[ENV_KEY];
     const { getApiClient } = await import("./index");
     const { mockApiAdapter } = await import("./mock-adapter");
     const { alphabetLettersHttpResource } = await import("./http/alphabet");
     const { prayersHttpResource } = await import("./http/prayers");
     const { calendarDaysHttpResource } = await import("./http/calendar-days");
+    const { categoriesHttpResource } = await import("./http/product-categories");
+    const { productsHttpResource } = await import("./http/products");
     const { mediaHttpResource } = await import("./http/media");
     const client = getApiClient();
     expect(client.alphabetLetters).toBe(alphabetLettersHttpResource);
     expect(client.prayers).toBe(prayersHttpResource);
     expect(client.calendarDays).toBe(calendarDaysHttpResource);
+    expect(client.categories).toBe(categoriesHttpResource);
+    expect(client.products).toBe(productsHttpResource);
     expect(client.media).toBe(mediaHttpResource);
     expect(client.icons).toBe(mockApiAdapter.icons);
     expect(client.churchInfo).toBe(mockApiAdapter.churchInfo);

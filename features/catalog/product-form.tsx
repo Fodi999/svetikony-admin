@@ -2,10 +2,11 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
-import { Eye, Plus, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Eye, Plus, Trash2, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { MediaUploadButton } from "@/components/forms/media-upload-button";
 import { NumberField } from "@/components/forms/number-field";
 import { SelectField } from "@/components/forms/select-field";
 import { SwitchField } from "@/components/forms/switch-field";
@@ -24,6 +25,18 @@ import type { Product } from "@/types/entities";
 
 function newVariantId(): string {
   return `var-${Date.now().toString(36)}-${Math.round(Math.random() * 1000)}`;
+}
+
+/** Best-effort orphan cleanup for a not-yet-saved upload. No-op in mock
+ * mode (nothing real to clean up) — same real-mode detection
+ * MediaUploadButton uses. */
+async function cleanupOrphanUpload(key: string) {
+  if (!apiClient.media.uploadObject) return;
+  try {
+    await apiClient.media.remove(key);
+  } catch {
+    // Best-effort; nothing to do if it fails.
+  }
 }
 
 const EMPTY_DEFAULTS: ProductFormValues = {
@@ -59,6 +72,17 @@ export function ProductForm({ mode, product, onSubmit, onDelete, submitting }: P
   const { setDirty } = useUnsavedChanges();
   const [tab, setTab] = useState("main");
   const [previewOpen, setPreviewOpen] = useState(false);
+  // Uploads made this session, not yet confirmed saved — distinct from the
+  // form's persisted `imageIds` so an in-progress edit can never delete an
+  // already-published image, only ever its own unsaved uploads.
+  const [pendingKeys, setPendingKeys] = useState<string[]>([]);
+  const pendingKeysRef = useRef<string[]>([]);
+  // Only freshly-uploaded-this-session images have a resolvable preview
+  // URL (from the upload response) — pre-existing imageIds on an edited
+  // product only ever had their bare R2 key persisted, so those show as a
+  // key chip instead of a thumbnail. Same trade-off Calendar Day's form
+  // made (Stage 2H) to avoid needing a public-site-URL constant here.
+  const [previewUrls, setPreviewUrls] = useState<Record<string, string>>({});
 
   const form = useForm<ProductFormValues>({
     resolver: zodResolver(productSchema),
@@ -71,6 +95,20 @@ export function ProductForm({ mode, product, onSubmit, onDelete, submitting }: P
   }, [form, setDirty]);
 
   useBeforeUnloadWarning(form.formState.isDirty);
+
+  useEffect(() => {
+    pendingKeysRef.current = pendingKeys;
+  }, [pendingKeys]);
+
+  // Cleans up uploads the user never saved (navigated away, closed the
+  // tab, etc.) — registered once so it fires on unmount, reading the
+  // latest keys via the ref above rather than a stale closure.
+  useEffect(() => {
+    return () => {
+      pendingKeysRef.current.forEach((key) => void cleanupOrphanUpload(key));
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const categoriesQuery = useQuery({ queryKey: ["categories", "all"], queryFn: () => apiClient.categories.list({ pageSize: 200 }) });
   const iconsQuery = useQuery({ queryKey: ["icons", "options"], queryFn: () => apiClient.icons.list({ pageSize: 200 }) });
@@ -86,7 +124,19 @@ export function ProductForm({ mode, product, onSubmit, onDelete, submitting }: P
       return;
     }
     try {
-      await onSubmit(form.getValues());
+      const values = form.getValues();
+      await onSubmit(values);
+
+      // The previously-persisted images (if any) not present in the final
+      // list are now superseded — clean them up only after the save
+      // actually succeeded, so a cancelled edit can never orphan-delete a
+      // still-published image.
+      if (product) {
+        const removed = product.imageIds.filter((id) => !values.imageIds.includes(id));
+        removed.forEach((key) => void cleanupOrphanUpload(key));
+      }
+      setPendingKeys([]); // now persisted — no longer orphan candidates
+
       setDirty(false);
     } catch (error) {
       applyApiFieldErrors(error, form.setError);
@@ -101,6 +151,7 @@ export function ProductForm({ mode, product, onSubmit, onDelete, submitting }: P
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="w-full overflow-x-auto">
             <TabsTrigger value="main">Основне</TabsTrigger>
+            <TabsTrigger value="media">Медіа</TabsTrigger>
             <TabsTrigger value="pricing">Ціна і склад</TabsTrigger>
             <TabsTrigger value="variants">Варіанти</TabsTrigger>
             <TabsTrigger value="seo">SEO</TabsTrigger>
@@ -113,6 +164,60 @@ export function ProductForm({ mode, product, onSubmit, onDelete, submitting }: P
             <TextField control={form.control} name="description" label="Опис" textarea rows={5} />
             <SelectField control={form.control} name="categoryId" label="Категорія" options={categoryOptions} />
             <SelectField control={form.control} name="linkedIconId" label="Пов'язана ікона" options={iconOptions} />
+          </TabsContent>
+
+          <TabsContent value="media" className="space-y-4">
+            <Controller
+              control={form.control}
+              name="imageIds"
+              render={({ field }) => (
+                <div className="space-y-3">
+                  <MediaUploadButton
+                    kind="image"
+                    module="products"
+                    entityId={product?.id ?? "draft"}
+                    purpose="gallery"
+                    label="Завантажити фото"
+                    onUploaded={({ id, url }) => {
+                      field.onChange([...(field.value ?? []), id]);
+                      setPreviewUrls((prev) => ({ ...prev, [id]: url }));
+                      setPendingKeys((prev) => [...prev, id]);
+                    }}
+                  />
+                  {(field.value ?? []).length ? (
+                    <p className="text-xs text-muted-foreground">Перше фото використовується як основне.</p>
+                  ) : null}
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                    {(field.value ?? []).map((key) => (
+                      <div key={key} className="space-y-1 rounded-md border p-2">
+                        {previewUrls[key] ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={previewUrls[key]} alt="" className="h-24 w-full rounded object-cover" />
+                        ) : (
+                          <p className="line-clamp-3 break-all text-xs text-muted-foreground">{key}</p>
+                        )}
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="w-full"
+                          onClick={() => {
+                            field.onChange((field.value ?? []).filter((item) => item !== key));
+                            if (pendingKeysRef.current.includes(key)) {
+                              void cleanupOrphanUpload(key);
+                              setPendingKeys((prev) => prev.filter((item) => item !== key));
+                            }
+                          }}
+                        >
+                          <X className="size-4" />
+                          Прибрати
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            />
           </TabsContent>
 
           <TabsContent value="pricing" className="space-y-4">

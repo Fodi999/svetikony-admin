@@ -3,6 +3,8 @@ import { alphabetLettersHttpResource } from "@/lib/api/http/alphabet";
 import { calendarDaysHttpResource } from "@/lib/api/http/calendar-days";
 import { mediaHttpResource } from "@/lib/api/http/media";
 import { prayersHttpResource } from "@/lib/api/http/prayers";
+import { categoriesHttpResource } from "@/lib/api/http/product-categories";
+import { productsHttpResource } from "@/lib/api/http/products";
 import { mockApiAdapter } from "@/lib/api/mock-adapter";
 
 /**
@@ -15,11 +17,13 @@ import { mockApiAdapter } from "@/lib/api/mock-adapter";
  * lib/api/http/alphabet.ts) rather than falling back to the mock store, so
  * a write attempt never silently "succeeds" without touching D1.
  *
- * `calendarDays` (Stage 2H) and `prayers` (Stage 2I) have full real CRUD —
- * list/get/create/update/remove all reach real D1 (and, via
- * `imageId`/`imageUrl`/`audioUrl`, real R2). Both fully replace
- * MockApiAdapter's resource; no sessionStorage fallback is reachable for
- * either module.
+ * `calendarDays` (Stage 2H), `prayers` (Stage 2I), and `categories`/
+ * `products` (Stage 2J) have full real CRUD — list/get/create/update/
+ * remove all reach real D1 (and, via their image fields, real R2). All
+ * fully replace MockApiAdapter's resource; no sessionStorage fallback is
+ * reachable for any of them. `products` intentionally leaves
+ * `linkedIconId`/`dimensions`/`materials`/`variants` UI-only — no matching
+ * real D1 column/table exists yet (see lib/api/http/products.ts).
  *
  * `media`: `uploadObject` (Stage 2D) and `remove` (Stage 2H, keyed by R2
  * object key, not a mock asset id) are real. `upload`/`list` — the Stage 1
@@ -36,6 +40,8 @@ export function createHttpApiAdapter(): ApiClient {
     alphabetLetters: alphabetLettersHttpResource,
     prayers: prayersHttpResource,
     calendarDays: calendarDaysHttpResource,
+    categories: categoriesHttpResource,
+    products: productsHttpResource,
     media: mediaHttpResource,
   };
 }

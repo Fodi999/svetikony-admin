@@ -1,15 +1,17 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Eye } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Eye, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { MediaUploadButton } from "@/components/forms/media-upload-button";
 import { NumberField } from "@/components/forms/number-field";
 import { SwitchField } from "@/components/forms/switch-field";
 import { TextField } from "@/components/forms/text-field";
 import { useUnsavedChanges } from "@/components/feedback/unsaved-changes-context";
 import { Button } from "@/components/ui/button";
+import { apiClient } from "@/lib/api";
 import { useBeforeUnloadWarning } from "@/lib/utils/use-before-unload";
 import { applyApiFieldErrors } from "@/lib/api/errors";
 import { messages } from "@/lib/i18n";
@@ -25,6 +27,18 @@ const EMPTY_DEFAULTS: ProductCategoryFormValues = {
   active: true,
 };
 
+/** Best-effort orphan cleanup for a not-yet-saved upload. No-op in mock
+ * mode (nothing real to clean up) — same real-mode detection
+ * MediaUploadButton uses. */
+async function cleanupOrphanUpload(key: string) {
+  if (!apiClient.media.uploadObject) return;
+  try {
+    await apiClient.media.remove(key);
+  } catch {
+    // Best-effort; nothing to do if it fails.
+  }
+}
+
 interface CategoryFormProps {
   mode: "create" | "edit";
   category?: ProductCategory;
@@ -36,6 +50,12 @@ interface CategoryFormProps {
 export function CategoryForm({ mode, category, onSubmit, onDelete, submitting }: CategoryFormProps) {
   const { setDirty } = useUnsavedChanges();
   const [previewOpen, setPreviewOpen] = useState(false);
+  // The most recent upload not yet confirmed saved — distinct from the
+  // form's persisted `imageId` so an in-progress edit can never delete an
+  // already-published image, only ever its own not-yet-saved replacement.
+  const [pendingUploadKey, setPendingUploadKey] = useState<string | undefined>(undefined);
+  const pendingUploadKeyRef = useRef<string | undefined>(undefined);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | undefined>(undefined);
 
   const form = useForm<ProductCategoryFormValues>({
     resolver: zodResolver(productCategorySchema),
@@ -49,6 +69,20 @@ export function CategoryForm({ mode, category, onSubmit, onDelete, submitting }:
 
   useBeforeUnloadWarning(form.formState.isDirty);
 
+  useEffect(() => {
+    pendingUploadKeyRef.current = pendingUploadKey;
+  }, [pendingUploadKey]);
+
+  // Cleans up an upload the user never saved (navigated away, closed the
+  // tab, etc.) — registered once so it fires on unmount, reading the
+  // latest key via the ref above rather than a stale closure.
+  useEffect(() => {
+    return () => {
+      if (pendingUploadKeyRef.current) void cleanupOrphanUpload(pendingUploadKeyRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   async function handleSave() {
     const valid = await form.trigger();
     if (!valid) {
@@ -57,6 +91,7 @@ export function CategoryForm({ mode, category, onSubmit, onDelete, submitting }:
     }
     try {
       await onSubmit(form.getValues());
+      setPendingUploadKey(undefined); // now persisted — no longer an orphan candidate
       setDirty(false);
     } catch (error) {
       applyApiFieldErrors(error, form.setError);
@@ -71,7 +106,46 @@ export function CategoryForm({ mode, category, onSubmit, onDelete, submitting }:
         <TextField control={form.control} name="name" label="Назва" />
         <TextField control={form.control} name="slug" label="Slug" description="Латиниця, цифри, дефіси" />
         <TextField control={form.control} name="description" label="Опис" textarea rows={3} />
-        <TextField control={form.control} name="imageId" label="ID зображення" description="Stage 1: ID з медіатеки" />
+        <div className="space-y-2">
+          <TextField control={form.control} name="imageId" label="ID зображення" description="Посилання на медіатеку (заповнюється автоматично після завантаження)" />
+          <div className="flex gap-2">
+            <MediaUploadButton
+              kind="image"
+              module="categories"
+              entityId={category?.id ?? "draft"}
+              purpose="main"
+              label="Завантажити фото"
+              onUploaded={({ id, url }) => {
+                const previous = pendingUploadKey;
+                form.setValue("imageId", id, { shouldDirty: true });
+                setImagePreviewUrl(url);
+                setPendingUploadKey(id);
+                if (previous) void cleanupOrphanUpload(previous);
+              }}
+            />
+            {imagePreviewUrl ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  const previous = pendingUploadKey;
+                  form.setValue("imageId", undefined, { shouldDirty: true });
+                  setImagePreviewUrl(undefined);
+                  setPendingUploadKey(undefined);
+                  if (previous) void cleanupOrphanUpload(previous);
+                }}
+              >
+                <X className="size-4" />
+                Прибрати фото
+              </Button>
+            ) : null}
+          </div>
+          {imagePreviewUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={imagePreviewUrl} alt="Попередній перегляд" className="h-40 w-auto rounded-md border object-cover" />
+          ) : null}
+        </div>
         <NumberField control={form.control} name="order" label="Порядок сортування" min={0} />
         <SwitchField control={form.control} name="active" label="Активна" description="Показувати категорію на сайті" />
 
