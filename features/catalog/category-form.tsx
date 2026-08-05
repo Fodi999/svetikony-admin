@@ -15,6 +15,7 @@ import { apiClient } from "@/lib/api";
 import { useBeforeUnloadWarning } from "@/lib/utils/use-before-unload";
 import { applyApiFieldErrors } from "@/lib/api/errors";
 import { messages } from "@/lib/i18n";
+import { resolveMediaPreviewUrl } from "@/lib/media/resolve-preview-url";
 import { productCategorySchema, type ProductCategoryFormValues } from "@/lib/validation/category.schema";
 import type { ProductCategory } from "@/types/entities";
 
@@ -55,7 +56,6 @@ export function CategoryForm({ mode, category, onSubmit, onDelete, submitting }:
   // already-published image, only ever its own not-yet-saved replacement.
   const [pendingUploadKey, setPendingUploadKey] = useState<string | undefined>(undefined);
   const pendingUploadKeyRef = useRef<string | undefined>(undefined);
-  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | undefined>(undefined);
 
   const form = useForm<ProductCategoryFormValues>({
     resolver: zodResolver(productCategorySchema),
@@ -99,6 +99,7 @@ export function CategoryForm({ mode, category, onSubmit, onDelete, submitting }:
   }
 
   const values = form.watch();
+  const imagePreviewUrl = resolveMediaPreviewUrl(values.imageId);
 
   return (
     <div className="flex h-full flex-col">
@@ -115,15 +116,14 @@ export function CategoryForm({ mode, category, onSubmit, onDelete, submitting }:
               entityId={category?.id ?? "draft"}
               purpose="main"
               label="Завантажити фото"
-              onUploaded={({ id, url }) => {
+              onUploaded={({ id }) => {
                 const previous = pendingUploadKey;
                 form.setValue("imageId", id, { shouldDirty: true });
-                setImagePreviewUrl(url);
                 setPendingUploadKey(id);
                 if (previous) void cleanupOrphanUpload(previous);
               }}
             />
-            {imagePreviewUrl ? (
+            {values.imageId ? (
               <Button
                 type="button"
                 variant="ghost"
@@ -131,7 +131,6 @@ export function CategoryForm({ mode, category, onSubmit, onDelete, submitting }:
                 onClick={() => {
                   const previous = pendingUploadKey;
                   form.setValue("imageId", undefined, { shouldDirty: true });
-                  setImagePreviewUrl(undefined);
                   setPendingUploadKey(undefined);
                   if (previous) void cleanupOrphanUpload(previous);
                 }}

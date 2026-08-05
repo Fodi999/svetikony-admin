@@ -17,6 +17,7 @@ import { apiClient } from "@/lib/api";
 import { LANGUAGE_LABELS } from "@/lib/constants/labels";
 import { messages } from "@/lib/i18n";
 import { useBeforeUnloadWarning } from "@/lib/utils/use-before-unload";
+import { resolveMediaPreviewUrl } from "@/lib/media/resolve-preview-url";
 import { calendarDaySchema, type CalendarDayFormValues } from "@/lib/validation/calendar.schema";
 import type { CalendarDay } from "@/types/entities";
 
@@ -70,7 +71,6 @@ export function CalendarDayForm({ mode, day, onSubmit, onDelete, submitting }: C
   const { setDirty } = useUnsavedChanges();
   const [tab, setTab] = useState("basic");
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | undefined>(undefined);
   // The most recent upload not yet confirmed saved — distinct from the
   // form's persisted `imageId` so an in-progress edit can never delete an
   // already-published image, only ever its own not-yet-saved replacement.
@@ -127,6 +127,7 @@ export function CalendarDayForm({ mode, day, onSubmit, onDelete, submitting }: C
   }
 
   const values = form.watch();
+  const imagePreviewUrl = resolveMediaPreviewUrl(values.imageId);
 
   return (
     <div className="flex h-full flex-col">
@@ -181,12 +182,11 @@ export function CalendarDayForm({ mode, day, onSubmit, onDelete, submitting }: C
                 entityId={day?.id ?? "draft"}
                 purpose="main"
                 label="Завантажити фото"
-                onUploaded={({ id, url }) => {
+                onUploaded={({ id }) => {
                   // Replacing a not-yet-saved upload with another one —
                   // the previous pending key is now orphaned, clean it up.
                   const previous = pendingUploadKey;
                   form.setValue("imageId", id, { shouldDirty: true });
-                  setImagePreviewUrl(url);
                   setPendingUploadKey(id);
                   if (previous) void cleanupOrphanUpload(previous);
                 }}
@@ -203,7 +203,6 @@ export function CalendarDayForm({ mode, day, onSubmit, onDelete, submitting }: C
                   onClick={() => {
                     const previous = pendingUploadKey;
                     form.setValue("imageId", undefined, { shouldDirty: true });
-                    setImagePreviewUrl(undefined);
                     setPendingUploadKey(undefined);
                     if (previous) void cleanupOrphanUpload(previous);
                   }}

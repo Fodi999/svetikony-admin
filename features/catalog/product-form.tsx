@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { apiClient } from "@/lib/api";
 import { messages } from "@/lib/i18n";
+import { resolveMediaPreviewUrl } from "@/lib/media/resolve-preview-url";
 import { useBeforeUnloadWarning } from "@/lib/utils/use-before-unload";
 import { cn } from "@/lib/utils";
 import { productSchema, type ProductFormValues } from "@/lib/validation/product.schema";
@@ -77,12 +78,6 @@ export function ProductForm({ mode, product, onSubmit, onDelete, submitting }: P
   // already-published image, only ever its own unsaved uploads.
   const [pendingKeys, setPendingKeys] = useState<string[]>([]);
   const pendingKeysRef = useRef<string[]>([]);
-  // Only freshly-uploaded-this-session images have a resolvable preview
-  // URL (from the upload response) — pre-existing imageIds on an edited
-  // product only ever had their bare R2 key persisted, so those show as a
-  // key chip instead of a thumbnail. Same trade-off Calendar Day's form
-  // made (Stage 2H) to avoid needing a public-site-URL constant here.
-  const [previewUrls, setPreviewUrls] = useState<Record<string, string>>({});
 
   const form = useForm<ProductFormValues>({
     resolver: zodResolver(productSchema),
@@ -178,21 +173,22 @@ export function ProductForm({ mode, product, onSubmit, onDelete, submitting }: P
                     entityId={product?.id ?? "draft"}
                     purpose="gallery"
                     label="Завантажити фото"
-                    onUploaded={({ id, url }) => {
+                    onUploaded={({ id }) => {
                       field.onChange([...(field.value ?? []), id]);
-                      setPreviewUrls((prev) => ({ ...prev, [id]: url }));
                       setPendingKeys((prev) => [...prev, id]);
                     }}
                   />
                   {(field.value ?? []).length ? (
-                    <p className="text-xs text-muted-foreground">Перше фото використовується як основне.</p>
+                    <p className="text-xs text-muted-foreground">Перше фото використовується як основне. Можна додати ще — кожне завантаження додається до списку.</p>
                   ) : null}
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                    {(field.value ?? []).map((key) => (
+                    {(field.value ?? []).map((key) => {
+                      const previewUrl = resolveMediaPreviewUrl(key);
+                      return (
                       <div key={key} className="space-y-1 rounded-md border p-2">
-                        {previewUrls[key] ? (
+                        {previewUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={previewUrls[key]} alt="" className="h-24 w-full rounded object-cover" />
+                          <img src={previewUrl} alt="" className="h-24 w-full rounded object-cover" />
                         ) : (
                           <p className="line-clamp-3 break-all text-xs text-muted-foreground">{key}</p>
                         )}
@@ -213,7 +209,8 @@ export function ProductForm({ mode, product, onSubmit, onDelete, submitting }: P
                           Прибрати
                         </Button>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
