@@ -1,6 +1,5 @@
 "use client";
 
-import { useTheme } from "next-themes";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/feedback/confirm-dialog";
@@ -13,6 +12,7 @@ import { useAuth } from "@/lib/auth/auth-context";
 import { ROLE_LABELS } from "@/lib/auth/permissions";
 import { forceExpireMockSession } from "@/lib/auth/session";
 import { mockAccounts } from "@/lib/mock-data/users";
+import { useTheme } from "@/lib/theme/theme-provider";
 
 function initialsOf(name: string): string {
   return name.split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase();
