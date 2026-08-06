@@ -1,6 +1,15 @@
 const HAS_SCHEME = /^[a-z][a-z0-9+.-]*:\/\//i;
 
-const SVET_IKONY_SITE_URL = (process.env.NEXT_PUBLIC_SVET_IKONY_SITE_URL || "").replace(/\/+$/, "");
+/**
+ * Falls back to the real production site when the build-time env var isn't
+ * inlined. Cloudflare's Workers Builds pipeline for this project has no way
+ * to set build-time NEXT_PUBLIC_* vars (same root cause as lib/api/index.ts's
+ * FORCE_MOCK_API flip) — a runtime `wrangler secret put` never reaches the
+ * compiled client bundle, so without this fallback every preview silently
+ * fell back to the raw-key text in production. Overridden locally via
+ * .env.local (http://localhost:3001).
+ */
+const SVET_IKONY_SITE_URL = (process.env.NEXT_PUBLIC_SVET_IKONY_SITE_URL || "https://svetikony.com").replace(/\/+$/, "");
 
 /**
  * Turns an R2 object key (e.g. "media/products/x/gallery/uuid.png", as

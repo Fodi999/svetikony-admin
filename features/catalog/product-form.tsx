@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
-import { Eye, Plus, Trash2, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Eye, ImageIcon, Plus, Star, Trash2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -165,55 +165,140 @@ export function ProductForm({ mode, product, onSubmit, onDelete, submitting }: P
             <Controller
               control={form.control}
               name="imageIds"
-              render={({ field }) => (
-                <div className="space-y-3">
-                  <MediaUploadButton
-                    kind="image"
-                    module="products"
-                    entityId={product?.id ?? "draft"}
-                    purpose="gallery"
-                    label="Завантажити фото"
-                    onUploaded={({ id }) => {
-                      field.onChange([...(field.value ?? []), id]);
-                      setPendingKeys((prev) => [...prev, id]);
-                    }}
-                  />
-                  {(field.value ?? []).length ? (
-                    <p className="text-xs text-muted-foreground">Перше фото використовується як основне. Можна додати ще — кожне завантаження додається до списку.</p>
-                  ) : null}
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                    {(field.value ?? []).map((key) => {
-                      const previewUrl = resolveMediaPreviewUrl(key);
-                      return (
-                      <div key={key} className="space-y-1 rounded-md border p-2">
-                        {previewUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={previewUrl} alt="" className="h-24 w-full rounded object-cover" />
-                        ) : (
-                          <p className="line-clamp-3 break-all text-xs text-muted-foreground">{key}</p>
-                        )}
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="w-full"
-                          onClick={() => {
-                            field.onChange((field.value ?? []).filter((item) => item !== key));
-                            if (pendingKeysRef.current.includes(key)) {
-                              void cleanupOrphanUpload(key);
-                              setPendingKeys((prev) => prev.filter((item) => item !== key));
-                            }
-                          }}
-                        >
-                          <X className="size-4" />
-                          Прибрати
-                        </Button>
-                      </div>
-                      );
-                    })}
+              render={({ field }) => {
+                const keys = field.value ?? [];
+
+                function removeAt(index: number) {
+                  const key = keys[index];
+                  field.onChange(keys.filter((_, i) => i !== index));
+                  if (pendingKeysRef.current.includes(key)) {
+                    void cleanupOrphanUpload(key);
+                    setPendingKeys((prev) => prev.filter((item) => item !== key));
+                  }
+                }
+
+                function move(index: number, delta: number) {
+                  const target = index + delta;
+                  if (target < 0 || target >= keys.length) return;
+                  const next = [...keys];
+                  [next[index], next[target]] = [next[target], next[index]];
+                  field.onChange(next);
+                }
+
+                function makePrimary(index: number) {
+                  if (index === 0) return;
+                  const next = [...keys];
+                  const [item] = next.splice(index, 1);
+                  next.unshift(item);
+                  field.onChange(next);
+                }
+
+                return (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <MediaUploadButton
+                        kind="image"
+                        module="products"
+                        entityId={product?.id ?? "draft"}
+                        purpose="gallery"
+                        label="Завантажити фото"
+                        onUploaded={({ id }) => {
+                          field.onChange([...keys, id]);
+                          setPendingKeys((prev) => [...prev, id]);
+                        }}
+                      />
+                      <span className="text-xs text-muted-foreground">{keys.length ? `${keys.length} фото` : "Немає фото"}</span>
+                    </div>
+                    {keys.length ? (
+                      <p className="text-xs text-muted-foreground">
+                        Перше фото — основне, воно показується в каталозі. Натисніть <Star className="inline size-3" /> на іншому фото, щоб зробити його основним, або перевпорядкуйте стрілками.
+                      </p>
+                    ) : null}
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+                      {keys.map((key, index) => {
+                        const previewUrl = resolveMediaPreviewUrl(key);
+                        const isPrimary = index === 0;
+                        return (
+                          <div
+                            key={key}
+                            className={cn(
+                              "relative overflow-hidden rounded-lg border bg-muted/30",
+                              isPrimary && "border-primary ring-1 ring-primary",
+                            )}
+                          >
+                            <div className="aspect-square w-full">
+                              {previewUrl ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={previewUrl} alt="" className="h-full w-full object-cover" />
+                              ) : (
+                                <div className="flex h-full w-full flex-col items-center justify-center gap-1 p-2 text-center">
+                                  <ImageIcon className="size-6 text-muted-foreground" />
+                                  <p className="line-clamp-2 break-all text-[10px] text-muted-foreground">{key}</p>
+                                </div>
+                              )}
+                            </div>
+
+                            {isPrimary ? (
+                              <span className="absolute left-1 top-1 flex items-center gap-0.5 rounded bg-primary px-1.5 py-0.5 text-[10px] font-medium text-primary-foreground">
+                                <Star className="size-2.5 fill-current" />
+                                Основне
+                              </span>
+                            ) : null}
+
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="icon-xs"
+                              className="absolute right-1 top-1"
+                              aria-label="Прибрати фото"
+                              onClick={() => removeAt(index)}
+                            >
+                              <X className="size-3" />
+                            </Button>
+
+                            <div className="flex items-center justify-between gap-1 border-t bg-background/80 p-1">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon-xs"
+                                disabled={index === 0}
+                                aria-label="Перемістити раніше"
+                                onClick={() => move(index, -1)}
+                              >
+                                <ArrowLeft className="size-3" />
+                              </Button>
+                              {isPrimary ? (
+                                <span className="text-[10px] text-muted-foreground">Основне фото</span>
+                              ) : (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="xs"
+                                  className="gap-1"
+                                  onClick={() => makePrimary(index)}
+                                >
+                                  <Star className="size-3" />
+                                  Зробити основним
+                                </Button>
+                              )}
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon-xs"
+                                disabled={index === keys.length - 1}
+                                aria-label="Перемістити пізніше"
+                                onClick={() => move(index, 1)}
+                              >
+                                <ArrowRight className="size-3" />
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              }}
             />
           </TabsContent>
 
