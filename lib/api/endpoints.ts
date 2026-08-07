@@ -24,6 +24,7 @@ export const UPSTREAM_ENDPOINTS = {
   calendarDays: "/api/admin/church-content/calendar-days", // ✅ verified (Stage 2H, full CRUD)
   categories: "/api/admin/church-content/product-categories", // ✅ verified (Stage 2J, full CRUD)
   products: "/api/admin/church-content/products", // ✅ verified (Stage 2J, full CRUD)
+  icons: "/api/admin/church-content/icons", // ✅ verified (Stage 2K, full CRUD)
   media: {
     upload: "/api/admin/media/upload", // ✅ verified (Stage 2D)
     delete: "/api/admin/media", // ✅ verified (Stage 2D)
@@ -35,7 +36,6 @@ export const UPSTREAM_ENDPOINTS = {
     logout: "/api/auth/logout",
     session: "/api/auth/session",
   },
-  icons: "/api/icons",
   saints: "/api/saints",
   gospelReadings: "/api/gospel",
   articles: "/api/articles",
@@ -51,6 +51,7 @@ export const BFF_ENDPOINTS = {
   calendarDays: "/api/bff/calendar-days", // ✅ implemented (Stage 2H, full CRUD)
   categories: "/api/bff/product-categories", // ✅ implemented (Stage 2J, full CRUD)
   products: "/api/bff/products", // ✅ implemented (Stage 2J, full CRUD)
+  icons: "/api/bff/icons", // ✅ implemented (Stage 2K, full CRUD)
   mediaUpload: "/api/bff/media/upload", // ✅ implemented (Stage 2D)
   media: "/api/bff/media", // ✅ implemented (Stage 2H, DELETE only)
 } as const;
