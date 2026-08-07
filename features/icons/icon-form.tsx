@@ -2,10 +2,10 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
-import { Eye, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Eye, ImageIcon, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { MediaUploadButton } from "@/components/forms/media-upload-button";
 import { RelationPickerField } from "@/components/forms/relation-picker-field";
@@ -19,6 +19,7 @@ import { apiClient } from "@/lib/api";
 import { useBeforeUnloadWarning } from "@/lib/utils/use-before-unload";
 import { messages } from "@/lib/i18n";
 import { resolveMediaPreviewUrl } from "@/lib/media/resolve-preview-url";
+import { cn } from "@/lib/utils";
 import { iconSchema, type IconFormValues } from "@/lib/validation/icon.schema";
 import type { Icon, Language } from "@/types/entities";
 
@@ -72,6 +73,11 @@ export function IconForm({ mode, icon, groupId, initialLanguage, initialSlug, on
   // an already-published image, only ever its own not-yet-saved replacement.
   const [pendingUploadKey, setPendingUploadKey] = useState<string | undefined>(undefined);
   const pendingUploadKeyRef = useRef<string | undefined>(undefined);
+  // Gallery uploads made this session, not yet confirmed saved — same
+  // orphan-cleanup-on-remove/unmount idea as pendingUploadKey above, just
+  // for the multi-photo `galleryImageIds` field.
+  const [pendingGalleryKeys, setPendingGalleryKeys] = useState<string[]>([]);
+  const pendingGalleryKeysRef = useRef<string[]>([]);
 
   const form = useForm<IconFormValues>({
     resolver: zodResolver(iconSchema),
@@ -91,12 +97,17 @@ export function IconForm({ mode, icon, groupId, initialLanguage, initialSlug, on
     pendingUploadKeyRef.current = pendingUploadKey;
   }, [pendingUploadKey]);
 
-  // Cleans up an upload the user never saved (navigated away, closed the
+  useEffect(() => {
+    pendingGalleryKeysRef.current = pendingGalleryKeys;
+  }, [pendingGalleryKeys]);
+
+  // Cleans up uploads the user never saved (navigated away, closed the
   // tab, etc.) — registered once so it fires on unmount, reading the
-  // latest key via the ref above rather than a stale closure.
+  // latest keys via the refs above rather than a stale closure.
   useEffect(() => {
     return () => {
       if (pendingUploadKeyRef.current) void cleanupOrphanUpload(pendingUploadKeyRef.current);
+      pendingGalleryKeysRef.current.forEach((key) => void cleanupOrphanUpload(key));
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -153,6 +164,7 @@ export function IconForm({ mode, icon, groupId, initialLanguage, initialSlug, on
     }
     await onSubmit(form.getValues());
     setPendingUploadKey(undefined); // now persisted — no longer an orphan candidate
+    setPendingGalleryKeys([]);
     setDirty(false);
   }
 
@@ -172,6 +184,7 @@ export function IconForm({ mode, icon, groupId, initialLanguage, initialSlug, on
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="w-full overflow-x-auto">
             <TabsTrigger value="main">Основне</TabsTrigger>
+            <TabsTrigger value="media">Медіа</TabsTrigger>
             <TabsTrigger value="relations">Зв&apos;язки</TabsTrigger>
             <TabsTrigger value="publication">Публікація</TabsTrigger>
           </TabsList>
@@ -186,7 +199,12 @@ export function IconForm({ mode, icon, groupId, initialLanguage, initialSlug, on
               <TextField control={form.control} name="materials" label="Матеріали" />
               <TextField control={form.control} name="dimensions" label="Розміри" />
             </div>
+          </TabsContent>
+
+          <TabsContent value="media" className="space-y-6">
             <div className="space-y-2">
+              <p className="text-sm font-medium">Головне фото</p>
+              <p className="text-xs text-muted-foreground">Використовується в каталозі ікон і на картці.</p>
               <TextField control={form.control} name="mainImageId" label="ID головного зображення" description="Посилання на медіатеку (заповнюється автоматично після завантаження)" />
               <div className="flex gap-2">
                 <MediaUploadButton
@@ -223,6 +241,108 @@ export function IconForm({ mode, icon, groupId, initialLanguage, initialSlug, on
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={imagePreviewUrl} alt="Попередній перегляд" className="h-40 w-auto rounded-md border object-cover" />
               ) : null}
+            </div>
+
+            <div className="space-y-2 border-t pt-4">
+              <p className="text-sm font-medium">Додаткові фото</p>
+              <p className="text-xs text-muted-foreground">Галерея — показується окремо від головного фото. Можна додавати кілька та змінювати порядок.</p>
+              <Controller
+                control={form.control}
+                name="galleryImageIds"
+                render={({ field }) => {
+                  const keys = field.value ?? [];
+
+                  function removeAt(index: number) {
+                    const key = keys[index];
+                    field.onChange(keys.filter((_, i) => i !== index));
+                    if (pendingGalleryKeysRef.current.includes(key)) {
+                      void cleanupOrphanUpload(key);
+                      setPendingGalleryKeys((prev) => prev.filter((item) => item !== key));
+                    }
+                  }
+
+                  function move(index: number, delta: number) {
+                    const target = index + delta;
+                    if (target < 0 || target >= keys.length) return;
+                    const next = [...keys];
+                    [next[index], next[target]] = [next[target], next[index]];
+                    field.onChange(next);
+                  }
+
+                  return (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <MediaUploadButton
+                          kind="image"
+                          module="icons"
+                          entityId={icon?.id ?? "draft"}
+                          purpose="main"
+                          label="Додати фото"
+                          onUploaded={({ id }) => {
+                            field.onChange([...keys, id]);
+                            setPendingGalleryKeys((prev) => [...prev, id]);
+                          }}
+                        />
+                        <span className="text-xs text-muted-foreground">{keys.length ? `${keys.length} фото` : "Немає фото"}</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+                        {keys.map((key, index) => {
+                          const previewUrl = resolveMediaPreviewUrl(key);
+                          return (
+                            <div key={key} className={cn("relative overflow-hidden rounded-lg border bg-muted/30")}>
+                              <div className="aspect-square w-full">
+                                {previewUrl ? (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img src={previewUrl} alt="" className="h-full w-full object-cover" />
+                                ) : (
+                                  <div className="flex h-full w-full flex-col items-center justify-center gap-1 p-2 text-center">
+                                    <ImageIcon className="size-6 text-muted-foreground" />
+                                    <p className="line-clamp-2 break-all text-[10px] text-muted-foreground">{key}</p>
+                                  </div>
+                                )}
+                              </div>
+
+                              <Button
+                                type="button"
+                                variant="destructive"
+                                size="icon-xs"
+                                className="absolute right-1 top-1"
+                                aria-label="Прибрати фото"
+                                onClick={() => removeAt(index)}
+                              >
+                                <X className="size-3" />
+                              </Button>
+
+                              <div className="flex items-center justify-center gap-1 border-t bg-background/80 p-1">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon-xs"
+                                  disabled={index === 0}
+                                  aria-label="Перемістити раніше"
+                                  onClick={() => move(index, -1)}
+                                >
+                                  <ArrowLeft className="size-3" />
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon-xs"
+                                  disabled={index === keys.length - 1}
+                                  aria-label="Перемістити пізніше"
+                                  onClick={() => move(index, 1)}
+                                >
+                                  <ArrowRight className="size-3" />
+                                </Button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                }}
+              />
             </div>
           </TabsContent>
 

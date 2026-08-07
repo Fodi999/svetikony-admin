@@ -17,6 +17,7 @@ export interface WorkerIconDto {
   title: string;
   slug: string;
   imageUrl: string;
+  galleryUrls: string[];
   saintName: string;
   feastName: string;
   description: string;
@@ -51,6 +52,7 @@ export interface BffIconDto {
   title: string;
   slug: string;
   imageUrl: string;
+  galleryUrls: string[];
   description: string;
   language: string;
   translationGroupId: string;
@@ -65,6 +67,7 @@ export function toBffIconDto(worker: WorkerIconDto): BffIconDto {
     title: worker.title,
     slug: worker.slug,
     imageUrl: worker.imageUrl,
+    galleryUrls: worker.galleryUrls,
     description: worker.description,
     language: worker.language,
     translationGroupId: worker.translationGroupId,
@@ -84,6 +87,7 @@ export interface WorkerIconWritePayload {
   title?: string;
   slug?: string;
   imageUrl?: string;
+  galleryUrls?: string[];
   description?: string;
   language?: string;
   status?: string;

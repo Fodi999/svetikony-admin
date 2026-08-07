@@ -16,16 +16,18 @@ function safeEnum<T extends string>(schema: z.ZodType<T>, value: string, fallbac
 }
 
 /**
- * BFF DTO -> admin entity mapping. `galleryImageIds`/`relatedPrayerIds`/
- * `relatedArticleIds`/`relatedCalendarDayIds` are deliberately always []:
- * `church_icons` has no gallery column (a single `image_url` only), and
- * the related-content relation is inverted — `church_prayers`,
- * `church_articles`, `church_saints`, and `church_gospel_readings` each
- * carry their own `icon_id` FK pointing at this row, not the other way
- * around — same deferral as Calendar Day's related* fields in Stage 2H.
- * `history`/`saintImageDescription`/`materials`/`dimensions` have no
- * matching Worker column either and stay mock-only/UI-only, matching
- * Product's `dimensions`/`materials` precedent in Stage 2J.
+ * BFF DTO -> admin entity mapping. `galleryImageIds` maps to the Worker's
+ * real `gallery_urls` column (added by migration 0005, alongside the
+ * pre-existing single `image_url`) — a proper photo gallery, same shape as
+ * Product's. `relatedPrayerIds`/`relatedArticleIds`/`relatedCalendarDayIds`
+ * are deliberately always []: the related-content relation is inverted —
+ * `church_prayers`, `church_articles`, `church_saints`, and
+ * `church_gospel_readings` each carry their own `icon_id` FK pointing at
+ * this row, not the other way around — same deferral as Calendar Day's
+ * related* fields in Stage 2H. `history`/`saintImageDescription`/
+ * `materials`/`dimensions` have no matching Worker column and stay
+ * mock-only/UI-only, matching Product's `dimensions`/`materials`
+ * precedent in Stage 2J.
  */
 function toEntity(dto: BffIconDto): Icon {
   return {
@@ -40,7 +42,7 @@ function toEntity(dto: BffIconDto): Icon {
     materials: undefined,
     dimensions: undefined,
     mainImageId: dto.imageUrl || undefined,
-    galleryImageIds: [],
+    galleryImageIds: dto.galleryUrls,
     relatedPrayerIds: [],
     relatedArticleIds: [],
     relatedCalendarDayIds: [],
@@ -60,6 +62,7 @@ function toPayload(values: IconFormValues): WorkerIconWritePayload {
     language: values.language,
     description: values.description,
     imageUrl: values.mainImageId ?? "",
+    galleryUrls: values.galleryImageIds,
     status: values.status,
   };
 }

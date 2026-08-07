@@ -25,10 +25,10 @@ import { mockApiAdapter } from "@/lib/api/mock-adapter";
  * fallback is reachable for any of them. `products` intentionally leaves
  * `linkedIconId`/`dimensions`/`materials`/`variants` UI-only — no matching
  * real D1 column/table exists yet (see lib/api/http/products.ts). `icons`
- * intentionally leaves `galleryImageIds`/`relatedPrayerIds`/
- * `relatedArticleIds`/`relatedCalendarDayIds`/`history`/
- * `saintImageDescription`/`materials`/`dimensions` UI-only for the same
- * reason (see lib/api/http/icons.ts).
+ * intentionally leaves `relatedPrayerIds`/`relatedArticleIds`/
+ * `relatedCalendarDayIds`/`history`/`saintImageDescription`/`materials`/
+ * `dimensions` UI-only for the same reason (`galleryImageIds` IS real —
+ * migration 0005 added a proper gallery column) (see lib/api/http/icons.ts).
  *
  * `media`: `uploadObject` (Stage 2D) and `remove` (Stage 2H, keyed by R2
  * object key, not a mock asset id) are real. `upload`/`list` — the Stage 1
