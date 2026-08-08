@@ -158,7 +158,7 @@ export function SaintListView() {
                       </GuardedLink>
                     </TableCell>
                     <TableCell>{LANGUAGE_LABELS[saint.language]}</TableCell>
-                    <TableCell>{saint.feastDay ?? "—"}</TableCell>
+                    <TableCell>{[saint.feastDayNewStyle, saint.feastDayOldStyle].filter(Boolean).join(" / ") || "—"}</TableCell>
                     <TableCell>
                       <StatusBadge status={saint.status} />
                     </TableCell>

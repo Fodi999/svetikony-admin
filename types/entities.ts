@@ -161,7 +161,8 @@ export interface Saint extends Identifiable, Timestamps, Translatable {
   slug: string;
   shortDescription: string;
   biography: string;
-  feastDay?: string; // "MM-DD"
+  feastDayOldStyle?: string; // "MM-DD"
+  feastDayNewStyle?: string; // "MM-DD"
   imageId?: string;
   status: ContentStatus;
   relatedIconIds: string[];

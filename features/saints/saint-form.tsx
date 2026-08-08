@@ -39,7 +39,8 @@ const EMPTY_DEFAULTS: SaintFormValues = {
   language: "uk",
   shortDescription: "",
   biography: "",
-  feastDay: "",
+  feastDayOldStyle: "",
+  feastDayNewStyle: "",
   imageId: undefined,
   status: "draft",
   relatedIconIds: [],
@@ -124,14 +125,15 @@ export function SaintForm({ mode, saint, onSubmit, onDelete, submitting }: Saint
           <TabsContent value="main" className="space-y-4">
             <TextField control={form.control} name="name" label="Ім'я" />
             <TextField control={form.control} name="slug" label="Slug" description="Латиниця, цифри, дефіси" />
+            <SelectField
+              control={form.control}
+              name="language"
+              label="Мова"
+              options={Object.entries(LANGUAGE_LABELS).map(([value, label]) => ({ value, label }))}
+            />
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <SelectField
-                control={form.control}
-                name="language"
-                label="Мова"
-                options={Object.entries(LANGUAGE_LABELS).map(([value, label]) => ({ value, label }))}
-              />
-              <TextField control={form.control} name="feastDay" label="День пам'яті (ММ-ДД)" placeholder="12-19" />
+              <TextField control={form.control} name="feastDayNewStyle" label="День пам'яті (новий стиль, ММ-ДД)" placeholder="12-04" />
+              <TextField control={form.control} name="feastDayOldStyle" label="День пам'яті (старий стиль, ММ-ДД)" placeholder="11-21" />
             </div>
             <TextField control={form.control} name="shortDescription" label="Короткий опис" textarea rows={3} />
             <TextField control={form.control} name="biography" label="Житіє" textarea rows={8} />

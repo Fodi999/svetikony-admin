@@ -5,7 +5,7 @@ const now = new Date().toISOString();
 interface SaintSeed {
   groupId: string;
   slug: string;
-  feastDay?: string;
+  feastDayNewStyle?: string;
   imageId: string;
   status: Saint["status"];
   names: Record<Language, string>;
@@ -17,7 +17,7 @@ const seeds: SaintSeed[] = [
   {
     groupId: "saint-mykolai",
     slug: "svyatytel-mykolai-chudotvorets",
-    feastDay: "12-19",
+    feastDayNewStyle: "12-19",
     imageId: "media-saint-mykolai",
     status: "published",
     names: {
@@ -39,7 +39,7 @@ const seeds: SaintSeed[] = [
   {
     groupId: "saint-olha",
     slug: "svyata-rivnoapostolna-knyahynya-olha",
-    feastDay: "07-24",
+    feastDayNewStyle: "07-24",
     imageId: "media-saint-olha",
     status: "published",
     names: {
@@ -61,7 +61,7 @@ const seeds: SaintSeed[] = [
   {
     groupId: "saint-volodymyr",
     slug: "svyatyi-rivnoapostolnyi-knyaz-volodymyr",
-    feastDay: "07-28",
+    feastDayNewStyle: "07-28",
     imageId: "media-saint-mykolai",
     status: "published",
     names: {
@@ -83,7 +83,7 @@ const seeds: SaintSeed[] = [
   {
     groupId: "saint-varvara",
     slug: "svyata-velykomuchenytsya-varvara",
-    feastDay: "12-17",
+    feastDayNewStyle: "12-17",
     imageId: "media-saint-olha",
     status: "draft",
     names: {
@@ -105,7 +105,7 @@ const seeds: SaintSeed[] = [
   {
     groupId: "saint-panteleimon",
     slug: "svyatyi-velykomuchenyk-panteleymon",
-    feastDay: "08-09",
+    feastDayNewStyle: "08-09",
     imageId: "media-saint-mykolai",
     status: "published",
     names: {
@@ -135,7 +135,7 @@ function buildSaint(seed: SaintSeed, language: Language): Saint {
     slug: seed.slug,
     shortDescription: seed.shortDescriptions[language],
     biography: seed.biographies[language],
-    feastDay: seed.feastDay,
+    feastDayNewStyle: seed.feastDayNewStyle,
     imageId: seed.imageId,
     status: seed.status,
     relatedIconIds: [],

@@ -19,7 +19,8 @@ export interface WorkerSaintDto {
   name: string;
   shortDescription: string;
   biography: string;
-  feastDay: string;
+  feastDayOldStyle: string;
+  feastDayNewStyle: string;
   imageUrl: string;
   language: string;
   translationGroupId: string;
@@ -43,7 +44,8 @@ export interface BffSaintDto {
   name: string;
   shortDescription: string;
   biography: string;
-  feastDay: string;
+  feastDayOldStyle: string;
+  feastDayNewStyle: string;
   imageUrl: string;
   language: string;
   translationGroupId: string;
@@ -59,7 +61,8 @@ export function toBffSaintDto(worker: WorkerSaintDto): BffSaintDto {
     name: worker.name,
     shortDescription: worker.shortDescription,
     biography: worker.biography,
-    feastDay: worker.feastDay,
+    feastDayOldStyle: worker.feastDayOldStyle,
+    feastDayNewStyle: worker.feastDayNewStyle,
     imageUrl: worker.imageUrl,
     language: worker.language,
     translationGroupId: worker.translationGroupId,
@@ -80,7 +83,8 @@ export interface WorkerSaintWritePayload {
   name?: string;
   shortDescription?: string;
   biography?: string;
-  feastDay?: string;
+  feastDayOldStyle?: string;
+  feastDayNewStyle?: string;
   imageUrl?: string;
   language?: string;
   status?: string;

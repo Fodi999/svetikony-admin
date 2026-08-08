@@ -7,7 +7,12 @@ export const saintSchema = z.object({
   language: languageSchema,
   shortDescription: z.string().min(2).max(500),
   biography: z.string().min(2).max(10000),
-  feastDay: z
+  feastDayOldStyle: z
+    .string()
+    .regex(/^\d{2}-\d{2}$/, "Формат ММ-ДД")
+    .optional()
+    .or(z.literal("")),
+  feastDayNewStyle: z
     .string()
     .regex(/^\d{2}-\d{2}$/, "Формат ММ-ДД")
     .optional()
