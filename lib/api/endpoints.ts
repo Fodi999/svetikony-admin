@@ -25,6 +25,7 @@ export const UPSTREAM_ENDPOINTS = {
   categories: "/api/admin/church-content/product-categories", // ✅ verified (Stage 2J, full CRUD)
   products: "/api/admin/church-content/products", // ✅ verified (Stage 2J, full CRUD)
   icons: "/api/admin/church-content/icons", // ✅ verified (Stage 2K, full CRUD)
+  saints: "/api/admin/church-content/saints", // ✅ verified (Stage 2L, full CRUD)
   media: {
     upload: "/api/admin/media/upload", // ✅ verified (Stage 2D)
     delete: "/api/admin/media", // ✅ verified (Stage 2D)
@@ -36,7 +37,6 @@ export const UPSTREAM_ENDPOINTS = {
     logout: "/api/auth/logout",
     session: "/api/auth/session",
   },
-  saints: "/api/saints",
   gospelReadings: "/api/gospel",
   articles: "/api/articles",
   churchInfo: "/api/church-info",
@@ -52,6 +52,7 @@ export const BFF_ENDPOINTS = {
   categories: "/api/bff/product-categories", // ✅ implemented (Stage 2J, full CRUD)
   products: "/api/bff/products", // ✅ implemented (Stage 2J, full CRUD)
   icons: "/api/bff/icons", // ✅ implemented (Stage 2K, full CRUD)
+  saints: "/api/bff/saints", // ✅ implemented (Stage 2L, full CRUD)
   mediaUpload: "/api/bff/media/upload", // ✅ implemented (Stage 2D)
   media: "/api/bff/media", // ✅ implemented (Stage 2H, DELETE only)
 } as const;

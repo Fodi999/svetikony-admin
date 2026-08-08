@@ -6,6 +6,7 @@ import { mediaHttpResource } from "@/lib/api/http/media";
 import { prayersHttpResource } from "@/lib/api/http/prayers";
 import { categoriesHttpResource } from "@/lib/api/http/product-categories";
 import { productsHttpResource } from "@/lib/api/http/products";
+import { saintsHttpResource } from "@/lib/api/http/saints";
 import { mockApiAdapter } from "@/lib/api/mock-adapter";
 
 /**
@@ -19,16 +20,20 @@ import { mockApiAdapter } from "@/lib/api/mock-adapter";
  * a write attempt never silently "succeeds" without touching D1.
  *
  * `calendarDays` (Stage 2H), `prayers` (Stage 2I), `categories`/`products`
- * (Stage 2J), and `icons` (Stage 2K) have full real CRUD — list/get/
- * create/update/remove all reach real D1 (and, via their image fields,
- * real R2). All fully replace MockApiAdapter's resource; no sessionStorage
- * fallback is reachable for any of them. `products` intentionally leaves
- * `linkedIconId`/`dimensions`/`materials`/`variants` UI-only — no matching
- * real D1 column/table exists yet (see lib/api/http/products.ts). `icons`
- * intentionally leaves `relatedPrayerIds`/`relatedArticleIds`/
- * `relatedCalendarDayIds`/`history`/`saintImageDescription`/`materials`/
- * `dimensions` UI-only for the same reason (`galleryImageIds` IS real —
- * migration 0005 added a proper gallery column) (see lib/api/http/icons.ts).
+ * (Stage 2J), `icons` (Stage 2K), and `saints` (Stage 2L) have full real
+ * CRUD — list/get/create/update/remove all reach real D1 (and, via their
+ * image fields, real R2). All fully replace MockApiAdapter's resource; no
+ * sessionStorage fallback is reachable for any of them. `products`
+ * intentionally leaves `linkedIconId`/`dimensions`/`materials`/`variants`
+ * UI-only — no matching real D1 column/table exists yet (see
+ * lib/api/http/products.ts). `icons` intentionally leaves
+ * `relatedPrayerIds`/`relatedArticleIds`/`relatedCalendarDayIds`/
+ * `history`/`saintImageDescription`/`materials`/`dimensions` UI-only for
+ * the same reason (`galleryImageIds` IS real — migration 0005 added a
+ * proper gallery column) (see lib/api/http/icons.ts). `saints` leaves
+ * `relatedIconIds`/`relatedCalendarDayIds` UI-only — the Worker only has a
+ * single `icon_id`/`calendar_day_id` FK per saint, not the many-to-many
+ * shape the admin's relation picker needs (see lib/api/http/saints.ts).
  *
  * `media`: `uploadObject` (Stage 2D) and `remove` (Stage 2H, keyed by R2
  * object key, not a mock asset id) are real. `upload`/`list` — the Stage 1
@@ -48,6 +53,7 @@ export function createHttpApiAdapter(): ApiClient {
     categories: categoriesHttpResource,
     products: productsHttpResource,
     icons: iconsHttpResource,
+    saints: saintsHttpResource,
     media: mediaHttpResource,
   };
 }

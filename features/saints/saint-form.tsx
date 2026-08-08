@@ -2,10 +2,11 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
-import { Eye } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Eye, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { MediaUploadButton } from "@/components/forms/media-upload-button";
 import { RelationPickerField } from "@/components/forms/relation-picker-field";
 import { SelectField } from "@/components/forms/select-field";
 import { TextField } from "@/components/forms/text-field";
@@ -15,9 +16,22 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { apiClient } from "@/lib/api";
 import { LANGUAGE_LABELS } from "@/lib/constants/labels";
 import { messages } from "@/lib/i18n";
+import { resolveMediaPreviewUrl } from "@/lib/media/resolve-preview-url";
 import { useBeforeUnloadWarning } from "@/lib/utils/use-before-unload";
 import { saintSchema, type SaintFormValues } from "@/lib/validation/saint.schema";
 import type { Saint } from "@/types/entities";
+
+/** Best-effort orphan cleanup for a not-yet-saved upload. No-op in mock
+ * mode (nothing real to clean up) — same real-mode detection
+ * MediaUploadButton uses. */
+async function cleanupOrphanUpload(key: string) {
+  if (!apiClient.media.uploadObject) return;
+  try {
+    await apiClient.media.remove(key);
+  } catch {
+    // Best-effort; nothing to do if it fails.
+  }
+}
 
 const EMPTY_DEFAULTS: SaintFormValues = {
   name: "",
@@ -44,6 +58,11 @@ export function SaintForm({ mode, saint, onSubmit, onDelete, submitting }: Saint
   const { setDirty } = useUnsavedChanges();
   const [tab, setTab] = useState("main");
   const [previewOpen, setPreviewOpen] = useState(false);
+  // The most recent upload not yet confirmed saved — distinct from the
+  // form's persisted `imageId` so an in-progress edit can never delete an
+  // already-published image, only ever its own not-yet-saved replacement.
+  const [pendingUploadKey, setPendingUploadKey] = useState<string | undefined>(undefined);
+  const pendingUploadKeyRef = useRef<string | undefined>(undefined);
 
   const form = useForm<SaintFormValues>({
     resolver: zodResolver(saintSchema),
@@ -56,6 +75,20 @@ export function SaintForm({ mode, saint, onSubmit, onDelete, submitting }: Saint
   }, [form, setDirty]);
 
   useBeforeUnloadWarning(form.formState.isDirty);
+
+  useEffect(() => {
+    pendingUploadKeyRef.current = pendingUploadKey;
+  }, [pendingUploadKey]);
+
+  // Cleans up an upload the user never saved (navigated away, closed the
+  // tab, etc.) — registered once so it fires on unmount, reading the
+  // latest key via the ref above rather than a stale closure.
+  useEffect(() => {
+    return () => {
+      if (pendingUploadKeyRef.current) void cleanupOrphanUpload(pendingUploadKeyRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const iconsQuery = useQuery({ queryKey: ["icons", "options"], queryFn: () => apiClient.icons.list({ pageSize: 200 }) });
   const calendarQuery = useQuery({ queryKey: ["calendarDays", "options"], queryFn: () => apiClient.calendarDays.list({ pageSize: 200 }) });
@@ -71,10 +104,12 @@ export function SaintForm({ mode, saint, onSubmit, onDelete, submitting }: Saint
       return;
     }
     await onSubmit(form.getValues());
+    setPendingUploadKey(undefined); // now persisted — no longer an orphan candidate
     setDirty(false);
   }
 
   const values = form.watch();
+  const imagePreviewUrl = resolveMediaPreviewUrl(values.imageId);
 
   return (
     <div className="flex h-full flex-col">
@@ -100,7 +135,44 @@ export function SaintForm({ mode, saint, onSubmit, onDelete, submitting }: Saint
             </div>
             <TextField control={form.control} name="shortDescription" label="Короткий опис" textarea rows={3} />
             <TextField control={form.control} name="biography" label="Житіє" textarea rows={8} />
-            <TextField control={form.control} name="imageId" label="ID зображення" description="Stage 1: ID з медіатеки" />
+            <div className="space-y-2">
+              <TextField control={form.control} name="imageId" label="ID зображення" description="Посилання на медіатеку (заповнюється автоматично після завантаження)" />
+              <div className="flex gap-2">
+                <MediaUploadButton
+                  kind="image"
+                  module="saints"
+                  entityId={saint?.id ?? "draft"}
+                  purpose="main"
+                  label="Завантажити фото"
+                  onUploaded={({ id }) => {
+                    const previous = pendingUploadKey;
+                    form.setValue("imageId", id, { shouldDirty: true });
+                    setPendingUploadKey(id);
+                    if (previous) void cleanupOrphanUpload(previous);
+                  }}
+                />
+                {values.imageId ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      const previous = pendingUploadKey;
+                      form.setValue("imageId", undefined, { shouldDirty: true });
+                      setPendingUploadKey(undefined);
+                      if (previous) void cleanupOrphanUpload(previous);
+                    }}
+                  >
+                    <X className="size-4" />
+                    Прибрати фото
+                  </Button>
+                ) : null}
+              </div>
+              {imagePreviewUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={imagePreviewUrl} alt="Попередній перегляд" className="h-40 w-auto rounded-md border object-cover" />
+              ) : null}
+            </div>
           </TabsContent>
 
           <TabsContent value="relations" className="space-y-4">
