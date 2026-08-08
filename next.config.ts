@@ -56,3 +56,5 @@ const withSerwist = withSerwistInit({
 });
 
 export default withSerwist(nextConfig);
+
+import('@opennextjs/cloudflare').then(m => m.initOpenNextCloudflareForDev());
