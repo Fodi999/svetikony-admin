@@ -11,6 +11,7 @@ import { SubtitleCuesEditor } from "@/features/prayers/subtitle-cues-editor";
 import { PrayerPreviewSheet } from "@/features/prayers/prayer-preview-sheet";
 import { MediaUploadButton } from "@/components/forms/media-upload-button";
 import { NumberField } from "@/components/forms/number-field";
+import { QrCodePreview } from "@/components/forms/qr-code-preview";
 import { SelectField } from "@/components/forms/select-field";
 import { SwitchField } from "@/components/forms/switch-field";
 import { TextField } from "@/components/forms/text-field";
@@ -23,6 +24,7 @@ import { useUnsavedChanges } from "@/components/feedback/unsaved-changes-context
 import { useBeforeUnloadWarning } from "@/lib/utils/use-before-unload";
 import { LANGUAGE_LABELS, PARTICLE_COLOR_MODE_LABELS, PRAYER_TYPE_LABELS } from "@/lib/constants/labels";
 import { messages } from "@/lib/i18n";
+import { SVET_IKONY_SITE_URL } from "@/lib/site";
 import { prayerSchema, type PrayerFormValues } from "@/lib/validation/prayer.schema";
 import type { Prayer } from "@/types/entities";
 
@@ -151,6 +153,9 @@ export function PrayerForm({ mode, prayer, onSubmit, onDelete, submitting }: Pra
   const visualizerImageUrl = form.watch("visualizerImageUrl");
   const audioUrl = form.watch("audioUrl");
   const imageUrl = form.watch("imageUrl");
+  const slug = form.watch("slug");
+  const language = form.watch("language");
+  const publicPrayerUrl = slug ? `${SVET_IKONY_SITE_URL}/${language}/prayers/${slug}` : "";
 
   async function handleSave(publish: boolean) {
     if (publish) form.setValue("status", "published", { shouldDirty: true });
@@ -266,7 +271,13 @@ export function PrayerForm({ mode, prayer, onSubmit, onDelete, submitting }: Pra
                 <track kind="captions" />
               </audio>
             ) : null}
-            <TextField control={form.control} name="qrCodeUrl" label="Посилання на QR-код" />
+            <TextField
+              control={form.control}
+              name="qrCodeUrl"
+              label="Посилання на QR-код"
+              description="Це поле ні на що не впливає — QR-код на сайті завжди генерується автоматично з посилання на сторінку молитви (перегляд нижче)."
+            />
+            {publicPrayerUrl ? <QrCodePreview url={publicPrayerUrl} label="QR-код на сторінці молитви" /> : null}
             <div className="space-y-2">
               <TextField control={form.control} name="imageUrl" label="Посилання на зображення" />
               <div className="flex gap-2">
