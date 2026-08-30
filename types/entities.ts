@@ -81,6 +81,33 @@ export interface TelegramPost extends Identifiable, Timestamps {
   scheduledAt: string | null;
   sentAt: string | null;
   errorMessage: string | null;
+  /** Set only for autopost-generated rows — null for manually-composed
+   * posts. See features/telegram/autopost-tab.tsx's history list. */
+  contentType: AutopostContentType | null;
+  publishDate: string | null;
+}
+
+export const AUTOPOST_CONTENT_TYPES = ["morning_prayer", "saint_of_day", "gospel", "faith_story", "evening_prayer"] as const;
+export type AutopostContentType = (typeof AUTOPOST_CONTENT_TYPES)[number];
+
+export const AUTOPOST_CONTENT_TYPE_LABELS: Record<AutopostContentType, string> = {
+  morning_prayer: "Ранкова молитва",
+  saint_of_day: "Святий дня",
+  gospel: "Євангеліє дня",
+  faith_story: "Історія віри",
+  evening_prayer: "Вечірня молитва",
+};
+
+export interface AutopostSetting {
+  contentType: AutopostContentType;
+  enabled: boolean;
+  /** 'HH:MM', Europe/Kyiv wall-clock. */
+  scheduleTime: string;
+}
+
+export interface TelegramAutopostSettings {
+  globalEnabled: boolean;
+  items: AutopostSetting[];
 }
 
 export interface TelegramTodayContent {

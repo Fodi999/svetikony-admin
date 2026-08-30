@@ -14,6 +14,10 @@ export interface WorkerTelegramPostDto {
   scheduledAt: string | null;
   sentAt: string | null;
   errorMessage: string | null;
+  /** Set only for autopost-generated rows (svet-ikony migration 0008) —
+   * null for manually-composed posts. */
+  contentType: string | null;
+  publishDate: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -32,6 +36,8 @@ export function toBffTelegramPostDto(worker: WorkerTelegramPostDto): BffTelegram
     scheduledAt: worker.scheduledAt,
     sentAt: worker.sentAt,
     errorMessage: worker.errorMessage,
+    contentType: worker.contentType,
+    publishDate: worker.publishDate,
     createdAt: worker.createdAt,
     updatedAt: worker.updatedAt,
   };

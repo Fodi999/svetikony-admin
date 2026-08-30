@@ -1,8 +1,19 @@
 import type { TelegramApi } from "@/lib/api/client";
 import { mockDelay } from "@/lib/api/mock-utils";
-import type { TelegramPostFormValues } from "@/lib/validation/telegram.schema";
+import type { AutopostSettingsFormValues, TelegramPostFormValues } from "@/lib/validation/telegram.schema";
 import { ApiError } from "@/types/api";
-import type { TelegramChat, TelegramPost, TelegramUser } from "@/types/entities";
+import type { TelegramAutopostSettings, TelegramChat, TelegramPost, TelegramUser } from "@/types/entities";
+
+let autopostSettings: TelegramAutopostSettings = {
+  globalEnabled: false,
+  items: [
+    { contentType: "morning_prayer", enabled: true, scheduleTime: "07:00" },
+    { contentType: "saint_of_day", enabled: true, scheduleTime: "10:00" },
+    { contentType: "gospel", enabled: true, scheduleTime: "13:00" },
+    { contentType: "faith_story", enabled: true, scheduleTime: "17:00" },
+    { contentType: "evening_prayer", enabled: true, scheduleTime: "20:00" },
+  ],
+};
 
 const mockUsers: TelegramUser[] = [
   {
@@ -89,6 +100,8 @@ export const telegramResource: TelegramApi = {
         scheduledAt: values.scheduledAt || null,
         sentAt: null,
         errorMessage: null,
+        contentType: null,
+        publishDate: null,
         createdAt: now,
         updatedAt: now,
       };
@@ -128,6 +141,23 @@ export const telegramResource: TelegramApi = {
       };
       posts = posts.map((p) => (p.id === id ? updated : p));
       return updated;
+    },
+  },
+  autopost: {
+    async getSettings() {
+      await mockDelay(150);
+      return autopostSettings;
+    },
+    async updateSettings(values: AutopostSettingsFormValues) {
+      await mockDelay(200);
+      autopostSettings = {
+        globalEnabled: values.globalEnabled,
+        items: autopostSettings.items.map((current) => {
+          const update = values.items.find((item) => item.contentType === current.contentType);
+          return update ? { ...current, enabled: update.enabled, scheduleTime: update.scheduleTime } : current;
+        }),
+      };
+      return autopostSettings;
     },
   },
 };

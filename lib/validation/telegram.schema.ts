@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { AUTOPOST_CONTENT_TYPES } from "@/types/entities";
 
 /** Telegram's hard message-length limit is 4096 UTF-16 code units; matches
  * the truncation guard already enforced server-side (svet-ikony's
@@ -11,3 +12,18 @@ export const telegramPostSchema = z.object({
 });
 
 export type TelegramPostFormValues = z.infer<typeof telegramPostSchema>;
+
+const timeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Формат ГГ:ХХ");
+
+export const autopostSettingsSchema = z.object({
+  globalEnabled: z.boolean(),
+  items: z.array(
+    z.object({
+      contentType: z.enum(AUTOPOST_CONTENT_TYPES),
+      enabled: z.boolean(),
+      scheduleTime: timeSchema,
+    }),
+  ),
+});
+
+export type AutopostSettingsFormValues = z.infer<typeof autopostSettingsSchema>;

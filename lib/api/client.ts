@@ -10,7 +10,7 @@ import type { ProductCategoryFormValues } from "@/lib/validation/category.schema
 import type { PrayerFormValues } from "@/lib/validation/prayer.schema";
 import type { ProductFormValues } from "@/lib/validation/product.schema";
 import type { SaintFormValues } from "@/lib/validation/saint.schema";
-import type { TelegramPostFormValues } from "@/lib/validation/telegram.schema";
+import type { AutopostSettingsFormValues, TelegramPostFormValues } from "@/lib/validation/telegram.schema";
 import type { ListQuery, MediaObjectDto, PaginatedResult } from "@/types/api";
 import type {
   AlphabetLetter,
@@ -27,6 +27,7 @@ import type {
   Product,
   ProductCategory,
   Saint,
+  TelegramAutopostSettings,
   TelegramChat,
   TelegramDashboardStatus,
   TelegramPost,
@@ -146,6 +147,10 @@ export interface TelegramApi {
     create(values: TelegramPostFormValues): Promise<TelegramPost>;
     update(id: string, values: TelegramPostFormValues): Promise<TelegramPost>;
     publish(id: string): Promise<TelegramPost>;
+  };
+  autopost: {
+    getSettings(): Promise<TelegramAutopostSettings>;
+    updateSettings(values: AutopostSettingsFormValues): Promise<TelegramAutopostSettings>;
   };
 }
 
