@@ -7,6 +7,7 @@ import {
   LibraryBig,
   NotebookText,
   Package,
+  Send,
   Settings,
   ShoppingBag,
   SquareLibrary,
@@ -37,6 +38,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/catalog/categories", label: messages.nav.categories, icon: Package, area: "catalog" },
   { href: "/catalog/products", label: messages.nav.products, icon: Package, area: "catalog" },
   { href: "/media", label: messages.nav.media, icon: Images, area: "media" },
+  { href: "/telegram", label: messages.nav.telegram, icon: Send, area: "telegram" },
   { href: "/settings", label: messages.nav.settings, icon: Settings, area: "settings" },
 ];
 

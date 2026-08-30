@@ -15,6 +15,7 @@ export interface Messages {
     products: string;
     orders: string;
     media: string;
+    telegram: string;
     settings: string;
     more: string;
   };
@@ -78,6 +79,7 @@ export const uk: Messages = {
     products: "Товари",
     orders: "Замовлення",
     media: "Медіа",
+    telegram: "Telegram",
     settings: "Налаштування",
     more: "Ще",
   },

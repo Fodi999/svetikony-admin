@@ -1,7 +1,7 @@
 import type { MediaApi, UploadProgressHandler } from "@/lib/api/client";
 import { mockDelay, nextId, nowIso } from "@/lib/api/mock-utils";
 import { mockMediaAssets } from "@/lib/mock-data/media";
-import { ApiError } from "@/types/api";
+import { ApiError, type MediaObjectDto } from "@/types/api";
 import type { MediaAsset } from "@/types/entities";
 
 // Not persisted to sessionStorage: uploaded assets use blob: object URLs
@@ -61,5 +61,20 @@ export const mediaResource: MediaApi = {
     await mockDelay();
     const index = store.findIndex((asset) => asset.id === id);
     if (index !== -1) store.splice(index, 1);
+  },
+
+  /** Mock counterpart of the real R2 listing (see lib/api/http/media.ts) —
+   * `module` has no meaning here since mock assets aren't namespaced by
+   * upload module, so it's ignored rather than filtering to nothing. */
+  async listObjects(): Promise<{ items: MediaObjectDto[]; cursor: string | null }> {
+    await mockDelay();
+    const items: MediaObjectDto[] = store.map((asset) => ({
+      key: asset.id,
+      url: asset.url,
+      contentType: asset.mimeType,
+      size: asset.sizeBytes,
+      kind: asset.kind === "document" ? "image" : asset.kind,
+    }));
+    return { items, cursor: null };
   },
 };

@@ -7,6 +7,7 @@ import { prayersHttpResource } from "@/lib/api/http/prayers";
 import { categoriesHttpResource } from "@/lib/api/http/product-categories";
 import { productsHttpResource } from "@/lib/api/http/products";
 import { saintsHttpResource } from "@/lib/api/http/saints";
+import { telegramHttpResource } from "@/lib/api/http/telegram";
 import { mockApiAdapter } from "@/lib/api/mock-adapter";
 
 /**
@@ -35,11 +36,15 @@ import { mockApiAdapter } from "@/lib/api/mock-adapter";
  * single `icon_id`/`calendar_day_id` FK per saint, not the many-to-many
  * shape the admin's relation picker needs (see lib/api/http/saints.ts).
  *
- * `media`: `uploadObject` (Stage 2D) and `remove` (Stage 2H, keyed by R2
- * object key, not a mock asset id) are real. `upload`/`list` — the Stage 1
- * mock media-library shape — still throw `not_implemented`; nothing in
- * features/media/** calls the real methods directly, only per-module
- * upload buttons do.
+ * `media`: `uploadObject` (Stage 2D), `remove` (Stage 2H, keyed by R2
+ * object key, not a mock asset id), and `listObjects` (Telegram media
+ * picker) are real. `upload`/`list` — the Stage 1 mock media-library shape
+ * — still throw `not_implemented`; nothing in features/media/** calls the
+ * real methods directly, only per-module upload buttons do.
+ *
+ * `telegram` (bot management: Dashboard/Audience/Today/Posts) is fully
+ * real — every method reaches svet-ikony's D1-backed `/api/admin/telegram/*`
+ * routes via the BFF, no mock fallback for any of it.
  *
  * Every other resource still delegates to the mock adapter — no other
  * module has been verified against the real svet-ikony API yet.
@@ -55,5 +60,6 @@ export function createHttpApiAdapter(): ApiClient {
     icons: iconsHttpResource,
     saints: saintsHttpResource,
     media: mediaHttpResource,
+    telegram: telegramHttpResource,
   };
 }

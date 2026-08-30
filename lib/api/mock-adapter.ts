@@ -13,6 +13,7 @@ import { ordersResource } from "@/lib/api/mock/orders";
 import { prayersResource } from "@/lib/api/mock/prayers";
 import { productsResource } from "@/lib/api/mock/products";
 import { saintsResource } from "@/lib/api/mock/saints";
+import { telegramResource } from "@/lib/api/mock/telegram";
 
 /**
  * Stage-1 implementation of ApiClient: everything is in-memory, seeded from
@@ -35,4 +36,5 @@ export const mockApiAdapter: ApiClient = {
   alphabetLetters: alphabetLettersResource,
   categories: categoriesResource,
   products: productsResource,
+  telegram: telegramResource,
 };

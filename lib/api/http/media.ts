@@ -2,7 +2,7 @@ import type { ApiClient } from "@/lib/api/client";
 import { BFF_ENDPOINTS } from "@/lib/api/endpoints";
 import { createAbortTimeout, isAbortError } from "@/lib/api/http/timeout";
 import { notImplementedError } from "@/lib/api/http/resource-factory";
-import { httpDelete } from "@/lib/api/http/transport";
+import { httpDelete, httpGet } from "@/lib/api/http/transport";
 import { ApiError, type ApiErrorCode, type MediaObjectDto } from "@/types/api";
 
 const REQUEST_TIMEOUT_MS = 30_000; // uploads take longer than a plain JSON GET
@@ -73,6 +73,15 @@ async function uploadObject(input: { file: File; module: string; entityId: strin
   }
 }
 
+/** Real R2 listing — see MediaApi.listObjects's doc comment. */
+async function listObjects(input?: { module?: string; cursor?: string }): Promise<{ items: MediaObjectDto[]; cursor: string | null }> {
+  const params = new URLSearchParams();
+  if (input?.module) params.set("module", input.module);
+  if (input?.cursor) params.set("cursor", input.cursor);
+  const qs = params.toString();
+  return httpGet<{ items: MediaObjectDto[]; cursor: string | null }>(qs ? `${BFF_ENDPOINTS.media}?${qs}` : BFF_ENDPOINTS.media);
+}
+
 /**
  * `remove` takes the R2 object key (as returned by `uploadObject`'s `key`),
  * not a mock media-library asset id — see MediaApi.remove's doc comment.
@@ -99,4 +108,5 @@ export const mediaHttpResource: ApiClient["media"] = {
   },
   remove,
   uploadObject,
+  listObjects,
 };

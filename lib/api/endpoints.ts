@@ -29,6 +29,14 @@ export const UPSTREAM_ENDPOINTS = {
   media: {
     upload: "/api/admin/media/upload", // ✅ verified (Stage 2D)
     delete: "/api/admin/media", // ✅ verified (Stage 2D)
+    list: "/api/admin/media", // ✅ verified (Telegram media picker stage) — GET on the same path DELETE uses
+  },
+  telegram: {
+    status: "/api/admin/telegram/status", // ✅ verified
+    users: "/api/admin/telegram/users", // ✅ verified
+    chats: "/api/admin/telegram/chats", // ✅ verified
+    today: "/api/admin/telegram/today", // ✅ verified
+    posts: "/api/admin/telegram/posts", // ✅ verified (list + create); `${posts}/:id` and `${posts}/:id/publish` built at call sites
   },
 
   // Not yet verified/wired for this admin — placeholders only:
@@ -54,5 +62,12 @@ export const BFF_ENDPOINTS = {
   icons: "/api/bff/icons", // ✅ implemented (Stage 2K, full CRUD)
   saints: "/api/bff/saints", // ✅ implemented (Stage 2L, full CRUD)
   mediaUpload: "/api/bff/media/upload", // ✅ implemented (Stage 2D)
-  media: "/api/bff/media", // ✅ implemented (Stage 2H, DELETE only)
+  media: "/api/bff/media", // ✅ implemented — GET (list) + DELETE
+  telegram: {
+    status: "/api/bff/telegram/status",
+    users: "/api/bff/telegram/users",
+    chats: "/api/bff/telegram/chats",
+    today: "/api/bff/telegram/today",
+    posts: "/api/bff/telegram/posts", // `${posts}/:id` and `${posts}/:id/publish` built at call sites
+  },
 } as const;

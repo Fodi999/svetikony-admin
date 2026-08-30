@@ -10,6 +10,7 @@ import type { ProductCategoryFormValues } from "@/lib/validation/category.schema
 import type { PrayerFormValues } from "@/lib/validation/prayer.schema";
 import type { ProductFormValues } from "@/lib/validation/product.schema";
 import type { SaintFormValues } from "@/lib/validation/saint.schema";
+import type { TelegramPostFormValues } from "@/lib/validation/telegram.schema";
 import type { ListQuery, MediaObjectDto, PaginatedResult } from "@/types/api";
 import type {
   AlphabetLetter,
@@ -26,6 +27,11 @@ import type {
   Product,
   ProductCategory,
   Saint,
+  TelegramChat,
+  TelegramDashboardStatus,
+  TelegramPost,
+  TelegramTodayContent,
+  TelegramUser,
 } from "@/types/entities";
 
 /** Generic CRUD contract shared by every content resource. */
@@ -106,6 +112,13 @@ export interface MediaApi {
    * not implement it — only HttpApiAdapter does.
    */
   uploadObject?(input: { file: File; module: string; entityId: string; purpose: string }): Promise<MediaObjectDto>;
+  /**
+   * Real R2 listing (the Telegram composer's "Обрати з медіатеки" picker is
+   * its first caller) — separate from `list()` above, which stays the
+   * Stage 1 mock media-library shape untouched. `module` narrows to one
+   * upload module (e.g. `"telegram"`); omitted, lists everything.
+   */
+  listObjects?(input?: { module?: string; cursor?: string }): Promise<{ items: MediaObjectDto[]; cursor: string | null }>;
 }
 
 export interface ChurchInfoApi {
@@ -118,6 +131,22 @@ export interface OrdersApi {
   get(id: string): Promise<Order>;
   updateStatus(id: string, values: OrderUpdateFormValues): Promise<Order>;
   markRead(id: string, isRead: boolean): Promise<Order>;
+}
+
+/** Hand-written rather than `CrudResource` — no `remove`, and `publish` has
+ * no equivalent in the translatable-content shape every other module uses. */
+export interface TelegramApi {
+  getStatus(): Promise<TelegramDashboardStatus>;
+  listUsers(): Promise<TelegramUser[]>;
+  listChats(): Promise<TelegramChat[]>;
+  getToday(): Promise<TelegramTodayContent>;
+  posts: {
+    list(): Promise<TelegramPost[]>;
+    get(id: string): Promise<TelegramPost>;
+    create(values: TelegramPostFormValues): Promise<TelegramPost>;
+    update(id: string, values: TelegramPostFormValues): Promise<TelegramPost>;
+    publish(id: string): Promise<TelegramPost>;
+  };
 }
 
 /**
@@ -145,4 +174,5 @@ export interface ApiClient {
   };
   categories: CrudResource<ProductCategory, ProductCategoryFormValues>;
   products: CrudResource<Product, ProductFormValues, ProductQuery>;
+  telegram: TelegramApi;
 }

@@ -32,7 +32,7 @@ const SECTIONS: Section[] = [
     ],
   },
   { heading: "Каталог", hrefs: ["/catalog/categories", "/catalog/products"] },
-  { heading: "Робота", hrefs: ["/orders", "/media"] },
+  { heading: "Робота", hrefs: ["/orders", "/media", "/telegram"] },
   { heading: "Система", hrefs: ["/settings"] },
 ];
 

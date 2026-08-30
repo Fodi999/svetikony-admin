@@ -48,6 +48,57 @@ export interface MediaAsset extends Identifiable, Timestamps {
   durationSeconds?: number;
 }
 
+/** `id` is `Identifiable`'s string form of the D1 row's numeric primary
+ * key (`String(row.id)`) — kept consistent with every other entity's id
+ * type even though Telegram's own tables use INTEGER, not UUID. */
+export interface TelegramUser extends Identifiable, Timestamps {
+  telegramUserId: number;
+  username: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  languageCode: string | null;
+  isBot: boolean;
+  isActive: boolean;
+}
+
+export interface TelegramChat extends Identifiable, Timestamps {
+  telegramChatId: number;
+  chatType: string;
+  title: string | null;
+  username: string | null;
+  isActive: boolean;
+}
+
+export type TelegramPostStatus = "draft" | "scheduled" | "sent" | "failed";
+
+export interface TelegramPost extends Identifiable, Timestamps {
+  sourceType: string | null;
+  sourceId: string | null;
+  text: string | null;
+  mediaUrl: string | null;
+  telegramMessageId: number | null;
+  status: TelegramPostStatus;
+  scheduledAt: string | null;
+  sentAt: string | null;
+  errorMessage: string | null;
+}
+
+export interface TelegramTodayContent {
+  calendarDay: { id: string; title: string; description: string } | null;
+  saint: { id: string; name: string; shortDescription: string } | null;
+  prayer: { id: string; title: string; text: string } | null;
+  gospel: { id: string; title: string; reference: string; text: string } | null;
+  article: { id: string; title: string; content: string } | null;
+  imageUrl: string | null;
+}
+
+export interface TelegramDashboardStatus {
+  configured: boolean;
+  channel: string | null;
+  webhook: { url: string; pendingUpdateCount: number; lastErrorMessage: string | null } | null;
+  stats: { userCount: number; chatCount: number; lastActivityAt: string | null };
+}
+
 // ---------------------------------------------------------------------------
 // Calendar
 // ---------------------------------------------------------------------------

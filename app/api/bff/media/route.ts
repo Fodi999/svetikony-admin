@@ -1,5 +1,20 @@
 import { UPSTREAM_ENDPOINTS } from "@/lib/api/endpoints";
-import { proxyJsonWrite } from "../_lib/proxy";
+import { proxyAndMap, proxyJsonWrite } from "../_lib/proxy";
+
+/**
+ * Same-origin proxy for the verified svet-ikony media list endpoint (used
+ * by the Telegram post composer's media picker — `?module=telegram`
+ * narrows to that module's uploads). The Worker's `{items, cursor}` shape
+ * is already the stable DTO both sides share, so there's nothing to remap.
+ */
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  return proxyAndMap(
+    UPSTREAM_ENDPOINTS.media.list,
+    searchParams,
+    (raw: { items: unknown[]; cursor: string | null }) => raw,
+  );
+}
 
 /**
  * Same-origin proxy for the verified svet-ikony media delete endpoint
