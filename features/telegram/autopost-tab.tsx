@@ -17,7 +17,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { apiClient } from "@/lib/api";
 import { errorMessageFor } from "@/lib/api/errors";
 import { autopostSettingsSchema, type AutopostSettingsFormValues } from "@/lib/validation/telegram.schema";
-import { AUTOPOST_CONTENT_TYPE_LABELS, AUTOPOST_CONTENT_TYPES, type TelegramPostStatus } from "@/types/entities";
+import { AUTOPOST_CONTENT_TYPE_LABELS, AUTOPOST_CONTENT_TYPES, type TelegramPost, type TelegramPostStatus } from "@/types/entities";
 
 const STATUS_LABELS: Record<TelegramPostStatus, string> = {
   draft: "Чернетка",
@@ -32,6 +32,18 @@ const STATUS_VARIANTS: Record<TelegramPostStatus, "outline" | "default" | "destr
   sent: "default",
   failed: "destructive",
 };
+
+/** A row that failed calendar verification (saint_of_day only) is stored
+ * with status='failed' + verificationStatus='failed' -- surfaced here as
+ * its own clear, non-technical label instead of a generic "Помилка", since
+ * it means something structurally different (the day's saint could not be
+ * confirmed against independent sources, not a Telegram/OpenAI error) and
+ * cannot be retried the same way (see the publish route's own refusal to
+ * retry an unverified row). */
+function displayStatusLabel(post: Pick<TelegramPost, "status" | "verificationStatus">): string {
+  if (post.status === "failed" && post.verificationStatus === "failed") return "Не пройшов перевірку календаря";
+  return STATUS_LABELS[post.status];
+}
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleString("uk-UA");
@@ -114,9 +126,16 @@ export function AutopostTab() {
           </div>
         </CardHeader>
         <CardContent>
+          <div className="mb-4 flex flex-wrap items-center gap-2 text-sm">
+            <span className="text-muted-foreground">Календар:</span>
+            <Badge variant="outline">Юліанський (старий стиль)</Badge>
+            <span className="ml-2 text-muted-foreground">Мова:</span>
+            <Badge variant="outline">Українська</Badge>
+          </div>
           <p className="mb-4 text-sm text-muted-foreground">
             Коли увімкнено, бот сам публікує пости за розкладом нижче (час — Europe/Kyiv), без участі адміністратора. Джерело фактів — лише
-            церковний календар на сьогодні; якщо даних немає, слот пропускається.
+            церковний календар за старим стилем (юліанським) на відповідний день; якщо даних немає, слот пропускається. Ці налаштування
+            календаря та мови зараз незмінні через інтерфейс.
           </p>
           <div className="overflow-x-auto rounded-lg border">
             <Table>
@@ -173,39 +192,52 @@ export function AutopostTab() {
                     <TableHead>Тип</TableHead>
                     <TableHead>Дата</TableHead>
                     <TableHead>Статус</TableHead>
+                    <TableHead>Перевірка календаря</TableHead>
                     <TableHead>Текст</TableHead>
                     <TableHead className="w-10" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {autopostHistory.map((post) => (
-                    <TableRow key={post.id}>
-                      <TableCell>{post.contentType ? AUTOPOST_CONTENT_TYPE_LABELS[post.contentType] : "—"}</TableCell>
-                      <TableCell>{post.publishDate ?? formatDate(post.createdAt)}</TableCell>
-                      <TableCell>
-                        <Badge variant={STATUS_VARIANTS[post.status]}>{STATUS_LABELS[post.status]}</Badge>
-                        {post.status === "failed" && post.errorMessage ? (
-                          <p className="mt-1 max-w-xs truncate text-xs text-destructive">{post.errorMessage}</p>
-                        ) : null}
-                      </TableCell>
-                      <TableCell className="max-w-xs truncate">{post.text || "—"}</TableCell>
-                      <TableCell>
-                        {post.status === "failed" ? (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="size-8"
-                            aria-label="Повторити"
-                            disabled={retryMutation.isPending}
-                            onClick={() => retryMutation.mutate(post.id)}
-                          >
-                            <RotateCcw className="size-4" />
-                          </Button>
-                        ) : null}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {autopostHistory.map((post) => {
+                    const verificationFailed = post.status === "failed" && post.verificationStatus === "failed";
+                    return (
+                      <TableRow key={post.id}>
+                        <TableCell>{post.contentType ? AUTOPOST_CONTENT_TYPE_LABELS[post.contentType] : "—"}</TableCell>
+                        <TableCell>{post.publishDate ?? formatDate(post.createdAt)}</TableCell>
+                        <TableCell>
+                          <Badge variant={STATUS_VARIANTS[post.status]}>{displayStatusLabel(post)}</Badge>
+                          {post.status === "failed" && post.errorMessage ? (
+                            <p className="mt-1 max-w-xs truncate text-xs text-destructive">{post.errorMessage}</p>
+                          ) : null}
+                        </TableCell>
+                        <TableCell>
+                          {post.verificationStatus === "verified" ? (
+                            <Badge variant="default">Перевірено</Badge>
+                          ) : post.verificationStatus === "failed" ? (
+                            <Badge variant="destructive">Не пройшла</Badge>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="max-w-xs truncate">{post.text || "—"}</TableCell>
+                        <TableCell>
+                          {post.status === "failed" && !verificationFailed ? (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="size-8"
+                              aria-label="Повторити"
+                              disabled={retryMutation.isPending}
+                              onClick={() => retryMutation.mutate(post.id)}
+                            >
+                              <RotateCcw className="size-4" />
+                            </Button>
+                          ) : null}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>

@@ -102,6 +102,8 @@ export const telegramResource: TelegramApi = {
         errorMessage: null,
         contentType: null,
         publishDate: null,
+        verificationStatus: null,
+        verificationError: null,
         createdAt: now,
         updatedAt: now,
       };

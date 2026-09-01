@@ -18,6 +18,12 @@ export interface WorkerTelegramPostDto {
    * null for manually-composed posts. */
   contentType: string | null;
   publishDate: string | null;
+  /** Pre-publish calendar verification outcome (svet-ikony migration 0010)
+   * -- 'verified' | 'failed' | null. Only ever set for content types that
+   * require it (saint_of_day); null for every other type and for rows
+   * predating the feature -- never treat null as "verified". */
+  verificationStatus: string | null;
+  verificationError: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -38,6 +44,8 @@ export function toBffTelegramPostDto(worker: WorkerTelegramPostDto): BffTelegram
     errorMessage: worker.errorMessage,
     contentType: worker.contentType,
     publishDate: worker.publishDate,
+    verificationStatus: worker.verificationStatus,
+    verificationError: worker.verificationError,
     createdAt: worker.createdAt,
     updatedAt: worker.updatedAt,
   };

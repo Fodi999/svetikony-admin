@@ -85,6 +85,12 @@ export interface TelegramPost extends Identifiable, Timestamps {
    * posts. See features/telegram/autopost-tab.tsx's history list. */
   contentType: AutopostContentType | null;
   publishDate: string | null;
+  /** Pre-publish calendar verification outcome -- only ever set for
+   * content types that require it (saint_of_day); null for every other
+   * type and for rows predating the feature. Never treat null as
+   * "verified". See features/telegram/autopost-tab.tsx. */
+  verificationStatus: string | null;
+  verificationError: string | null;
 }
 
 export const AUTOPOST_CONTENT_TYPES = ["morning_prayer", "saint_of_day", "gospel", "faith_story", "evening_prayer"] as const;
