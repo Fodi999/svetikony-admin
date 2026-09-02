@@ -58,6 +58,55 @@ const mockChats: TelegramChat[] = [
 let posts: TelegramPost[] = [];
 let nextPostId = 1;
 
+/** Content Plan Stage 2's per-slot prepared rows -- kept as their own tiny
+ * in-memory store (not mixed into `posts`) since they're addressed by
+ * (date, contentType), not by id, until an action creates one. */
+const preparedSlots = new Map<string, TelegramPost>();
+
+function slotKey(date: string, contentType: AutopostContentType): string {
+  return `${date}|${contentType}`;
+}
+
+function findOrCreateSlot(date: string, contentType: AutopostContentType): TelegramPost {
+  const key = slotKey(date, contentType);
+  const existing = preparedSlots.get(key);
+  if (existing) return existing;
+  const now = new Date().toISOString();
+  const fresh: TelegramPost = {
+    id: String(nextPostId++),
+    sourceType: null,
+    sourceId: null,
+    text: null,
+    mediaUrl: null,
+    telegramMessageId: null,
+    status: "draft",
+    scheduledAt: null,
+    sentAt: null,
+    errorMessage: null,
+    contentType,
+    publishDate: date,
+    verificationStatus: contentType === "saint_of_day" ? "verified" : null,
+    verificationError: null,
+    createdAt: now,
+    updatedAt: now,
+  };
+  preparedSlots.set(key, fresh);
+  return fresh;
+}
+
+function assertSlotMutable(post: TelegramPost): void {
+  if (post.status === "sent" || post.status === "sending") {
+    throw new ApiError("conflict", "Слот вже надіслано і більше не можна змінювати");
+  }
+}
+
+function saveSlot(date: string, contentType: AutopostContentType, patch: Partial<TelegramPost>): TelegramPost {
+  const current = findOrCreateSlot(date, contentType);
+  const updated: TelegramPost = { ...current, ...patch, updatedAt: new Date().toISOString() };
+  preparedSlots.set(slotKey(date, contentType), updated);
+  return updated;
+}
+
 const SCHEDULE_TIMES: Record<AutopostContentType, string> = {
   morning_prayer: "07:00",
   saint_of_day: "10:00",
@@ -69,23 +118,41 @@ const SCHEDULE_TIMES: Record<AutopostContentType, string> = {
 /** Small synthetic dataset: only civil 2026-09-01..2026-09-30 has any
  * "real" content, mirroring this project's actual production D1 state at
  * the time this mock was written -- everything else is a virtual empty
- * day, exactly like the real backend reports for a day it has no row for. */
+ * day, exactly like the real backend reports for a day it has no row for.
+ * A slot with a `preparedSlots` entry (Content Plan Stage 2 actions
+ * exercised in mock/dev mode) overlays that state on top, so generate/
+ * edit/mark-ready etc. are actually visible on refetch instead of always
+ * resetting back to the synthetic default. */
 function mockDay(civilDate: string): ContentPlanDay {
   const inRange = civilDate >= "2026-09-01" && civilDate <= "2026-09-30";
   const slots = {} as Record<AutopostContentType, ContentPlanSlot>;
   for (const contentType of AUTOPOST_CONTENT_TYPES) {
-    slots[contentType] = {
-      contentType,
-      scheduledTime: SCHEDULE_TIMES[contentType],
-      sourceStatus: inRange ? "available" : "missing_source",
-      verificationStatus: inRange && contentType === "saint_of_day" ? "verified" : null,
-      publicationStatus: inRange ? "SOURCE_READY" : "MISSING_SOURCE",
-      textAvailable: inRange,
-      imageAvailable: false,
-      sentAt: null,
-      telegramMessageId: null,
-      errorMessage: null,
-    };
+    const prepared = preparedSlots.get(slotKey(civilDate, contentType));
+    slots[contentType] = prepared
+      ? {
+          contentType,
+          scheduledTime: SCHEDULE_TIMES[contentType],
+          sourceStatus: "available",
+          verificationStatus: prepared.verificationStatus === "verified" || prepared.verificationStatus === "failed" ? prepared.verificationStatus : null,
+          publicationStatus: prepared.status === "sent" ? "SENT" : prepared.status === "ready" ? "READY" : "DRAFT",
+          textAvailable: !!prepared.text?.trim(),
+          imageAvailable: !!prepared.mediaUrl,
+          sentAt: prepared.sentAt,
+          telegramMessageId: prepared.telegramMessageId,
+          errorMessage: prepared.errorMessage,
+        }
+      : {
+          contentType,
+          scheduledTime: SCHEDULE_TIMES[contentType],
+          sourceStatus: inRange ? "available" : "missing_source",
+          verificationStatus: inRange && contentType === "saint_of_day" ? "verified" : null,
+          publicationStatus: inRange ? "SOURCE_READY" : "MISSING_SOURCE",
+          textAvailable: inRange,
+          imageAvailable: false,
+          sentAt: null,
+          telegramMessageId: null,
+          errorMessage: null,
+        };
   }
   return { civilDate, julianDate: civilDate, calendarTitle: inRange ? "Мок: святий дня" : null, slots };
 }
@@ -247,9 +314,67 @@ export const telegramResource: TelegramApi = {
       await mockDelay(150);
       const day = mockDay(date);
       for (const slot of Object.values(day.slots)) {
-        if (slot.textAvailable) slot.textPreview = "Мок-текст для попереднього перегляду у бічній панелі.";
+        const prepared = preparedSlots.get(slotKey(date, slot.contentType));
+        const fullText = prepared?.text ?? (slot.textAvailable ? "Мок-текст для попереднього перегляду у бічній панелі." : undefined);
+        if (fullText) {
+          slot.textPreview = fullText.slice(0, 200);
+          slot.fullText = fullText;
+          const longText = fullText.length > 1000;
+          slot.deliveryPreview = slot.imageAvailable
+            ? {
+                kind: longText ? "photo_then_text" : "photo_with_caption",
+                photoCaption: longText ? "Продовження — у наступному повідомленні." : null,
+              }
+            : { kind: "text_only", photoCaption: null };
+        }
       }
       return day;
+    },
+    async generateText(date: string, contentType: AutopostContentType): Promise<TelegramPost> {
+      await mockDelay(400);
+      const current = findOrCreateSlot(date, contentType);
+      assertSlotMutable(current);
+      if (current.text?.trim()) throw new ApiError("conflict", "Текст вже існує -- скористайтеся регенерацією");
+      return saveSlot(date, contentType, { text: `Мок-текст (${contentType}) для ${date}.` });
+    },
+    async regenerateText(date: string, contentType: AutopostContentType): Promise<TelegramPost> {
+      await mockDelay(400);
+      assertSlotMutable(findOrCreateSlot(date, contentType));
+      return saveSlot(date, contentType, { text: `Новий мок-текст (${contentType}) для ${date}.`, status: "draft" });
+    },
+    async editText(date: string, contentType: AutopostContentType, text: string): Promise<TelegramPost> {
+      await mockDelay(200);
+      assertSlotMutable(findOrCreateSlot(date, contentType));
+      return saveSlot(date, contentType, { text, status: "draft" });
+    },
+    async generateImage(date: string, contentType: AutopostContentType): Promise<TelegramPost> {
+      await mockDelay(400);
+      const current = findOrCreateSlot(date, contentType);
+      assertSlotMutable(current);
+      if (current.mediaUrl) throw new ApiError("conflict", "Зображення вже існує -- скористайтеся регенерацією");
+      return saveSlot(date, contentType, { mediaUrl: "https://placehold.co/600x400" });
+    },
+    async regenerateImage(date: string, contentType: AutopostContentType): Promise<TelegramPost> {
+      await mockDelay(400);
+      assertSlotMutable(findOrCreateSlot(date, contentType));
+      return saveSlot(date, contentType, { mediaUrl: `https://placehold.co/600x400?text=${Date.now()}` });
+    },
+    async assignImage(date: string, contentType: AutopostContentType, mediaUrl: string): Promise<TelegramPost> {
+      await mockDelay(200);
+      assertSlotMutable(findOrCreateSlot(date, contentType));
+      return saveSlot(date, contentType, { mediaUrl });
+    },
+    async markReady(date: string, contentType: AutopostContentType): Promise<TelegramPost> {
+      await mockDelay(200);
+      const current = findOrCreateSlot(date, contentType);
+      assertSlotMutable(current);
+      if (!current.text?.trim()) throw new ApiError("validation_error", "Неможливо позначити готовим: немає тексту");
+      return saveSlot(date, contentType, { status: "ready" });
+    },
+    async markUnready(date: string, contentType: AutopostContentType): Promise<TelegramPost> {
+      await mockDelay(200);
+      assertSlotMutable(findOrCreateSlot(date, contentType));
+      return saveSlot(date, contentType, { status: "draft" });
     },
   },
 };

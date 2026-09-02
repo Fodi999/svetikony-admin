@@ -10,6 +10,11 @@ export type WorkerContentPlanSlotStatus =
   | "REVIEW_REQUIRED"
   | "FAILED";
 
+export interface WorkerContentPlanDeliveryPreview {
+  kind: "text_only" | "photo_with_caption" | "photo_then_text";
+  photoCaption: string | null;
+}
+
 export interface WorkerContentPlanSlotDto {
   contentType: AutopostContentType;
   scheduledTime: string;
@@ -23,6 +28,10 @@ export interface WorkerContentPlanSlotDto {
   errorMessage: string | null;
   textPreview?: string;
   imageUrl?: string;
+  /** Detail-only, from buildContentPlanDayDetail() -- never present in the
+   * bulk year/range list. */
+  fullText?: string;
+  deliveryPreview?: WorkerContentPlanDeliveryPreview;
 }
 
 export interface WorkerContentPlanDayDto {

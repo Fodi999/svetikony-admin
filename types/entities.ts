@@ -69,7 +69,13 @@ export interface TelegramChat extends Identifiable, Timestamps {
   isActive: boolean;
 }
 
-export type TelegramPostStatus = "draft" | "scheduled" | "sent" | "failed";
+/** 'ready' and 'sending' were added for Content Plan Stage 2's admin-
+ * prepared autopost slots: 'ready' means an admin confirmed a slot's text/
+ * image are good to publish without further AI generation; 'sending' is
+ * the short-lived state a slot occupies between the autopost tick's
+ * atomic claim and the actual Telegram send completing. See
+ * features/telegram/content-plan/. */
+export type TelegramPostStatus = "draft" | "scheduled" | "sent" | "failed" | "ready" | "sending";
 
 export interface TelegramPost extends Identifiable, Timestamps {
   sourceType: string | null;
@@ -144,6 +150,16 @@ export interface ContentPlanSlot {
    * always absent from contentPlan.get()'s bulk year/range list. */
   textPreview?: string;
   imageUrl?: string;
+  /** Untruncated current text -- what the text editor/preview actually
+   * use; textPreview stays capped at ~200 chars for lighter display. */
+  fullText?: string;
+  /** What production delivery would actually send, computed server-side
+   * via the real planDelivery() -- see features/telegram/content-plan/
+   * preview-dialog.tsx, never reimplemented client-side. */
+  deliveryPreview?: {
+    kind: "text_only" | "photo_with_caption" | "photo_then_text";
+    photoCaption: string | null;
+  };
 }
 
 export interface ContentPlanDay {

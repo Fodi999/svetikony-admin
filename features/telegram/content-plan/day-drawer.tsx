@@ -10,19 +10,35 @@ import { errorMessageFor } from "@/lib/api/errors";
 import { AUTOPOST_CONTENT_TYPES } from "@/types/entities";
 import { formatFullUaDate } from "./date-format";
 import { SlotCard } from "./slot-card";
+import { useSlotActions } from "./use-slot-actions";
 
 /**
  * Opens on day-cell click; fetches the single day's full detail lazily via
  * its own query (only while `civilDate` is set) so the year/month view
  * never has to carry per-day text/images -- task: "получать только при
- * открытии Drawer".
+ * открытии Drawer". `year` is only used to invalidate the right
+ * `['telegram','contentPlan',year]` summary query after a slot action --
+ * it's always the year `civilDate` falls in, passed down by the tab that
+ * already tracks the selected year.
  */
-export function DayDrawer({ civilDate, onOpenChange }: { civilDate: string | null; onOpenChange: (open: boolean) => void }) {
+export function DayDrawer({
+  civilDate,
+  year,
+  onOpenChange,
+}: {
+  civilDate: string | null;
+  year: number;
+  onOpenChange: (open: boolean) => void;
+}) {
   const dayQuery = useQuery({
     queryKey: ["telegram", "contentPlan", "day", civilDate],
     queryFn: () => apiClient.telegram.contentPlan.getDay(civilDate!),
     enabled: !!civilDate,
   });
+  // Always called (never conditionally) -- civilDate is only null while
+  // the Sheet is closed, and the mutations it builds are inert until one
+  // is actually triggered from an open SlotCard.
+  const actions = useSlotActions(civilDate ?? "", year);
 
   return (
     <Sheet open={!!civilDate} onOpenChange={onOpenChange}>
@@ -54,7 +70,7 @@ export function DayDrawer({ civilDate, onOpenChange }: { civilDate: string | nul
           ) : dayQuery.data ? (
             <div className="space-y-3">
               {AUTOPOST_CONTENT_TYPES.map((type) => (
-                <SlotCard key={type} slot={dayQuery.data.slots[type]} />
+                <SlotCard key={type} slot={dayQuery.data.slots[type]} actions={actions} />
               ))}
             </div>
           ) : null}

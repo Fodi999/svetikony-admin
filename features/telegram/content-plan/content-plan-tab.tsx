@@ -149,7 +149,7 @@ export function ContentPlanTab() {
         </>
       ) : null}
 
-      <DayDrawer civilDate={selectedDate} onOpenChange={(open) => !open && setSelectedDate(null)} />
+      <DayDrawer civilDate={selectedDate} year={cursor.year} onOpenChange={(open) => !open && setSelectedDate(null)} />
     </div>
   );
 }

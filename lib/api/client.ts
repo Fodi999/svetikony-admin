@@ -16,6 +16,7 @@ import type {
   AlphabetLetter,
   Article,
   AuthUser,
+  AutopostContentType,
   CalendarDay,
   ChurchInfo,
   ContentPlanDay,
@@ -155,10 +156,32 @@ export interface TelegramApi {
     getSettings(): Promise<TelegramAutopostSettings>;
     updateSettings(values: AutopostSettingsFormValues): Promise<TelegramAutopostSettings>;
   };
-  /** Read-only Content Plan year calendar -- see features/telegram/content-plan/. */
+  /** Content Plan year calendar + per-slot preparation actions -- see
+   * features/telegram/content-plan/. `get`/`getDay` are read-only; every
+   * other method is a Stage 2 write action addressed by (date, contentType)
+   * rather than a numeric post id, since a slot may not have a
+   * telegram_posts row yet (some actions create it, per their own doc). */
   contentPlan: {
     get(query?: ContentPlanQuery): Promise<ContentPlanReport>;
     getDay(date: string): Promise<ContentPlanDay>;
+    /** Refuses to overwrite existing text -- use regenerateText for that. */
+    generateText(date: string, contentType: AutopostContentType): Promise<TelegramPost>;
+    /** Always overwrites; demotes a ready slot back to draft. */
+    regenerateText(date: string, contentType: AutopostContentType): Promise<TelegramPost>;
+    /** Manual edit -- no AI involved, creates the row if none exists yet. */
+    editText(date: string, contentType: AutopostContentType, text: string): Promise<TelegramPost>;
+    /** Refuses to overwrite an existing image -- use regenerateImage. */
+    generateImage(date: string, contentType: AutopostContentType): Promise<TelegramPost>;
+    /** Always attempts a fresh image; the previous one is restored if
+     * generation fails (never left blank). */
+    regenerateImage(date: string, contentType: AutopostContentType): Promise<TelegramPost>;
+    /** "Обрати з медіатеки" -- persists an already-uploaded R2 URL directly. */
+    assignImage(date: string, contentType: AutopostContentType, mediaUrl: string): Promise<TelegramPost>;
+    /** draft -> ready, only if the slot passes the same validation the
+     * autopost tick itself relies on before sending. */
+    markReady(date: string, contentType: AutopostContentType): Promise<TelegramPost>;
+    /** ready -> draft. */
+    markUnready(date: string, contentType: AutopostContentType): Promise<TelegramPost>;
   };
 }
 

@@ -24,6 +24,8 @@ const STATUS_LABELS: Record<TelegramPostStatus, string> = {
   scheduled: "Заплановано",
   sent: "Надіслано",
   failed: "Помилка",
+  ready: "Готово",
+  sending: "Надсилається",
 };
 
 const STATUS_VARIANTS: Record<TelegramPostStatus, "outline" | "default" | "destructive" | "secondary"> = {
@@ -31,6 +33,8 @@ const STATUS_VARIANTS: Record<TelegramPostStatus, "outline" | "default" | "destr
   scheduled: "secondary",
   sent: "default",
   failed: "destructive",
+  ready: "secondary",
+  sending: "secondary",
 };
 
 /** A row that failed calendar verification (saint_of_day only) is stored

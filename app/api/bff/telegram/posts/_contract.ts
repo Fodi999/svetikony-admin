@@ -10,7 +10,7 @@ export interface WorkerTelegramPostDto {
   text: string | null;
   mediaUrl: string | null;
   telegramMessageId: number | null;
-  status: "draft" | "scheduled" | "sent" | "failed";
+  status: "draft" | "scheduled" | "sent" | "failed" | "ready" | "sending";
   scheduledAt: string | null;
   sentAt: string | null;
   errorMessage: string | null;

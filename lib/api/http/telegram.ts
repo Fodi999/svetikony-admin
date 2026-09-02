@@ -51,6 +51,20 @@ function toPayload(values: TelegramPostFormValues): WorkerTelegramPostWritePaylo
   };
 }
 
+/** Shared caller for every Content Plan Stage 2 slot action -- all eight
+ * are addressed by (date, contentType) rather than a numeric post id (see
+ * TelegramApi.contentPlan's own doc comment for why). */
+function slotAction(
+  date: string,
+  contentType: AutopostContentType,
+  action: string,
+  method: "POST" | "PUT",
+  body?: unknown,
+): Promise<BffTelegramPostDto> {
+  const path = `${BFF_ENDPOINTS.telegram.contentPlan}/${encodeURIComponent(date)}/${encodeURIComponent(contentType)}/${action}`;
+  return method === "PUT" ? httpPut<BffTelegramPostDto>(path, body) : httpPost<BffTelegramPostDto>(path, body);
+}
+
 function toAutopostSettings(dto: BffAutopostSettingsDto): TelegramAutopostSettings {
   return {
     globalEnabled: dto.globalEnabled,
@@ -115,6 +129,30 @@ export const telegramHttpResource: TelegramApi = {
     },
     async getDay(date: string): Promise<ContentPlanDay> {
       return httpGet<BffContentPlanDayDto>(`${BFF_ENDPOINTS.telegram.contentPlan}/${encodeURIComponent(date)}`);
+    },
+    async generateText(date: string, contentType: AutopostContentType): Promise<TelegramPost> {
+      return toPost(await slotAction(date, contentType, "generate-text", "POST"));
+    },
+    async regenerateText(date: string, contentType: AutopostContentType): Promise<TelegramPost> {
+      return toPost(await slotAction(date, contentType, "regenerate-text", "POST"));
+    },
+    async editText(date: string, contentType: AutopostContentType, text: string): Promise<TelegramPost> {
+      return toPost(await slotAction(date, contentType, "text", "PUT", { text }));
+    },
+    async generateImage(date: string, contentType: AutopostContentType): Promise<TelegramPost> {
+      return toPost(await slotAction(date, contentType, "generate-image", "POST"));
+    },
+    async regenerateImage(date: string, contentType: AutopostContentType): Promise<TelegramPost> {
+      return toPost(await slotAction(date, contentType, "regenerate-image", "POST"));
+    },
+    async assignImage(date: string, contentType: AutopostContentType, mediaUrl: string): Promise<TelegramPost> {
+      return toPost(await slotAction(date, contentType, "image", "PUT", { mediaUrl }));
+    },
+    async markReady(date: string, contentType: AutopostContentType): Promise<TelegramPost> {
+      return toPost(await slotAction(date, contentType, "ready", "POST"));
+    },
+    async markUnready(date: string, contentType: AutopostContentType): Promise<TelegramPost> {
+      return toPost(await slotAction(date, contentType, "unready", "POST"));
     },
   },
 };
