@@ -10,6 +10,20 @@
  * Worker row.
  */
 
+/** Mirrors lib/d1/repositories/calendarDays.ts's CalendarImageMetadata in
+ * svet-ikony -- read-only provenance for the Media tab (task: "Media UI"),
+ * never sent back on write. */
+export interface WorkerCalendarImageMetadata {
+  origin: "ai_generated" | "manual";
+  referenceProvider?: "wikipedia";
+  referencePageUrl?: string;
+  referenceImageUrl?: string;
+  referenceTitle?: string;
+  referenceAuthor?: string;
+  referenceLicense?: string;
+  identityVerified: boolean;
+}
+
 /** Mirrors lib/d1/repositories/calendarDays.ts's ChurchCalendarDayDto in
  * svet-ikony exactly (Stage 2H). Do not add fields here that aren't in
  * that type. */
@@ -31,6 +45,7 @@ export interface WorkerCalendarDayDto {
   status: string;
   seoTitle: string | null;
   seoDescription: string | null;
+  imageMetadata: WorkerCalendarImageMetadata | null;
   isGlobal: boolean;
   createdAt: string;
   updatedAt: string;
@@ -55,6 +70,7 @@ export interface BffCalendarDayDto {
   status: string;
   seoTitle: string | null;
   seoDescription: string | null;
+  imageMetadata: WorkerCalendarImageMetadata | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -77,6 +93,7 @@ export function toBffCalendarDayDto(worker: WorkerCalendarDayDto): BffCalendarDa
     status: worker.status,
     seoTitle: worker.seoTitle,
     seoDescription: worker.seoDescription,
+    imageMetadata: worker.imageMetadata,
     createdAt: worker.createdAt,
     updatedAt: worker.updatedAt,
   };

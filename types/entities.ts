@@ -268,6 +268,21 @@ export type CalendarEventType =
   | "liturgical"
   | "civil";
 
+/** Read-only provenance of `imageId` -- see CalendarAiFillResult and
+ * features/calendar/calendar-day-form.tsx's Media tab display. Never part
+ * of CalendarDayFormValues/calendarDaySchema: this is set exclusively by
+ * the AI image actions server-side, never submitted back on save. */
+export interface CalendarImageMetadata {
+  origin: "ai_generated" | "manual";
+  referenceProvider?: "wikipedia";
+  referencePageUrl?: string;
+  referenceImageUrl?: string;
+  referenceTitle?: string;
+  referenceAuthor?: string;
+  referenceLicense?: string;
+  identityVerified: boolean;
+}
+
 export interface CalendarDay extends Identifiable, Timestamps, Translatable {
   date: string; // ISO date, e.g. "2026-08-19"
   title: string;
@@ -281,6 +296,7 @@ export interface CalendarDay extends Identifiable, Timestamps, Translatable {
    * means "not set yet", falls back to title/shortDescription. */
   seoTitle?: string | null;
   seoDescription?: string | null;
+  imageMetadata?: CalendarImageMetadata | null;
   relatedIconIds: string[];
   relatedPrayerIds: string[];
   relatedSaintIds: string[];

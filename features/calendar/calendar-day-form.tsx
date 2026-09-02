@@ -347,6 +347,25 @@ export function CalendarDayForm({ mode, day, onSubmit, onDelete, submitting }: C
                   <X className="size-4" />
                   Прибрати фото
                 </Button>
+                {day?.imageMetadata?.origin === "ai_generated" ? (
+                  <div className="space-y-1 rounded-md border bg-muted/30 p-2 text-xs text-muted-foreground">
+                    <p>
+                      <span className="font-medium text-foreground">Зображення:</span>{" "}
+                      {day.imageMetadata.identityVerified ? "AI-ілюстрація" : "AI-ілюстрація · тематичний образ"}
+                    </p>
+                    <p>
+                      <span className="font-medium text-foreground">Референс:</span>{" "}
+                      {day.imageMetadata.referenceProvider === "wikipedia"
+                        ? "Wikipedia / Wikimedia Commons"
+                        : "Референс не знайдено"}
+                    </p>
+                    {day.imageMetadata.identityVerified ? (
+                      <p>
+                        <span className="font-medium text-foreground">Статус:</span> Особу підтверджено
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
             ) : null}
           </TabsContent>

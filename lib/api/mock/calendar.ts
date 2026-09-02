@@ -134,17 +134,20 @@ export const calendarDaysResource: ApiClient["calendarDays"] = {
     await mockDelay(400);
     const day = getOrThrow(id);
     if (day.imageId?.trim()) throw new ApiError("conflict", "Зображення вже існує -- скористайтеся регенерацією");
-    return save(id, { imageId: "https://placehold.co/600x400" });
+    return save(id, { imageId: "https://placehold.co/600x400", imageMetadata: { origin: "ai_generated", identityVerified: false } });
   },
   async regenerateImage(id) {
     await mockDelay(400);
     getOrThrow(id);
-    return save(id, { imageId: `https://placehold.co/600x400?text=${Date.now()}` });
+    return save(id, {
+      imageId: `https://placehold.co/600x400?text=${Date.now()}`,
+      imageMetadata: { origin: "ai_generated", identityVerified: false },
+    });
   },
   async assignImage(id, imageUrl) {
     await mockDelay(200);
     getOrThrow(id);
-    return save(id, { imageId: imageUrl });
+    return save(id, { imageId: imageUrl, imageMetadata: null });
   },
   async fillMissing(id): Promise<CalendarAiFillResult> {
     await mockDelay(800);
@@ -164,7 +167,7 @@ export const calendarDaysResource: ApiClient["calendarDays"] = {
       filled.push("seo");
     }
     if (!current.imageId?.trim()) {
-      current = save(id, { imageId: "https://placehold.co/600x400" });
+      current = save(id, { imageId: "https://placehold.co/600x400", imageMetadata: { origin: "ai_generated", identityVerified: false } });
       filled.push("image");
     }
     return { day: current, filled, skipped: [] };

@@ -46,6 +46,7 @@ function toEntity(dto: BffCalendarDayDto): CalendarDay {
     imageId: dto.imageUrl || undefined,
     seoTitle: dto.seoTitle,
     seoDescription: dto.seoDescription,
+    imageMetadata: dto.imageMetadata,
     relatedIconIds: [],
     relatedPrayerIds: [],
     relatedSaintIds: [],
