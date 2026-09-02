@@ -2,10 +2,11 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
-import { Eye, X } from "lucide-react";
+import { Eye, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { ConfirmDialog } from "@/components/feedback/confirm-dialog";
 import { MediaUploadButton } from "@/components/forms/media-upload-button";
 import { RelationPickerField } from "@/components/forms/relation-picker-field";
 import { SelectField } from "@/components/forms/select-field";
@@ -20,6 +21,7 @@ import { useBeforeUnloadWarning } from "@/lib/utils/use-before-unload";
 import { resolveMediaPreviewUrl } from "@/lib/media/resolve-preview-url";
 import { calendarDaySchema, type CalendarDayFormValues } from "@/lib/validation/calendar.schema";
 import type { CalendarDay } from "@/types/entities";
+import { useCalendarAiActions } from "./use-calendar-ai-actions";
 
 const EVENT_TYPE_LABELS = {
   feast: "Свято",
@@ -39,6 +41,8 @@ const EMPTY_DEFAULTS: CalendarDayFormValues = {
   eventType: "feast",
   status: "draft",
   imageId: undefined,
+  seoTitle: null,
+  seoDescription: null,
   relatedIconIds: [],
   relatedPrayerIds: [],
   relatedSaintIds: [],
@@ -103,6 +107,15 @@ export function CalendarDayForm({ mode, day, onSubmit, onDelete, submitting }: C
 
   useBeforeUnloadWarning(form.formState.isDirty);
 
+  // Always called (never conditionally) -- `day?.id` is only undefined in
+  // "create" mode, where every AI button below stays hidden/disabled since
+  // there's no saved record yet for the backend actions to operate on.
+  const ai = useCalendarAiActions(day?.id, form);
+  const [confirmRegenerateDescription, setConfirmRegenerateDescription] = useState(false);
+  const [confirmRegenerateHistory, setConfirmRegenerateHistory] = useState(false);
+  const [confirmRegenerateSeo, setConfirmRegenerateSeo] = useState(false);
+  const [confirmRegenerateImage, setConfirmRegenerateImage] = useState(false);
+
   const iconsQuery = useQuery({ queryKey: ["icons", "options"], queryFn: () => apiClient.icons.list({ pageSize: 200 }) });
   const prayersQuery = useQuery({ queryKey: ["prayers", "options"], queryFn: () => apiClient.prayers.list({ pageSize: 200 }) });
   const saintsQuery = useQuery({ queryKey: ["saints", "options"], queryFn: () => apiClient.saints.list({ pageSize: 200 }) });
@@ -132,6 +145,19 @@ export function CalendarDayForm({ mode, day, onSubmit, onDelete, submitting }: C
   return (
     <div className="flex h-full flex-col">
       <div className="flex-1 space-y-4 overflow-y-auto p-4 pb-28 md:p-6 md:pb-24">
+        {mode === "edit" && day ? (
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full"
+            disabled={ai.isPending("fillMissing")}
+            onClick={ai.fillMissing}
+          >
+            <Sparkles className="size-4" />
+            {ai.isPending("fillMissing") ? "Заповнення…" : "Заповнити відсутнє з AI"}
+          </Button>
+        ) : null}
+
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="w-full overflow-x-auto">
             <TabsTrigger value="basic">Основне</TabsTrigger>
@@ -162,8 +188,98 @@ export function CalendarDayForm({ mode, day, onSubmit, onDelete, submitting }: C
           </TabsContent>
 
           <TabsContent value="content" className="space-y-4">
-            <TextField control={form.control} name="shortDescription" label="Короткий опис" textarea rows={3} />
-            <TextField control={form.control} name="history" label="Історична довідка" textarea rows={6} />
+            <div className="space-y-1">
+              <TextField control={form.control} name="shortDescription" label="Короткий опис" textarea rows={3} />
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>{values.shortDescription?.length ?? 0} символів</span>
+                {mode === "edit" && day ? (
+                  <div className="flex gap-2">
+                    {!values.shortDescription?.trim() ? (
+                      <Button type="button" size="sm" variant="ghost" disabled={ai.isPending("generateDescription")} onClick={ai.generateDescription}>
+                        <Sparkles className="size-3.5" />
+                        {ai.isPending("generateDescription") ? "Генерація…" : "Згенерувати"}
+                      </Button>
+                    ) : (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        disabled={ai.isPending("regenerateDescription")}
+                        onClick={() => setConfirmRegenerateDescription(true)}
+                      >
+                        <Sparkles className="size-3.5" />
+                        {ai.isPending("regenerateDescription") ? "Регенерація…" : "Перегенерувати"}
+                      </Button>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <TextField control={form.control} name="history" label="Основний текст / житіє / опис події" textarea rows={6} />
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>{values.history?.length ?? 0} символів</span>
+                {mode === "edit" && day ? (
+                  <div className="flex gap-2">
+                    {!values.history?.trim() ? (
+                      <Button type="button" size="sm" variant="ghost" disabled={ai.isPending("generateHistory")} onClick={ai.generateHistory}>
+                        <Sparkles className="size-3.5" />
+                        {ai.isPending("generateHistory") ? "Генерація…" : "Згенерувати"}
+                      </Button>
+                    ) : (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        disabled={ai.isPending("regenerateHistory")}
+                        onClick={() => setConfirmRegenerateHistory(true)}
+                      >
+                        <Sparkles className="size-3.5" />
+                        {ai.isPending("regenerateHistory") ? "Регенерація…" : "Перегенерувати"}
+                      </Button>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="space-y-2 border-t pt-4">
+              <p className="text-sm font-medium">SEO</p>
+              <div className="space-y-1">
+                <TextField control={form.control} name="seoTitle" label="SEO title" />
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>{values.seoTitle?.length ?? 0}/70 символів</span>
+                </div>
+              </div>
+              <div className="space-y-1">
+                <TextField control={form.control} name="seoDescription" label="SEO description" textarea rows={2} />
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>{values.seoDescription?.length ?? 0}/200 символів</span>
+                  {mode === "edit" && day ? (
+                    <div className="flex gap-2">
+                      {!(values.seoTitle?.trim() && values.seoDescription?.trim()) ? (
+                        <Button type="button" size="sm" variant="ghost" disabled={ai.isPending("generateSeo")} onClick={ai.generateSeo}>
+                          <Sparkles className="size-3.5" />
+                          {ai.isPending("generateSeo") ? "Генерація…" : "Згенерувати SEO"}
+                        </Button>
+                      ) : (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          disabled={ai.isPending("regenerateSeo")}
+                          onClick={() => setConfirmRegenerateSeo(true)}
+                        >
+                          <Sparkles className="size-3.5" />
+                          {ai.isPending("regenerateSeo") ? "Регенерація…" : "Перегенерувати SEO"}
+                        </Button>
+                      )}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            </div>
           </TabsContent>
 
           <TabsContent value="relations" className="space-y-4">
@@ -176,21 +292,42 @@ export function CalendarDayForm({ mode, day, onSubmit, onDelete, submitting }: C
           <TabsContent value="media" className="space-y-4">
             <div className="space-y-2">
               <TextField control={form.control} name="imageId" label="ID зображення" description="Фото для картки календаря. Посилання на медіатеку (Stage 1: введіть ID вручну)" />
-              <MediaUploadButton
-                kind="image"
-                module="calendar"
-                entityId={day?.id ?? "draft"}
-                purpose="main"
-                label="Завантажити фото"
-                onUploaded={({ id }) => {
-                  // Replacing a not-yet-saved upload with another one —
-                  // the previous pending key is now orphaned, clean it up.
-                  const previous = pendingUploadKey;
-                  form.setValue("imageId", id, { shouldDirty: true });
-                  setPendingUploadKey(id);
-                  if (previous) void cleanupOrphanUpload(previous);
-                }}
-              />
+              <div className="flex flex-wrap gap-2">
+                <MediaUploadButton
+                  kind="image"
+                  module="calendar"
+                  entityId={day?.id ?? "draft"}
+                  purpose="main"
+                  label="Завантажити фото"
+                  onUploaded={({ id }) => {
+                    // Replacing a not-yet-saved upload with another one —
+                    // the previous pending key is now orphaned, clean it up.
+                    const previous = pendingUploadKey;
+                    form.setValue("imageId", id, { shouldDirty: true });
+                    setPendingUploadKey(id);
+                    if (previous) void cleanupOrphanUpload(previous);
+                  }}
+                />
+                {mode === "edit" && day ? (
+                  !values.imageId?.trim() ? (
+                    <Button type="button" variant="outline" size="sm" disabled={ai.isPending("generateImage")} onClick={ai.generateImage}>
+                      <Sparkles className="size-4" />
+                      {ai.isPending("generateImage") ? "Генерація…" : "Згенерувати фото AI"}
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={ai.isPending("regenerateImage")}
+                      onClick={() => setConfirmRegenerateImage(true)}
+                    >
+                      <Sparkles className="size-4" />
+                      {ai.isPending("regenerateImage") ? "Регенерація…" : "Перегенерувати фото"}
+                    </Button>
+                  )
+                ) : null}
+              </div>
             </div>
             {imagePreviewUrl ? (
               <div className="space-y-2">
@@ -266,6 +403,51 @@ export function CalendarDayForm({ mode, day, onSubmit, onDelete, submitting }: C
           </div>
         </div>
       ) : null}
+
+      <ConfirmDialog
+        open={confirmRegenerateDescription}
+        onOpenChange={setConfirmRegenerateDescription}
+        title="Перегенерувати опис?"
+        description="Поточний короткий опис буде замінено новою AI-версією."
+        confirmLabel="Перегенерувати"
+        onConfirm={() => {
+          ai.regenerateDescription();
+          setConfirmRegenerateDescription(false);
+        }}
+      />
+      <ConfirmDialog
+        open={confirmRegenerateHistory}
+        onOpenChange={setConfirmRegenerateHistory}
+        title="Перегенерувати текст?"
+        description="Поточний основний текст буде замінено новою AI-версією."
+        confirmLabel="Перегенерувати"
+        onConfirm={() => {
+          ai.regenerateHistory();
+          setConfirmRegenerateHistory(false);
+        }}
+      />
+      <ConfirmDialog
+        open={confirmRegenerateSeo}
+        onOpenChange={setConfirmRegenerateSeo}
+        title="Перегенерувати SEO?"
+        description="Поточні SEO title і description буде замінено новою AI-версією."
+        confirmLabel="Перегенерувати"
+        onConfirm={() => {
+          ai.regenerateSeo();
+          setConfirmRegenerateSeo(false);
+        }}
+      />
+      <ConfirmDialog
+        open={confirmRegenerateImage}
+        onOpenChange={setConfirmRegenerateImage}
+        title="Перегенерувати фото?"
+        description="Поточне зображення буде замінено новим. Якщо генерація не вдасться, попереднє зображення залишиться."
+        confirmLabel="Перегенерувати"
+        onConfirm={() => {
+          ai.regenerateImage();
+          setConfirmRegenerateImage(false);
+        }}
+      />
     </div>
   );
 }

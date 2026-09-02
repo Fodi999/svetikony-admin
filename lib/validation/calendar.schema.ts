@@ -19,6 +19,8 @@ export const calendarDaySchema = z.object({
   eventType: calendarEventTypeSchema,
   status: contentStatusSchema,
   imageId: z.string().optional(),
+  seoTitle: z.string().max(70).nullable().optional(),
+  seoDescription: z.string().max(200).nullable().optional(),
   relatedIconIds: z.array(z.string()),
   relatedPrayerIds: z.array(z.string()),
   relatedSaintIds: z.array(z.string()),

@@ -66,7 +66,7 @@ export interface Messages {
 export const uk: Messages = {
   nav: {
     dashboard: "Панель",
-    calendar: "Календар",
+    calendar: "Церковний календар",
     icons: "Ікони",
     prayers: "Молитви",
     saints: "Святі",

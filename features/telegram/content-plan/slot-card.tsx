@@ -1,8 +1,9 @@
 "use client";
 
-import { MoreHorizontal } from "lucide-react";
+import { ExternalLink, MoreHorizontal } from "lucide-react";
 import { useState } from "react";
 import { ConfirmDialog } from "@/components/feedback/confirm-dialog";
+import { GuardedLink } from "@/components/layout/guarded-link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -35,7 +36,18 @@ function StateRow({ label, ok }: { label: string; ok: boolean }) {
  * this set. */
 const NO_ACTIONS_STATUSES = new Set<ContentPlanSlotStatus>(["SENT", "SENDING", "REVIEW_REQUIRED", "MISSING_SOURCE"]);
 
-export function SlotCard({ slot, actions }: { slot: ContentPlanSlot; actions: SlotActions }) {
+export function SlotCard({
+  slot,
+  actions,
+  calendarDayId,
+}: {
+  slot: ContentPlanSlot;
+  actions: SlotActions;
+  /** church_calendar_days.id for this day, when one exists -- powers the
+   * "Відкрити календар" link for MISSING_SOURCE/REVIEW_REQUIRED slots
+   * (task: "не предлагать AI выдумать content, а направить у джерело"). */
+  calendarDayId: string | null;
+}) {
   const [editorOpen, setEditorOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [mediaPickerOpen, setMediaPickerOpen] = useState(false);
@@ -84,12 +96,22 @@ export function SlotCard({ slot, actions }: { slot: ContentPlanSlot; actions: Sl
       </CardHeader>
 
       <CardContent className="space-y-2 text-sm">
-        {isMissingSource ? (
-          <p className="text-sm text-muted-foreground">
-            Неможливо підготувати публікацію: для цього дня відсутнє перевірене джерело.
-          </p>
-        ) : isReviewRequired ? (
-          <p className="text-sm text-orange-400">Потрібна перевірка календаря перед публікацією.</p>
+        {isMissingSource || isReviewRequired ? (
+          <div className="space-y-2">
+            <p className={isReviewRequired ? "text-sm text-orange-400" : "text-sm text-muted-foreground"}>
+              {isMissingSource
+                ? "Неможливо підготувати публікацію: для цього дня відсутнє перевірене джерело."
+                : "Потрібна перевірка календаря перед публікацією."}
+              {" "}
+              Потрібно виправити джерело у Церковному календарі.
+            </p>
+            {calendarDayId ? (
+              <Button size="sm" variant="outline" render={<GuardedLink href={`/calendar/${calendarDayId}`} />}>
+                <ExternalLink className="size-4" />
+                Відкрити календар
+              </Button>
+            ) : null}
+          </div>
         ) : (
           <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
             <StateRow label="Джерело" ok={slot.sourceStatus === "available"} />

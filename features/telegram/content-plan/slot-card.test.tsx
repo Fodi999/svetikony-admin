@@ -2,9 +2,12 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { UnsavedChangesProvider } from "@/components/feedback/unsaved-changes-context";
 import type { ContentPlanSlot } from "@/types/entities";
 import { SlotCard } from "./slot-card";
 import type { SlotActions } from "./use-slot-actions";
+
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
 function fakeActions(overrides: Partial<SlotActions> = {}): SlotActions {
   return {
@@ -41,11 +44,13 @@ function baseSlot(overrides: Partial<ContentPlanSlot> = {}): ContentPlanSlot {
  * useQuery internally -- a QueryClientProvider ancestor is required even
  * when nothing is actually fetched (its query is `enabled: open`, and
  * every test here leaves the picker closed). */
-function renderSlotCard(slot: ContentPlanSlot, actions: SlotActions) {
+function renderSlotCard(slot: ContentPlanSlot, actions: SlotActions, calendarDayId: string | null = null) {
   const queryClient = new QueryClient();
   return render(
     <QueryClientProvider client={queryClient}>
-      <SlotCard slot={slot} actions={actions} />
+      <UnsavedChangesProvider>
+        <SlotCard slot={slot} actions={actions} calendarDayId={calendarDayId} />
+      </UnsavedChangesProvider>
     </QueryClientProvider>,
   );
 }
@@ -109,12 +114,23 @@ describe("SlotCard", () => {
     expect(screen.getByText(/Потрібна перевірка календаря/)).toBeInTheDocument();
   });
 
-  it("renders no action buttons and a single explanatory message (not repeated) for MISSING_SOURCE", () => {
+  it("renders no action buttons and a single explanatory message (not repeated) for MISSING_SOURCE, with no calendar link when calendarDayId is unknown", () => {
     renderSlotCard(baseSlot({ publicationStatus: "MISSING_SOURCE", sourceStatus: "missing_source" }), fakeActions());
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
     expect(screen.getByText(/відсутнє перевірене джерело/)).toBeInTheDocument();
     // The status badge itself is the only other place "Немає джерела" may appear.
     expect(screen.getAllByText("Немає джерела")).toHaveLength(1);
+  });
+
+  it("links MISSING_SOURCE to the Church Calendar editor instead of offering AI actions, when calendarDayId is known", () => {
+    renderSlotCard(baseSlot({ publicationStatus: "MISSING_SOURCE", sourceStatus: "missing_source" }), fakeActions(), "cal-day-42");
+    expect(screen.getByText(/Потрібно виправити джерело у Церковному календарі/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Відкрити календар/ })).toHaveAttribute("href", "/calendar/cal-day-42");
+  });
+
+  it("links REVIEW_REQUIRED to the Church Calendar editor too, when calendarDayId is known", () => {
+    renderSlotCard(baseSlot({ publicationStatus: "REVIEW_REQUIRED" }), fakeActions(), "cal-day-7");
+    expect(screen.getByRole("link", { name: /Відкрити календар/ })).toHaveAttribute("href", "/calendar/cal-day-7");
   });
 
   it("renders no mutation buttons at all for SENT -- immutable", () => {

@@ -1,12 +1,12 @@
 import type { z } from "zod";
-import type { BffCalendarDayDto, WorkerCalendarDayWritePayload } from "@/app/api/bff/calendar-days/_contract";
+import type { BffCalendarAiFillResultDto, BffCalendarDayDto, WorkerCalendarDayWritePayload } from "@/app/api/bff/calendar-days/_contract";
 import type { ApiClient, CalendarQuery } from "@/lib/api/client";
 import { BFF_ENDPOINTS } from "@/lib/api/endpoints";
 import { createHttpListResource } from "@/lib/api/http/resource-factory";
 import { httpDelete, httpPost, httpPut } from "@/lib/api/http/transport";
 import { contentStatusSchema, languageSchema } from "@/lib/validation/common";
 import { calendarEventTypeSchema, type CalendarDayFormValues } from "@/lib/validation/calendar.schema";
-import type { CalendarDay, CalendarEventType, ContentStatus, Language } from "@/types/entities";
+import type { CalendarAiFillResult, CalendarDay, CalendarEventType, ContentStatus, Language } from "@/types/entities";
 
 /**
  * Real local data has `dayType` values mirrored from the old Rust backend
@@ -44,6 +44,8 @@ function toEntity(dto: BffCalendarDayDto): CalendarDay {
     eventType: safeEnum<CalendarEventType>(calendarEventTypeSchema, dto.dayType, "feast"),
     status: safeEnum<ContentStatus>(contentStatusSchema, dto.status, "draft"),
     imageId: dto.imageUrl || undefined,
+    seoTitle: dto.seoTitle,
+    seoDescription: dto.seoDescription,
     relatedIconIds: [],
     relatedPrayerIds: [],
     relatedSaintIds: [],
@@ -68,7 +70,13 @@ function toPayload(values: CalendarDayFormValues): WorkerCalendarDayWritePayload
     history: values.history ?? "",
     imageUrl: values.imageId ?? "",
     status: values.status,
+    seoTitle: values.seoTitle ?? null,
+    seoDescription: values.seoDescription ?? null,
   };
+}
+
+function aiActionPath(id: string, action: string): string {
+  return `${BFF_ENDPOINTS.calendarDays}/${encodeURIComponent(id)}/${action}`;
 }
 
 /**
@@ -107,5 +115,36 @@ export const calendarDaysHttpResource: ApiClient["calendarDays"] = {
   },
   async remove(id: string): Promise<void> {
     await httpDelete(`${BFF_ENDPOINTS.calendarDays}/${encodeURIComponent(id)}`);
+  },
+  async generateDescription(id: string): Promise<CalendarDay> {
+    return toEntity(await httpPost<BffCalendarDayDto>(aiActionPath(id, "generate-description"), undefined));
+  },
+  async regenerateDescription(id: string): Promise<CalendarDay> {
+    return toEntity(await httpPost<BffCalendarDayDto>(aiActionPath(id, "regenerate-description"), undefined));
+  },
+  async generateHistory(id: string): Promise<CalendarDay> {
+    return toEntity(await httpPost<BffCalendarDayDto>(aiActionPath(id, "generate-history"), undefined));
+  },
+  async regenerateHistory(id: string): Promise<CalendarDay> {
+    return toEntity(await httpPost<BffCalendarDayDto>(aiActionPath(id, "regenerate-history"), undefined));
+  },
+  async generateSeo(id: string): Promise<CalendarDay> {
+    return toEntity(await httpPost<BffCalendarDayDto>(aiActionPath(id, "generate-seo"), undefined));
+  },
+  async regenerateSeo(id: string): Promise<CalendarDay> {
+    return toEntity(await httpPost<BffCalendarDayDto>(aiActionPath(id, "regenerate-seo"), undefined));
+  },
+  async generateImage(id: string): Promise<CalendarDay> {
+    return toEntity(await httpPost<BffCalendarDayDto>(aiActionPath(id, "generate-image"), undefined));
+  },
+  async regenerateImage(id: string): Promise<CalendarDay> {
+    return toEntity(await httpPost<BffCalendarDayDto>(aiActionPath(id, "regenerate-image"), undefined));
+  },
+  async assignImage(id: string, imageUrl: string): Promise<CalendarDay> {
+    return toEntity(await httpPut<BffCalendarDayDto>(aiActionPath(id, "image"), { imageUrl }));
+  },
+  async fillMissing(id: string): Promise<CalendarAiFillResult> {
+    const dto = await httpPost<BffCalendarAiFillResultDto>(aiActionPath(id, "fill-missing"), undefined);
+    return { day: toEntity(dto.day), filled: dto.filled, skipped: dto.skipped };
   },
 };

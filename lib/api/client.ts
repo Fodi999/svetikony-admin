@@ -17,6 +17,7 @@ import type {
   Article,
   AuthUser,
   AutopostContentType,
+  CalendarAiFillResult,
   CalendarDay,
   ChurchInfo,
   ContentPlanDay,
@@ -204,7 +205,31 @@ export interface ApiClient {
   dashboard: {
     getStats(): Promise<DashboardStats>;
   };
-  calendarDays: CrudResource<CalendarDay, CalendarDayFormValues, CalendarQuery>;
+  calendarDays: CrudResource<CalendarDay, CalendarDayFormValues, CalendarQuery> & {
+    /** "Церковний календар" AI preparation actions -- see
+     * lib/church/calendar-ai-actions.ts in svet-ikony. Every action here
+     * saves as draft only; none of them ever changes `status` or touches
+     * Telegram. Refuses to overwrite a field that already has content
+     * (use the paired regenerate* action for that, with a confirmation in
+     * the UI) except `fillMissing`, which only ever fills what's empty. */
+    generateDescription(id: string): Promise<CalendarDay>;
+    regenerateDescription(id: string): Promise<CalendarDay>;
+    generateHistory(id: string): Promise<CalendarDay>;
+    regenerateHistory(id: string): Promise<CalendarDay>;
+    /** Fills whichever of seoTitle/seoDescription is empty. */
+    generateSeo(id: string): Promise<CalendarDay>;
+    /** Always overwrites both SEO fields. */
+    regenerateSeo(id: string): Promise<CalendarDay>;
+    generateImage(id: string): Promise<CalendarDay>;
+    /** Always attempts a fresh image; the previous one is restored if
+     * generation fails. */
+    regenerateImage(id: string): Promise<CalendarDay>;
+    /** "Обрати з медіатеки" -- persists an already-uploaded R2 key/URL. */
+    assignImage(id: string, imageUrl: string): Promise<CalendarDay>;
+    /** "Заповнити відсутнє з AI" -- fills every missing field it safely
+     * can; never overwrites existing content. */
+    fillMissing(id: string): Promise<CalendarAiFillResult>;
+  };
   icons: CrudResource<Icon, IconFormValues, TranslatableQuery>;
   prayers: CrudResource<Prayer, PrayerFormValues, TranslatableQuery>;
   saints: CrudResource<Saint, SaintFormValues, TranslatableQuery>;

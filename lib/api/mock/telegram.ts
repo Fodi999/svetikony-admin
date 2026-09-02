@@ -162,7 +162,13 @@ function mockDay(civilDate: string): ContentPlanDay {
           errorMessage: null,
         };
   }
-  return { civilDate, julianDate: civilDate, calendarTitle: inRange ? "Мок: святий дня" : null, slots };
+  return {
+    civilDate,
+    julianDate: civilDate,
+    calendarTitle: inRange ? "Мок: святий дня" : null,
+    calendarDayId: inRange ? "mock-calendar-day" : null,
+    slots,
+  };
 }
 
 function mockSummary(days: ContentPlanDay[]): ContentPlanSummary {

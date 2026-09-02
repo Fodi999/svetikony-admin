@@ -39,6 +39,7 @@ export interface WorkerContentPlanDayDto {
   civilDate: string;
   julianDate: string;
   calendarTitle: string | null;
+  calendarDayId: string | null;
   slots: Record<AutopostContentType, WorkerContentPlanSlotDto>;
 }
 

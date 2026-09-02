@@ -29,6 +29,8 @@ export interface WorkerCalendarDayDto {
   imageUrl: string;
   rank: number;
   status: string;
+  seoTitle: string | null;
+  seoDescription: string | null;
   isGlobal: boolean;
   createdAt: string;
   updatedAt: string;
@@ -51,6 +53,8 @@ export interface BffCalendarDayDto {
   imageUrl: string;
   rank: number;
   status: string;
+  seoTitle: string | null;
+  seoDescription: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -71,6 +75,8 @@ export function toBffCalendarDayDto(worker: WorkerCalendarDayDto): BffCalendarDa
     imageUrl: worker.imageUrl,
     rank: worker.rank,
     status: worker.status,
+    seoTitle: worker.seoTitle,
+    seoDescription: worker.seoDescription,
     createdAt: worker.createdAt,
     updatedAt: worker.updatedAt,
   };
@@ -95,4 +101,23 @@ export interface WorkerCalendarDayWritePayload {
   imageUrl?: string;
   rank?: number;
   status?: string;
+  seoTitle?: string | null;
+  seoDescription?: string | null;
+}
+
+/** Outcome of "Заповнити відсутнє з AI" -- mirrors
+ * lib/church/calendar-ai-actions.ts's FillMissingCalendarResult in svet-ikony. */
+export type WorkerCalendarAiField = "description" | "history" | "seo" | "image";
+export interface WorkerCalendarAiFillResultDto {
+  day: WorkerCalendarDayDto;
+  filled: WorkerCalendarAiField[];
+  skipped: { field: WorkerCalendarAiField; reason: "missing_source" | "review_required" | "failed" }[];
+}
+export interface BffCalendarAiFillResultDto {
+  day: BffCalendarDayDto;
+  filled: WorkerCalendarAiField[];
+  skipped: { field: WorkerCalendarAiField; reason: "missing_source" | "review_required" | "failed" }[];
+}
+export function toBffCalendarAiFillResultDto(worker: WorkerCalendarAiFillResultDto): BffCalendarAiFillResultDto {
+  return { day: toBffCalendarDayDto(worker.day), filled: worker.filled, skipped: worker.skipped };
 }

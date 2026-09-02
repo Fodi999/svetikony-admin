@@ -1,8 +1,11 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { ExternalLink } from "lucide-react";
+import { GuardedLink } from "@/components/layout/guarded-link";
 import { StateMessage } from "@/components/feedback/state-message";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiClient } from "@/lib/api";
@@ -76,7 +79,17 @@ export function DayDrawer({
             ) : null}
           </div>
 
-          {dayQuery.data?.calendarTitle ? <p className="text-base font-medium">{dayQuery.data.calendarTitle}</p> : null}
+          {dayQuery.data?.calendarTitle ? (
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-base font-medium">{dayQuery.data.calendarTitle}</p>
+              {dayQuery.data.calendarDayId ? (
+                <Button variant="ghost" size="sm" render={<GuardedLink href={`/calendar/${dayQuery.data.calendarDayId}`} />}>
+                  <ExternalLink className="size-4" />
+                  Відкрити в Церковному календарі
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
 
           {civilDate ? <PrepareDayPanel civilDate={civilDate} year={year} /> : null}
 
@@ -91,7 +104,7 @@ export function DayDrawer({
           ) : dayQuery.data ? (
             <div className="space-y-3">
               {AUTOPOST_CONTENT_TYPES.map((type) => (
-                <SlotCard key={type} slot={dayQuery.data.slots[type]} actions={actions} />
+                <SlotCard key={type} slot={dayQuery.data.slots[type]} actions={actions} calendarDayId={dayQuery.data.calendarDayId} />
               ))}
             </div>
           ) : null}

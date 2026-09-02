@@ -170,6 +170,11 @@ export interface ContentPlanDay {
   civilDate: string;
   julianDate: string;
   calendarTitle: string | null;
+  /** church_calendar_days.id for this date, when a row exists -- lets the
+   * Day Drawer link back to "Церковний календар", the canonical source
+   * (see features/telegram/content-plan/day-drawer.tsx). Null exactly when
+   * calendarTitle is null. */
+  calendarDayId: string | null;
   slots: Record<AutopostContentType, ContentPlanSlot>;
 }
 
@@ -272,10 +277,22 @@ export interface CalendarDay extends Identifiable, Timestamps, Translatable {
   eventType: CalendarEventType;
   status: ContentStatus;
   imageId?: string;
+  /** Admin-curated SEO overrides for the public day page -- null/undefined
+   * means "not set yet", falls back to title/shortDescription. */
+  seoTitle?: string | null;
+  seoDescription?: string | null;
   relatedIconIds: string[];
   relatedPrayerIds: string[];
   relatedSaintIds: string[];
   relatedGospelIds: string[];
+}
+
+/** Outcome of "Заповнити відсутнє з AI" -- see CalendarAiApi.fillMissing. */
+export type CalendarAiField = "description" | "history" | "seo" | "image";
+export interface CalendarAiFillResult {
+  day: CalendarDay;
+  filled: CalendarAiField[];
+  skipped: { field: CalendarAiField; reason: "missing_source" | "review_required" | "failed" }[];
 }
 
 // ---------------------------------------------------------------------------
