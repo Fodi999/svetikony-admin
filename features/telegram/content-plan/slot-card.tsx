@@ -1,37 +1,39 @@
 "use client";
 
+import { MoreHorizontal } from "lucide-react";
 import { useState } from "react";
 import { ConfirmDialog } from "@/components/feedback/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { MediaPickerDialog } from "../media-picker-dialog";
-import { AUTOPOST_CONTENT_TYPE_LABELS, type ContentPlanSlot } from "@/types/entities";
+import { AUTOPOST_CONTENT_TYPE_LABELS, type ContentPlanSlot, type ContentPlanSlotStatus } from "@/types/entities";
 import { PreviewDialog } from "./preview-dialog";
 import { StatusBadge } from "./status-badge";
 import { TextEditorDialog } from "./text-editor-dialog";
 import type { SlotActions } from "./use-slot-actions";
 
-const SOURCE_STATUS_LABELS: Record<ContentPlanSlot["sourceStatus"], string> = {
-  available: "Є джерело",
-  missing_source: "Немає джерела",
-  insufficient_data: "Немає джерела",
-};
-
-const VERIFICATION_LABELS: Record<"verified" | "failed", string> = {
-  verified: "Перевірено",
-  failed: "Не пройшла перевірку",
-};
-
 function formatSentAt(sentAt: string): string {
   return new Date(sentAt).toLocaleString("uk-UA");
 }
 
-/** No actions at all for a slot that can't be acted on yet/anymore --
- * matches the task's own "REVIEW_REQUIRED buttons disabled" /
- * "MISSING_SOURCE buttons disabled" / "SENT immutable" requirements by
- * simply not rendering any action in these states, rather than rendering
- * disabled buttons with no obvious next step. */
-const NO_ACTIONS_STATUSES = new Set<ContentPlanSlot["publicationStatus"]>(["SENT", "REVIEW_REQUIRED", "MISSING_SOURCE"]);
+/** Compact check/dash row for the source/verification/text/image state --
+ * replaces the old comma-separated text line, which repeated "Немає
+ * джерела" up to three times for a MISSING_SOURCE slot (see the simplified
+ * one-liner below, which replaces this grid entirely for that status). */
+function StateRow({ label, ok }: { label: string; ok: boolean }) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-muted-foreground">{label}</span>
+      <span className={ok ? "text-emerald-500" : "text-muted-foreground"}>{ok ? "✓" : "—"}</span>
+    </div>
+  );
+}
+
+/** No actions at all for a slot that can't be acted on yet/anymore. READY
+ * is handled separately (a reduced, non-empty action set), not folded into
+ * this set. */
+const NO_ACTIONS_STATUSES = new Set<ContentPlanSlotStatus>(["SENT", "SENDING", "REVIEW_REQUIRED", "MISSING_SOURCE"]);
 
 export function SlotCard({ slot, actions }: { slot: ContentPlanSlot; actions: SlotActions }) {
   const [editorOpen, setEditorOpen] = useState(false);
@@ -41,8 +43,14 @@ export function SlotCard({ slot, actions }: { slot: ContentPlanSlot; actions: Sl
   const [confirmRegenerateImage, setConfirmRegenerateImage] = useState(false);
 
   const pending = actions.pendingAction(slot.contentType);
-  const hasActions = !NO_ACTIONS_STATUSES.has(slot.publicationStatus);
-  const isReady = slot.publicationStatus === "READY";
+  const status = slot.publicationStatus;
+  const isSent = status === "SENT";
+  const isSending = status === "SENDING";
+  const isReady = status === "READY";
+  const isMissingSource = status === "MISSING_SOURCE";
+  const isReviewRequired = status === "REVIEW_REQUIRED";
+  const hasActions = !NO_ACTIONS_STATUSES.has(status);
+  const hasSecondaryActions = hasActions && !isReady && (slot.textAvailable || slot.imageAvailable);
 
   return (
     <Card>
@@ -50,91 +58,116 @@ export function SlotCard({ slot, actions }: { slot: ContentPlanSlot; actions: Sl
         <CardTitle className="text-sm font-medium">
           {slot.scheduledTime} — {AUTOPOST_CONTENT_TYPE_LABELS[slot.contentType]}
         </CardTitle>
-        <StatusBadge status={slot.publicationStatus} />
-      </CardHeader>
-      <CardContent className="space-y-2 text-sm">
-        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-          <span>Джерело: {SOURCE_STATUS_LABELS[slot.sourceStatus]}</span>
-          {slot.verificationStatus ? <span>Перевірка: {VERIFICATION_LABELS[slot.verificationStatus]}</span> : null}
-          <span>Текст: {slot.textAvailable ? "є" : "немає"}</span>
-          <span>Фото: {slot.imageAvailable ? "є" : "немає"}</span>
+        <div className="flex items-center gap-1">
+          <StatusBadge status={status} />
+          {hasSecondaryActions ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                aria-label="Додаткові дії"
+                disabled={!!pending}
+                render={<Button variant="ghost" size="icon-sm" />}
+              >
+                <MoreHorizontal className="size-4" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {slot.textAvailable ? (
+                  <DropdownMenuItem onClick={() => setConfirmRegenerateText(true)}>Перегенерувати текст</DropdownMenuItem>
+                ) : null}
+                {slot.imageAvailable ? (
+                  <DropdownMenuItem onClick={() => setConfirmRegenerateImage(true)}>Перегенерувати фото</DropdownMenuItem>
+                ) : null}
+                <DropdownMenuItem onClick={() => setMediaPickerOpen(true)}>Обрати з медіатеки</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : null}
         </div>
+      </CardHeader>
 
-        {slot.publicationStatus === "REVIEW_REQUIRED" ? (
-          <p className="text-sm text-orange-400">Потрібна перевірка календаря</p>
-        ) : null}
-
-        {slot.publicationStatus === "MISSING_SOURCE" ? <p className="text-sm text-muted-foreground">Немає джерела</p> : null}
+      <CardContent className="space-y-2 text-sm">
+        {isMissingSource ? (
+          <p className="text-sm text-muted-foreground">
+            Неможливо підготувати публікацію: для цього дня відсутнє перевірене джерело.
+          </p>
+        ) : isReviewRequired ? (
+          <p className="text-sm text-orange-400">Потрібна перевірка календаря перед публікацією.</p>
+        ) : (
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+            <StateRow label="Джерело" ok={slot.sourceStatus === "available"} />
+            {slot.verificationStatus ? <StateRow label="Перевірка" ok={slot.verificationStatus === "verified"} /> : null}
+            <StateRow label="Текст" ok={slot.textAvailable} />
+            <StateRow label="Зображення" ok={slot.imageAvailable} />
+          </div>
+        )}
 
         {slot.textPreview ? <p className="whitespace-pre-wrap text-sm text-foreground/90">{slot.textPreview}…</p> : null}
 
         {slot.imageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={slot.imageUrl} alt="" className="h-24 w-full rounded-md border object-cover" />
+          <button type="button" aria-label="Переглянути зображення" onClick={() => setPreviewOpen(true)} className="block w-full">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={slot.imageUrl} alt="" className="h-24 w-full rounded-md border object-cover" />
+          </button>
         ) : null}
 
         {slot.errorMessage ? <p className="text-xs text-destructive">{slot.errorMessage}</p> : null}
 
-        {slot.publicationStatus === "SENT" ? (
-          <p className="text-xs text-muted-foreground">
-            {slot.telegramMessageId ? `Message ID: ${slot.telegramMessageId}` : null}
-            {slot.telegramMessageId && slot.sentAt ? " · " : null}
-            {slot.sentAt ? formatSentAt(slot.sentAt) : null}
-          </p>
+        {isSent ? (
+          <div className="space-y-1 text-xs text-muted-foreground">
+            <p>
+              {slot.telegramMessageId ? `Message ID: ${slot.telegramMessageId}` : null}
+              {slot.telegramMessageId && slot.sentAt ? " · " : null}
+              {slot.sentAt ? formatSentAt(slot.sentAt) : null}
+            </p>
+            {slot.textPreview ? (
+              <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setPreviewOpen(true)}>
+                Переглянути
+              </Button>
+            ) : null}
+          </div>
         ) : null}
 
-        {hasActions ? (
-          <div className="flex flex-col gap-2 pt-1">
-            <div className="flex flex-wrap gap-2">
-              {!slot.textAvailable ? (
-                <Button size="sm" variant="outline" disabled={!!pending} onClick={() => actions.generateText(slot.contentType)}>
-                  {pending === "generateText" ? "Генерація…" : "Згенерувати текст"}
-                </Button>
-              ) : (
-                <>
-                  <Button size="sm" variant="outline" disabled={!!pending} onClick={() => setEditorOpen(true)}>
-                    Редагувати
-                  </Button>
-                  <Button size="sm" variant="outline" disabled={!!pending} onClick={() => setConfirmRegenerateText(true)}>
-                    {pending === "regenerateText" ? "Регенерація…" : "Перегенерувати текст"}
-                  </Button>
-                </>
-              )}
-            </div>
+        {isSending ? <p className="text-xs text-blue-400">Слот у процесі публікації — дії тимчасово недоступні.</p> : null}
 
-            <div className="flex flex-wrap gap-2">
-              {!slot.imageAvailable ? (
-                <Button size="sm" variant="outline" disabled={!!pending} onClick={() => actions.generateImage(slot.contentType)}>
-                  {pending === "generateImage" ? "Генерація…" : "Згенерувати фото"}
-                </Button>
-              ) : (
-                <Button size="sm" variant="outline" disabled={!!pending} onClick={() => setConfirmRegenerateImage(true)}>
-                  {pending === "regenerateImage" ? "Регенерація…" : "Перегенерувати фото"}
-                </Button>
-              )}
-              <Button size="sm" variant="outline" disabled={!!pending} onClick={() => setMediaPickerOpen(true)}>
-                Обрати з медіатеки
+        {hasActions ? (
+          isReady ? (
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <Button size="sm" variant="outline" disabled={!!pending} onClick={() => setPreviewOpen(true)}>
+                Переглянути
+              </Button>
+              <Button size="sm" variant="ghost" disabled={!!pending} onClick={() => actions.markUnready(slot.contentType)}>
+                {pending === "markUnready" ? "Збереження…" : "Зняти з готовності"}
               </Button>
             </div>
+          ) : (
+            <div className="flex flex-col gap-2 pt-1">
+              <div className="flex flex-wrap gap-2">
+                {!slot.textAvailable ? (
+                  <Button size="sm" variant="outline" disabled={!!pending} onClick={() => actions.generateText(slot.contentType)}>
+                    {pending === "generateText" ? "Генерація…" : "Згенерувати текст"}
+                  </Button>
+                ) : (
+                  <>
+                    <Button size="sm" variant="outline" disabled={!!pending} onClick={() => setPreviewOpen(true)}>
+                      Переглянути
+                    </Button>
+                    <Button size="sm" variant="outline" disabled={!!pending} onClick={() => setEditorOpen(true)}>
+                      Редагувати
+                    </Button>
+                  </>
+                )}
+                {!slot.imageAvailable ? (
+                  <Button size="sm" variant="outline" disabled={!!pending} onClick={() => actions.generateImage(slot.contentType)}>
+                    {pending === "generateImage" ? "Генерація…" : "Згенерувати фото"}
+                  </Button>
+                ) : null}
+              </div>
 
-            <div className="flex flex-wrap items-center gap-2">
               {slot.textAvailable ? (
-                <Button size="sm" variant="ghost" disabled={!!pending} onClick={() => setPreviewOpen(true)}>
-                  Перегляд
-                </Button>
-              ) : null}
-              {slot.textAvailable && !isReady ? (
                 <Button size="sm" disabled={!!pending} onClick={() => actions.markReady(slot.contentType)}>
                   {pending === "markReady" ? "Збереження…" : "Позначити готовим"}
                 </Button>
               ) : null}
-              {isReady ? (
-                <Button size="sm" variant="secondary" disabled={!!pending} onClick={() => actions.markUnready(slot.contentType)}>
-                  {pending === "markUnready" ? "Збереження…" : "Зняти з готовності"}
-                </Button>
-              ) : null}
             </div>
-          </div>
+          )
         ) : null}
       </CardContent>
 

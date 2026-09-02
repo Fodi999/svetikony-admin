@@ -3,6 +3,7 @@ import type { AutopostContentType } from "@/types/entities";
 /** Mirrors lib/telegram/content-plan.ts's ContentPlan* types in svet-ikony. */
 export type WorkerContentPlanSlotStatus =
   | "SENT"
+  | "SENDING"
   | "READY"
   | "DRAFT"
   | "SOURCE_READY"
@@ -69,5 +70,39 @@ export function toBffContentPlanReportDto(worker: WorkerContentPlanReportDto): B
 }
 
 export function toBffContentPlanDayDto(worker: WorkerContentPlanDayDto): BffContentPlanDayDto {
+  return worker;
+}
+
+/** Mirrors lib/telegram/content-plan-actions.ts's PrepareDayReport in
+ * svet-ikony -- see the "Підготувати весь день" action. */
+export type WorkerPrepareDaySlotOutcome =
+  | "prepared"
+  | "already_prepared"
+  | "skipped_ready"
+  | "skipped_sent"
+  | "skipped_sending"
+  | "missing_source"
+  | "review_required"
+  | "image_failed"
+  | "failed";
+
+export interface WorkerPrepareDayReportDto {
+  date: string;
+  total: number;
+  prepared: number;
+  alreadyPrepared: number;
+  skippedReady: number;
+  skippedSent: number;
+  skippedSending: number;
+  missingSource: number;
+  reviewRequired: number;
+  imageFailed: number;
+  failed: number;
+  results: { contentType: AutopostContentType; result: WorkerPrepareDaySlotOutcome; error?: string }[];
+}
+
+export type BffPrepareDayReportDto = WorkerPrepareDayReportDto;
+
+export function toBffPrepareDayReportDto(worker: WorkerPrepareDayReportDto): BffPrepareDayReportDto {
   return worker;
 }

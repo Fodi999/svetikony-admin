@@ -133,7 +133,11 @@ export const AUTOPOST_CONTENT_TYPE_SHORT_LABELS: Record<AutopostContentType, str
   evening_prayer: "Вечірня",
 };
 
-export type ContentPlanSlotStatus = "SENT" | "READY" | "DRAFT" | "SOURCE_READY" | "MISSING_SOURCE" | "REVIEW_REQUIRED" | "FAILED";
+/** 'SENDING' (Content Plan Stage 3A) is the short-lived state a slot
+ * occupies between the autopost tick's atomic ready->sending claim and the
+ * send completing -- distinct from 'READY' so the UI never shows mutation
+ * buttons for a slot that may complete sending at any moment. */
+export type ContentPlanSlotStatus = "SENT" | "SENDING" | "READY" | "DRAFT" | "SOURCE_READY" | "MISSING_SOURCE" | "REVIEW_REQUIRED" | "FAILED";
 
 export interface ContentPlanSlot {
   contentType: AutopostContentType;
@@ -193,6 +197,43 @@ export interface ContentPlanQuery {
   year?: number;
   from?: string;
   to?: string;
+}
+
+/** Outcome of one slot in a "Підготувати весь день" run -- see
+ * TelegramApi.contentPlan.prepareDay. 'already_prepared' means both text
+ * and image already existed (nothing to do); 'image_failed' means text was
+ * filled but the (non-fatal, best-effort) image step failed -- the slot is
+ * still a usable draft either way. */
+export type PrepareDaySlotOutcome =
+  | "prepared"
+  | "already_prepared"
+  | "skipped_ready"
+  | "skipped_sent"
+  | "skipped_sending"
+  | "missing_source"
+  | "review_required"
+  | "image_failed"
+  | "failed";
+
+export interface PrepareDaySlotResult {
+  contentType: AutopostContentType;
+  result: PrepareDaySlotOutcome;
+  error?: string;
+}
+
+export interface PrepareDayReport {
+  date: string;
+  total: number;
+  prepared: number;
+  alreadyPrepared: number;
+  skippedReady: number;
+  skippedSent: number;
+  skippedSending: number;
+  missingSource: number;
+  reviewRequired: number;
+  imageFailed: number;
+  failed: number;
+  results: PrepareDaySlotResult[];
 }
 
 export interface TelegramTodayContent {

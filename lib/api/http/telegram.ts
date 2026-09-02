@@ -1,6 +1,6 @@
 import type { BffAutopostSettingsDto, WorkerAutopostSettingsWritePayload } from "@/app/api/bff/telegram/autopost/settings/_contract";
 import type { BffTelegramChatDto } from "@/app/api/bff/telegram/chats/_contract";
-import type { BffContentPlanDayDto, BffContentPlanReportDto } from "@/app/api/bff/telegram/content-plan/_contract";
+import type { BffContentPlanDayDto, BffContentPlanReportDto, BffPrepareDayReportDto } from "@/app/api/bff/telegram/content-plan/_contract";
 import type { BffTelegramPostDto, WorkerTelegramPostWritePayload } from "@/app/api/bff/telegram/posts/_contract";
 import type { BffTelegramStatusDto } from "@/app/api/bff/telegram/status/_contract";
 import type { BffTelegramTodayDto } from "@/app/api/bff/telegram/today/_contract";
@@ -15,6 +15,7 @@ import {
   type ContentPlanDay,
   type ContentPlanQuery,
   type ContentPlanReport,
+  type PrepareDayReport,
   type TelegramAutopostSettings,
   type TelegramChat,
   type TelegramDashboardStatus,
@@ -153,6 +154,9 @@ export const telegramHttpResource: TelegramApi = {
     },
     async markUnready(date: string, contentType: AutopostContentType): Promise<TelegramPost> {
       return toPost(await slotAction(date, contentType, "unready", "POST"));
+    },
+    async prepareDay(date: string): Promise<PrepareDayReport> {
+      return httpPost<BffPrepareDayReportDto>(`${BFF_ENDPOINTS.telegram.contentPlan}/${encodeURIComponent(date)}/prepare`, undefined);
     },
   },
 };

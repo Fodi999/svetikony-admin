@@ -27,6 +27,7 @@ import type {
   MediaAsset,
   Order,
   OrderStatus,
+  PrepareDayReport,
   Prayer,
   Product,
   ProductCategory,
@@ -182,6 +183,11 @@ export interface TelegramApi {
     markReady(date: string, contentType: AutopostContentType): Promise<TelegramPost>;
     /** ready -> draft. */
     markUnready(date: string, contentType: AutopostContentType): Promise<TelegramPost>;
+    /** "Підготувати весь день" -- fills missing text/images for every
+     * available slot of `date`; never touches sent/sending/ready slots or
+     * content that already exists, never marks anything ready, never sends
+     * Telegram. See features/telegram/content-plan/day-drawer.tsx. */
+    prepareDay(date: string): Promise<PrepareDayReport>;
   };
 }
 

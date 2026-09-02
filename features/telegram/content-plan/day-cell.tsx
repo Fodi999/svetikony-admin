@@ -11,6 +11,7 @@ import { STATUS_LABELS } from "./status-badge";
 
 const DOT_CLASSNAMES: Record<ContentPlanSlotStatus, string> = {
   SENT: "bg-blue-500",
+  SENDING: "bg-blue-500 animate-pulse",
   READY: "bg-emerald-500",
   SOURCE_READY: "bg-emerald-500/50",
   DRAFT: "bg-amber-500",

@@ -10,6 +10,7 @@ import {
   type ContentPlanReport,
   type ContentPlanSlot,
   type ContentPlanSummary,
+  type PrepareDayReport,
   type TelegramAutopostSettings,
   type TelegramChat,
   type TelegramPost,
@@ -134,7 +135,14 @@ function mockDay(civilDate: string): ContentPlanDay {
           scheduledTime: SCHEDULE_TIMES[contentType],
           sourceStatus: "available",
           verificationStatus: prepared.verificationStatus === "verified" || prepared.verificationStatus === "failed" ? prepared.verificationStatus : null,
-          publicationStatus: prepared.status === "sent" ? "SENT" : prepared.status === "ready" ? "READY" : "DRAFT",
+          publicationStatus:
+            prepared.status === "sent"
+              ? "SENT"
+              : prepared.status === "sending"
+                ? "SENDING"
+                : prepared.status === "ready"
+                  ? "READY"
+                  : "DRAFT",
           textAvailable: !!prepared.text?.trim(),
           imageAvailable: !!prepared.mediaUrl,
           sentAt: prepared.sentAt,
@@ -375,6 +383,68 @@ export const telegramResource: TelegramApi = {
       await mockDelay(200);
       assertSlotMutable(findOrCreateSlot(date, contentType));
       return saveSlot(date, contentType, { status: "draft" });
+    },
+    async prepareDay(date: string): Promise<PrepareDayReport> {
+      await mockDelay(800);
+      const inRange = date >= "2026-09-01" && date <= "2026-09-30";
+      const results: PrepareDayReport["results"] = [];
+      for (const contentType of AUTOPOST_CONTENT_TYPES) {
+        const existing = preparedSlots.get(slotKey(date, contentType));
+        if (existing?.status === "sent") {
+          results.push({ contentType, result: "skipped_sent" });
+          continue;
+        }
+        if (existing?.status === "sending") {
+          results.push({ contentType, result: "skipped_sending" });
+          continue;
+        }
+        if (existing?.status === "ready") {
+          results.push({ contentType, result: "skipped_ready" });
+          continue;
+        }
+        const needsText = !existing?.text?.trim();
+        const needsImage = !existing?.mediaUrl;
+        if (!needsText && !needsImage) {
+          results.push({ contentType, result: "already_prepared" });
+          continue;
+        }
+        if (!inRange) {
+          results.push({ contentType, result: "missing_source" });
+          continue;
+        }
+        const patch: Partial<TelegramPost> = {};
+        if (needsText) patch.text = `Мок-текст (${contentType}) для ${date} (підготовлено автоматично).`;
+        if (needsImage) patch.mediaUrl = "https://placehold.co/600x400";
+        saveSlot(date, contentType, patch);
+        results.push({ contentType, result: "prepared" });
+      }
+
+      const report: PrepareDayReport = {
+        date,
+        total: results.length,
+        prepared: 0,
+        alreadyPrepared: 0,
+        skippedReady: 0,
+        skippedSent: 0,
+        skippedSending: 0,
+        missingSource: 0,
+        reviewRequired: 0,
+        imageFailed: 0,
+        failed: 0,
+        results,
+      };
+      for (const { result } of results) {
+        if (result === "prepared") report.prepared += 1;
+        else if (result === "already_prepared") report.alreadyPrepared += 1;
+        else if (result === "skipped_ready") report.skippedReady += 1;
+        else if (result === "skipped_sent") report.skippedSent += 1;
+        else if (result === "skipped_sending") report.skippedSending += 1;
+        else if (result === "missing_source") report.missingSource += 1;
+        else if (result === "review_required") report.reviewRequired += 1;
+        else if (result === "image_failed") report.imageFailed += 1;
+        else if (result === "failed") report.failed += 1;
+      }
+      return report;
     },
   },
 };

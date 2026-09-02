@@ -4,7 +4,8 @@ import type { ContentPlanSlotStatus } from "@/types/entities";
 
 export const STATUS_LABELS: Record<ContentPlanSlotStatus, string> = {
   SENT: "Опубліковано",
-  READY: "Готово",
+  SENDING: "Публікується…",
+  READY: "Готово до публікації",
   DRAFT: "Чернетка",
   SOURCE_READY: "Є джерело",
   MISSING_SOURCE: "Немає джерела",
@@ -19,6 +20,7 @@ export const STATUS_LABELS: Record<ContentPlanSlotStatus, string> = {
  * text tone rather than a solid fill. */
 const STATUS_CLASSNAMES: Record<ContentPlanSlotStatus, string> = {
   SENT: "border-blue-500/30 bg-blue-500/15 text-blue-400",
+  SENDING: "border-blue-500/30 bg-blue-500/15 text-blue-400 animate-pulse",
   READY: "border-emerald-500/30 bg-emerald-500/15 text-emerald-400",
   SOURCE_READY: "border-emerald-500/20 bg-emerald-500/10 text-emerald-500/90",
   DRAFT: "border-amber-500/30 bg-amber-500/15 text-amber-400",

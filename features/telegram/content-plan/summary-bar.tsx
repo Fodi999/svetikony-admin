@@ -21,9 +21,9 @@ export function SummaryBar({ summary }: { summary: ContentPlanSummary }) {
           <Stat label="днів" value={summary.totalDays} />
           <Stat label="Опубліковано" value={summary.sent} />
           <Stat label="Готово" value={summary.ready + summary.sourceReady} />
-          <Stat label="Чернетки" value={summary.draft} />
-          <Stat label="Без джерела" value={summary.missingSource} />
-          <Stat label="Потрібна перевірка" value={summary.reviewRequired} />
+          <Stat label="Чернеток" value={summary.draft} />
+          <Stat label="слотів без джерела" value={summary.missingSource} />
+          <Stat label="потребують перевірки" value={summary.reviewRequired} />
           {summary.failed > 0 ? <Stat label="Помилки" value={summary.failed} /> : null}
         </div>
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground md:justify-end">

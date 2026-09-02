@@ -7,10 +7,21 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiClient } from "@/lib/api";
 import { errorMessageFor } from "@/lib/api/errors";
-import { AUTOPOST_CONTENT_TYPES } from "@/types/entities";
+import { AUTOPOST_CONTENT_TYPES, type ContentPlanDay } from "@/types/entities";
 import { formatFullUaDate } from "./date-format";
+import { PrepareDayPanel } from "./prepare-day-panel";
 import { SlotCard } from "./slot-card";
 import { useSlotActions } from "./use-slot-actions";
+
+function daySlotSummary(day: ContentPlanDay): { total: number; available: number; ready: number; missingSource: number } {
+  const slots = Object.values(day.slots);
+  return {
+    total: slots.length,
+    available: slots.filter((s) => s.sourceStatus === "available").length,
+    ready: slots.filter((s) => s.publicationStatus === "READY" || s.publicationStatus === "SENDING").length,
+    missingSource: slots.filter((s) => s.publicationStatus === "MISSING_SOURCE").length,
+  };
+}
 
 /**
  * Opens on day-cell click; fetches the single day's full detail lazily via
@@ -39,10 +50,11 @@ export function DayDrawer({
   // the Sheet is closed, and the mutations it builds are inert until one
   // is actually triggered from an open SlotCard.
   const actions = useSlotActions(civilDate ?? "", year);
+  const summary = dayQuery.data ? daySlotSummary(dayQuery.data) : null;
 
   return (
     <Sheet open={!!civilDate} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full overflow-y-auto sm:max-w-md">
+      <SheetContent className="w-full overflow-y-auto sm:max-w-xl lg:max-w-2xl">
         <SheetHeader>
           <SheetTitle>
             {civilDate ? formatFullUaDate(civilDate) : ""}
@@ -54,10 +66,19 @@ export function DayDrawer({
           </SheetTitle>
         </SheetHeader>
 
-        <div className="space-y-3 px-4 pb-4">
-          <Badge variant="outline">Юліанський / старий стиль</Badge>
+        <div className="space-y-4 px-4 pb-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="outline">Юліанський / старий стиль</Badge>
+            {summary ? (
+              <span className="text-xs text-muted-foreground">
+                {summary.total} слотів · {summary.available} доступні · {summary.ready} готові · {summary.missingSource} без джерела
+              </span>
+            ) : null}
+          </div>
 
           {dayQuery.data?.calendarTitle ? <p className="text-base font-medium">{dayQuery.data.calendarTitle}</p> : null}
+
+          {civilDate ? <PrepareDayPanel civilDate={civilDate} year={year} /> : null}
 
           {dayQuery.isLoading ? (
             <div className="space-y-2">
