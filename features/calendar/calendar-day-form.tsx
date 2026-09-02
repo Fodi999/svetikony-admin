@@ -14,6 +14,7 @@ import { TextField } from "@/components/forms/text-field";
 import { useUnsavedChanges } from "@/components/feedback/unsaved-changes-context";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import { apiClient } from "@/lib/api";
 import { LANGUAGE_LABELS } from "@/lib/constants/labels";
 import { messages } from "@/lib/i18n";
@@ -115,6 +116,7 @@ export function CalendarDayForm({ mode, day, onSubmit, onDelete, submitting }: C
   const [confirmRegenerateHistory, setConfirmRegenerateHistory] = useState(false);
   const [confirmRegenerateSeo, setConfirmRegenerateSeo] = useState(false);
   const [confirmRegenerateImage, setConfirmRegenerateImage] = useState(false);
+  const [customImagePrompt, setCustomImagePrompt] = useState("");
 
   const iconsQuery = useQuery({ queryKey: ["icons", "options"], queryFn: () => apiClient.icons.list({ pageSize: 200 }) });
   const prayersQuery = useQuery({ queryKey: ["prayers", "options"], queryFn: () => apiClient.prayers.list({ pageSize: 200 }) });
@@ -329,6 +331,31 @@ export function CalendarDayForm({ mode, day, onSubmit, onDelete, submitting }: C
                 ) : null}
               </div>
             </div>
+            {mode === "edit" && day ? (
+              <div className="space-y-2 rounded-md border p-3">
+                <label className="text-sm font-medium">Промпт для AI (англійською)</label>
+                <p className="text-xs text-muted-foreground">
+                  Опишіть зображення власними словами англійською -- AI згенерує саме за цим описом, минаючи автоматичний пошук
+                  референсу. Решта тексту дня залишається українською.
+                </p>
+                <Textarea
+                  value={customImagePrompt}
+                  onChange={(e) => setCustomImagePrompt(e.target.value)}
+                  rows={3}
+                  placeholder="e.g. Byzantine icon of a bearded martyr saint, golden halo, warm candlelight, traditional Orthodox style"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={ai.isPending("generateImageFromPrompt") || !customImagePrompt.trim()}
+                  onClick={() => ai.generateImageFromPrompt(customImagePrompt)}
+                >
+                  <Sparkles className="size-4" />
+                  {ai.isPending("generateImageFromPrompt") ? "Генерація…" : "Згенерувати за промтом"}
+                </Button>
+              </div>
+            ) : null}
             {imagePreviewUrl ? (
               <div className="space-y-2">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -351,14 +378,22 @@ export function CalendarDayForm({ mode, day, onSubmit, onDelete, submitting }: C
                   <div className="space-y-1 rounded-md border bg-muted/30 p-2 text-xs text-muted-foreground">
                     <p>
                       <span className="font-medium text-foreground">Зображення:</span>{" "}
-                      {day.imageMetadata.identityVerified ? "AI-ілюстрація" : "AI-ілюстрація · тематичний образ"}
+                      {day.imageMetadata.customPrompt
+                        ? "AI-ілюстрація за власним промтом"
+                        : day.imageMetadata.identityVerified
+                          ? "AI-ілюстрація"
+                          : "AI-ілюстрація · тематичний образ"}
                     </p>
-                    <p>
-                      <span className="font-medium text-foreground">Референс:</span>{" "}
-                      {day.imageMetadata.referenceProvider === "wikipedia"
-                        ? "Wikipedia / Wikimedia Commons"
-                        : "Референс не знайдено"}
-                    </p>
+                    {day.imageMetadata.customPrompt ? (
+                      <p>
+                        <span className="font-medium text-foreground">Промпт:</span> {day.imageMetadata.customPrompt}
+                      </p>
+                    ) : (
+                      <p>
+                        <span className="font-medium text-foreground">Референс:</span>{" "}
+                        {day.imageMetadata.referenceProvider ? "Wikipedia / Wikimedia Commons" : "Референс не знайдено"}
+                      </p>
+                    )}
                     {day.imageMetadata.identityVerified ? (
                       <p>
                         <span className="font-medium text-foreground">Статус:</span> Особу підтверджено

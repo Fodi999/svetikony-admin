@@ -16,6 +16,7 @@ type AiActionName =
   | "generateImage"
   | "regenerateImage"
   | "assignImage"
+  | "generateImageFromPrompt"
   | "fillMissing";
 
 export type CalendarAiActions = {
@@ -28,6 +29,7 @@ export type CalendarAiActions = {
   generateImage: () => void;
   regenerateImage: () => void;
   assignImage: (imageUrl: string) => void;
+  generateImageFromPrompt: (prompt: string) => void;
   fillMissing: () => void;
   isPending: (action: AiActionName) => boolean;
 };
@@ -118,6 +120,11 @@ export function useCalendarAiActions(dayId: string | undefined, form: UseFormRet
     onSuccess: applyDay,
     onError,
   });
+  const generateImageFromPrompt = useMutation({
+    mutationFn: (prompt: string) => apiClient.calendarDays.generateImageFromPrompt(id, prompt),
+    onSuccess: applyDay,
+    onError,
+  });
   const fillMissing = useMutation({
     mutationFn: () => apiClient.calendarDays.fillMissing(id),
     onSuccess: (result) => {
@@ -154,6 +161,8 @@ export function useCalendarAiActions(dayId: string | undefined, form: UseFormRet
         return regenerateImage.isPending;
       case "assignImage":
         return assignImage.isPending;
+      case "generateImageFromPrompt":
+        return generateImageFromPrompt.isPending;
       case "fillMissing":
         return fillMissing.isPending;
     }
@@ -169,6 +178,7 @@ export function useCalendarAiActions(dayId: string | undefined, form: UseFormRet
     generateImage: () => generateImage.mutate(),
     regenerateImage: () => regenerateImage.mutate(),
     assignImage: (imageUrl) => assignImage.mutate(imageUrl),
+    generateImageFromPrompt: (prompt) => generateImageFromPrompt.mutate(prompt),
     fillMissing: () => fillMissing.mutate(),
     isPending,
   };

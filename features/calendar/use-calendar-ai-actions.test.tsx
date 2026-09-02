@@ -17,6 +17,7 @@ const mockApi = vi.hoisted(() => ({
   generateImage: vi.fn(),
   regenerateImage: vi.fn(),
   assignImage: vi.fn(),
+  generateImageFromPrompt: vi.fn(),
   fillMissing: vi.fn(),
 }));
 vi.mock("@/lib/api", () => ({ apiClient: { calendarDays: mockApi } }));
@@ -81,14 +82,19 @@ function Harness({ dayId }: { dayId?: string }) {
   const shortDescription = form.watch("shortDescription");
   const seoTitle = form.watch("seoTitle");
   const seoDescription = form.watch("seoDescription");
+  const imageId = form.watch("imageId");
 
   return (
     <div>
       <p data-testid="shortDescription">{shortDescription}</p>
       <p data-testid="seoTitle">{seoTitle ?? ""}</p>
       <p data-testid="seoDescription">{seoDescription ?? ""}</p>
+      <p data-testid="imageId">{imageId ?? ""}</p>
       <button onClick={ai.generateDescription} disabled={ai.isPending("generateDescription")}>
         generate-description
+      </button>
+      <button onClick={() => ai.generateImageFromPrompt("A test prompt")} disabled={ai.isPending("generateImageFromPrompt")}>
+        generate-image-from-prompt
       </button>
       <button onClick={ai.fillMissing} disabled={ai.isPending("fillMissing")}>
         fill-missing
@@ -131,6 +137,19 @@ describe("useCalendarAiActions", () => {
 
     await waitFor(() => expect(mockToastError).toHaveBeenCalled());
     expect(screen.getByTestId("shortDescription")).toHaveTextContent("");
+  });
+
+  it("generateImageFromPrompt calls the API with the id and prompt, and patches imageId on success", async () => {
+    const user = userEvent.setup();
+    mockApi.generateImageFromPrompt.mockResolvedValue(
+      calendarDay({ imageId: "media/calendar/day-1/main/custom.png" }),
+    );
+    renderHarness();
+
+    await user.click(screen.getByRole("button", { name: "generate-image-from-prompt" }));
+
+    await waitFor(() => expect(screen.getByTestId("imageId")).toHaveTextContent("media/calendar/day-1/main/custom.png"));
+    expect(mockApi.generateImageFromPrompt).toHaveBeenCalledWith("day-1", "A test prompt");
   });
 
   it("fillMissing patches every returned field and summarizes what was filled", async () => {

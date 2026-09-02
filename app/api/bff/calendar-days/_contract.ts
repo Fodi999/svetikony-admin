@@ -15,13 +15,20 @@
  * never sent back on write. */
 export interface WorkerCalendarImageMetadata {
   origin: "ai_generated" | "manual";
-  referenceProvider?: "wikipedia";
+  referenceProvider?: "wikipedia" | "commons";
+  referenceLanguage?: "uk" | "ru" | "en";
   referencePageUrl?: string;
   referenceImageUrl?: string;
   referenceTitle?: string;
   referenceAuthor?: string;
   referenceLicense?: string;
+  referenceAttribution?: string;
+  wikidataId?: string;
+  commonsFileTitle?: string;
+  commonsCategory?: string;
   identityVerified: boolean;
+  fallbackReason?: string;
+  customPrompt?: string;
 }
 
 /** Mirrors lib/d1/repositories/calendarDays.ts's ChurchCalendarDayDto in

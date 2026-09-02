@@ -226,6 +226,10 @@ export interface ApiClient {
     regenerateImage(id: string): Promise<CalendarDay>;
     /** "Обрати з медіатеки" -- persists an already-uploaded R2 key/URL. */
     assignImage(id: string, imageUrl: string): Promise<CalendarDay>;
+    /** "Промпт для AI" -- generates directly from an admin-authored English
+     * prompt, bypassing the automatic saint-reference resolver. Always
+     * overwrites any existing image. */
+    generateImageFromPrompt(id: string, prompt: string): Promise<CalendarDay>;
     /** "Заповнити відсутнє з AI" -- fills every missing field it safely
      * can; never overwrites existing content. */
     fillMissing(id: string): Promise<CalendarAiFillResult>;

@@ -274,13 +274,23 @@ export type CalendarEventType =
  * the AI image actions server-side, never submitted back on save. */
 export interface CalendarImageMetadata {
   origin: "ai_generated" | "manual";
-  referenceProvider?: "wikipedia";
+  referenceProvider?: "wikipedia" | "commons";
+  referenceLanguage?: "uk" | "ru" | "en";
   referencePageUrl?: string;
   referenceImageUrl?: string;
   referenceTitle?: string;
   referenceAuthor?: string;
   referenceLicense?: string;
+  referenceAttribution?: string;
+  wikidataId?: string;
+  commonsFileTitle?: string;
+  commonsCategory?: string;
   identityVerified: boolean;
+  fallbackReason?: string;
+  /** Set when the admin typed their own English prompt instead of relying
+   * on the automatic saint-reference resolver -- see the Media tab's
+   * "Промпт для AI" field and svet-ikony's generateCalendarImageFromPrompt(). */
+  customPrompt?: string;
 }
 
 export interface CalendarDay extends Identifiable, Timestamps, Translatable {
