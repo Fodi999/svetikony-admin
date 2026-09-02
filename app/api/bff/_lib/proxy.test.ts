@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { proxyAndMap } from "./proxy";
+import { proxyAndMap, proxyJsonWrite } from "./proxy";
 
 const ENV_KEYS = ["SVET_IKONY_API_BASE_URL", "SVET_IKONY_ADMIN_TOKEN"] as const;
 const originalEnv: Record<string, string | undefined> = {};
@@ -155,5 +155,76 @@ describe("proxyAndMap", () => {
     const body = await response.json();
     expect(body.code).toBe("INTERNAL_ERROR");
     expect(JSON.stringify(body)).not.toContain("mapper blew up");
+  });
+});
+
+/**
+ * proxyJsonWrite's `timeoutMs` param exists specifically to fix a real bug:
+ * AI generation routes (Calendar/Telegram) used the 10s default meant for
+ * ordinary CRUD, so a real OpenAI text/image call would always abort mid-
+ * flight and the admin would see a generic "no server connection" error
+ * even though svet-ikony was still (successfully) working. These tests
+ * lock in that a caller-supplied timeout is actually honored.
+ */
+describe("proxyJsonWrite timeoutMs", () => {
+  beforeEach(() => {
+    for (const key of ENV_KEYS) originalEnv[key] = process.env[key];
+    process.env.SVET_IKONY_API_BASE_URL = "http://localhost:3001";
+    process.env.SVET_IKONY_ADMIN_TOKEN = "test-secret-jwt-value";
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    for (const key of ENV_KEYS) {
+      if (originalEnv[key] === undefined) delete process.env[key];
+      else process.env[key] = originalEnv[key];
+    }
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  it("does not abort before a caller-supplied timeout elapses, even well past the 10s default", async () => {
+    let capturedSignal: AbortSignal | undefined;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((_url: string, init: RequestInit) => {
+        capturedSignal = init.signal ?? undefined;
+        return new Promise<Response>(() => {}); // never resolves on its own
+      }),
+    );
+
+    void proxyJsonWrite("/api/admin/church-content/calendar-days/1/generate-image", "POST", undefined, identity, 60_000);
+    await vi.advanceTimersByTimeAsync(15_000); // past the old 10s default
+    expect(capturedSignal?.aborted).toBe(false);
+  });
+
+  it("still aborts once the caller-supplied timeout itself elapses", async () => {
+    let capturedSignal: AbortSignal | undefined;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((_url: string, init: RequestInit) => {
+        capturedSignal = init.signal ?? undefined;
+        return new Promise<Response>(() => {});
+      }),
+    );
+
+    void proxyJsonWrite("/api/admin/church-content/calendar-days/1/generate-image", "POST", undefined, identity, 60_000);
+    await vi.advanceTimersByTimeAsync(61_000);
+    expect(capturedSignal?.aborted).toBe(true);
+  });
+
+  it("falls back to the 10s default when no timeoutMs is given (ordinary CRUD writes)", async () => {
+    let capturedSignal: AbortSignal | undefined;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((_url: string, init: RequestInit) => {
+        capturedSignal = init.signal ?? undefined;
+        return new Promise<Response>(() => {});
+      }),
+    );
+
+    void proxyJsonWrite("/api/admin/church-content/calendar-days/1", "PUT", { title: "x" }, identity);
+    await vi.advanceTimersByTimeAsync(10_001);
+    expect(capturedSignal?.aborted).toBe(true);
   });
 });

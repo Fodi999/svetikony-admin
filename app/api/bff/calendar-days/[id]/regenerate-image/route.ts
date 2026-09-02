@@ -2,6 +2,8 @@ import { UPSTREAM_ENDPOINTS } from "@/lib/api/endpoints";
 import { proxyJsonWrite } from "../../../_lib/proxy";
 import { toBffCalendarDayDto, type WorkerCalendarDayDto } from "../../_contract";
 
+/** 60s: a real OpenAI image generation call commonly takes 20-40s, well
+ * over the 10s default (see proxy.ts's proxyJsonWrite doc comment). */
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   return proxyJsonWrite(
@@ -9,5 +11,6 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     "POST",
     undefined,
     (raw: WorkerCalendarDayDto) => toBffCalendarDayDto(raw),
+    60_000,
   );
 }

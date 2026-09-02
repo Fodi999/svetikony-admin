@@ -1,6 +1,6 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/types/api";
-import { httpGet } from "./transport";
+import { httpGet, httpPost } from "./transport";
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -90,5 +90,54 @@ describe("httpGet", () => {
       vi.fn().mockRejectedValue(Object.assign(new DOMException("aborted", "AbortError"))),
     );
     await expect(httpGet("/api/bff/alphabet")).rejects.toMatchObject({ code: "network_error" });
+  });
+});
+
+/**
+ * httpPost's optional `timeoutMs` exists to fix a real bug: AI generation
+ * calls (Calendar/Telegram) used the 10s default meant for ordinary CRUD,
+ * so the browser gave up on a real OpenAI text/image call before the BFF's
+ * own (also-fixed) longer timeout ever had a chance to resolve, surfacing
+ * as a generic "Немає з'єднання з сервером" error. These tests lock in
+ * that a caller-supplied timeout is actually honored client-side too.
+ */
+describe("httpPost timeoutMs", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  it("does not abort before a caller-supplied timeout elapses, even well past the 10s default", async () => {
+    let capturedSignal: AbortSignal | undefined;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((_url: string, init: RequestInit) => {
+        capturedSignal = init.signal ?? undefined;
+        return new Promise<Response>(() => {});
+      }),
+    );
+
+    void httpPost("/api/bff/calendar-days/1/generate-image", undefined, 65_000);
+    await vi.advanceTimersByTimeAsync(15_000);
+    expect(capturedSignal?.aborted).toBe(false);
+  });
+
+  it("falls back to the 10s default when no timeoutMs is given", async () => {
+    let capturedSignal: AbortSignal | undefined;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((_url: string, init: RequestInit) => {
+        capturedSignal = init.signal ?? undefined;
+        return new Promise<Response>(() => {});
+      }),
+    );
+
+    void httpPost("/api/bff/calendar-days", { title: "x" });
+    await vi.advanceTimersByTimeAsync(10_001);
+    expect(capturedSignal?.aborted).toBe(true);
   });
 });

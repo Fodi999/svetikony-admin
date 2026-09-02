@@ -80,6 +80,22 @@ function aiActionPath(id: string, action: string): string {
 }
 
 /**
+ * The transport-layer default (10s, see lib/api/http/transport.ts) is fine
+ * for ordinary CRUD, but real OpenAI calls routinely take longer: a text
+ * completion (description/history/SEO) is usually a few seconds but can
+ * spike under load; an image generation call commonly takes 20-40s;
+ * fill-missing can chain up to 4 text calls plus one image call in a
+ * single request. These must stay slightly ABOVE the matching BFF-side
+ * timeouts (see app/api/bff/calendar-days/[id]/*\/route.ts) so the BFF's
+ * own clean timeout response always wins over the browser's fetch aborting
+ * first -- otherwise the admin sees a raw client-side abort instead of a
+ * proper error body.
+ */
+const AI_TEXT_TIMEOUT_MS = 35_000;
+const AI_IMAGE_TIMEOUT_MS = 65_000;
+const AI_FILL_MISSING_TIMEOUT_MS = 125_000;
+
+/**
  * Backend supports `year`/`month` filters server-side but not
  * `language`/`status`/search/pagination — those are applied client-side by
  * the shared factory, matching the Prayers precedent.
@@ -117,34 +133,34 @@ export const calendarDaysHttpResource: ApiClient["calendarDays"] = {
     await httpDelete(`${BFF_ENDPOINTS.calendarDays}/${encodeURIComponent(id)}`);
   },
   async generateDescription(id: string): Promise<CalendarDay> {
-    return toEntity(await httpPost<BffCalendarDayDto>(aiActionPath(id, "generate-description"), undefined));
+    return toEntity(await httpPost<BffCalendarDayDto>(aiActionPath(id, "generate-description"), undefined, AI_TEXT_TIMEOUT_MS));
   },
   async regenerateDescription(id: string): Promise<CalendarDay> {
-    return toEntity(await httpPost<BffCalendarDayDto>(aiActionPath(id, "regenerate-description"), undefined));
+    return toEntity(await httpPost<BffCalendarDayDto>(aiActionPath(id, "regenerate-description"), undefined, AI_TEXT_TIMEOUT_MS));
   },
   async generateHistory(id: string): Promise<CalendarDay> {
-    return toEntity(await httpPost<BffCalendarDayDto>(aiActionPath(id, "generate-history"), undefined));
+    return toEntity(await httpPost<BffCalendarDayDto>(aiActionPath(id, "generate-history"), undefined, AI_TEXT_TIMEOUT_MS));
   },
   async regenerateHistory(id: string): Promise<CalendarDay> {
-    return toEntity(await httpPost<BffCalendarDayDto>(aiActionPath(id, "regenerate-history"), undefined));
+    return toEntity(await httpPost<BffCalendarDayDto>(aiActionPath(id, "regenerate-history"), undefined, AI_TEXT_TIMEOUT_MS));
   },
   async generateSeo(id: string): Promise<CalendarDay> {
-    return toEntity(await httpPost<BffCalendarDayDto>(aiActionPath(id, "generate-seo"), undefined));
+    return toEntity(await httpPost<BffCalendarDayDto>(aiActionPath(id, "generate-seo"), undefined, AI_TEXT_TIMEOUT_MS));
   },
   async regenerateSeo(id: string): Promise<CalendarDay> {
-    return toEntity(await httpPost<BffCalendarDayDto>(aiActionPath(id, "regenerate-seo"), undefined));
+    return toEntity(await httpPost<BffCalendarDayDto>(aiActionPath(id, "regenerate-seo"), undefined, AI_TEXT_TIMEOUT_MS));
   },
   async generateImage(id: string): Promise<CalendarDay> {
-    return toEntity(await httpPost<BffCalendarDayDto>(aiActionPath(id, "generate-image"), undefined));
+    return toEntity(await httpPost<BffCalendarDayDto>(aiActionPath(id, "generate-image"), undefined, AI_IMAGE_TIMEOUT_MS));
   },
   async regenerateImage(id: string): Promise<CalendarDay> {
-    return toEntity(await httpPost<BffCalendarDayDto>(aiActionPath(id, "regenerate-image"), undefined));
+    return toEntity(await httpPost<BffCalendarDayDto>(aiActionPath(id, "regenerate-image"), undefined, AI_IMAGE_TIMEOUT_MS));
   },
   async assignImage(id: string, imageUrl: string): Promise<CalendarDay> {
     return toEntity(await httpPut<BffCalendarDayDto>(aiActionPath(id, "image"), { imageUrl }));
   },
   async fillMissing(id: string): Promise<CalendarAiFillResult> {
-    const dto = await httpPost<BffCalendarAiFillResultDto>(aiActionPath(id, "fill-missing"), undefined);
+    const dto = await httpPost<BffCalendarAiFillResultDto>(aiActionPath(id, "fill-missing"), undefined, AI_FILL_MISSING_TIMEOUT_MS);
     return { day: toEntity(dto.day), filled: dto.filled, skipped: dto.skipped };
   },
 };

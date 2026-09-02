@@ -78,9 +78,13 @@ export async function httpGet<T>(path: string): Promise<T> {
 
 /** Shared implementation for httpPost/httpPut/httpDelete below — same
  * error handling/timeout/JSON parsing as httpGet, generalized for a
- * method + optional JSON body. */
-async function httpWrite<T>(path: string, method: "POST" | "PUT" | "DELETE", body?: unknown): Promise<T> {
-  const { signal, clear } = createAbortTimeout(REQUEST_TIMEOUT_MS);
+ * method + optional JSON body. `timeoutMs` defaults to REQUEST_TIMEOUT_MS
+ * (10s); AI generation calls (Calendar/Telegram) pass a much larger value
+ * so the browser doesn't give up before the BFF's own (longer) upstream
+ * timeout has a chance to resolve — see app/api/bff/_lib/proxy.ts's
+ * matching doc comment for why 10s was never enough for these. */
+async function httpWrite<T>(path: string, method: "POST" | "PUT" | "DELETE", body?: unknown, timeoutMs: number = REQUEST_TIMEOUT_MS): Promise<T> {
+  const { signal, clear } = createAbortTimeout(timeoutMs);
 
   let response: Response;
   try {
@@ -129,12 +133,12 @@ async function httpWrite<T>(path: string, method: "POST" | "PUT" | "DELETE", bod
   }
 }
 
-export function httpPost<T>(path: string, body: unknown): Promise<T> {
-  return httpWrite<T>(path, "POST", body);
+export function httpPost<T>(path: string, body: unknown, timeoutMs?: number): Promise<T> {
+  return httpWrite<T>(path, "POST", body, timeoutMs);
 }
 
-export function httpPut<T>(path: string, body: unknown): Promise<T> {
-  return httpWrite<T>(path, "PUT", body);
+export function httpPut<T>(path: string, body: unknown, timeoutMs?: number): Promise<T> {
+  return httpWrite<T>(path, "PUT", body, timeoutMs);
 }
 
 export function httpDelete(path: string, body?: unknown): Promise<void> {

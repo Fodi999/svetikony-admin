@@ -131,12 +131,22 @@ export async function proxyAndMap<TIn, TOut>(
  * `mapFn(raw)` on success, so write responses stay on the same stable BFF
  * contract as reads. Non-2xx responses pass through unchanged. A `body`
  * of `undefined` sends no request body (used by DELETE).
+ *
+ * `timeoutMs` defaults to REQUEST_TIMEOUT_MS (10s), right for ordinary CRUD
+ * writes. AI generation routes (Calendar/Telegram) must pass a much larger
+ * value explicitly — a real OpenAI text completion routinely takes several
+ * seconds and an image generation call can take 30-60s, both comfortably
+ * over the 10s default. Missing this was a real bug: every AI action here
+ * would abort mid-flight and surface as a generic "no server connection"
+ * error even though svet-ikony was still working (and would often still
+ * complete the write to D1 after this proxy had already given up).
  */
 export async function proxyJsonWrite<TIn, TOut>(
   upstreamPath: string,
   method: "POST" | "PUT" | "DELETE",
   body: unknown,
   mapFn: (raw: TIn) => TOut,
+  timeoutMs: number = REQUEST_TIMEOUT_MS,
 ): Promise<Response> {
   const baseUrl = process.env.SVET_IKONY_API_BASE_URL;
   const token = process.env.SVET_IKONY_ADMIN_TOKEN;
@@ -149,7 +159,7 @@ export async function proxyJsonWrite<TIn, TOut>(
   }
 
   const url = new URL(upstreamPath, baseUrl);
-  const { signal, clear } = createAbortTimeout(REQUEST_TIMEOUT_MS);
+  const { signal, clear } = createAbortTimeout(timeoutMs);
 
   let upstreamResponse: Response;
   try {
