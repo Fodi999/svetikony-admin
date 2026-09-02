@@ -3,6 +3,7 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AudienceTab } from "./audience-tab";
 import { AutopostTab } from "./autopost-tab";
+import { ContentPlanTab } from "./content-plan/content-plan-tab";
 import { DashboardTab } from "./dashboard-tab";
 import { PostsTab } from "./posts-tab";
 import { TodayTab } from "./today-tab";
@@ -22,6 +23,7 @@ export function TelegramView() {
           <TabsTrigger value="today">Сьогодні</TabsTrigger>
           <TabsTrigger value="posts">Публікації</TabsTrigger>
           <TabsTrigger value="autopost">Автопублікація</TabsTrigger>
+          <TabsTrigger value="content-plan">Контент-план</TabsTrigger>
         </TabsList>
         <TabsContent value="dashboard">
           <DashboardTab />
@@ -37,6 +39,9 @@ export function TelegramView() {
         </TabsContent>
         <TabsContent value="autopost">
           <AutopostTab />
+        </TabsContent>
+        <TabsContent value="content-plan">
+          <ContentPlanTab />
         </TabsContent>
       </Tabs>
     </div>

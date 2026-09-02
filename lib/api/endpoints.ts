@@ -38,6 +38,7 @@ export const UPSTREAM_ENDPOINTS = {
     today: "/api/admin/telegram/today", // ✅ verified
     posts: "/api/admin/telegram/posts", // ✅ verified (list + create); `${posts}/:id` and `${posts}/:id/publish` built at call sites
     autopostSettings: "/api/admin/telegram/autopost/settings", // ✅ verified (GET + PUT)
+    contentPlan: "/api/admin/telegram/content-plan", // ✅ verified (GET, ?year= or ?from=&to=); `${contentPlan}/:date` built at call sites
   },
 
   // Not yet verified/wired for this admin — placeholders only:
@@ -71,5 +72,6 @@ export const BFF_ENDPOINTS = {
     today: "/api/bff/telegram/today",
     posts: "/api/bff/telegram/posts", // `${posts}/:id` and `${posts}/:id/publish` built at call sites
     autopostSettings: "/api/bff/telegram/autopost/settings",
+    contentPlan: "/api/bff/telegram/content-plan", // `${contentPlan}/:date` built at call sites
   },
 } as const;

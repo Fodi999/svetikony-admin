@@ -18,6 +18,9 @@ import type {
   AuthUser,
   CalendarDay,
   ChurchInfo,
+  ContentPlanDay,
+  ContentPlanQuery,
+  ContentPlanReport,
   GospelReading,
   Icon,
   MediaAsset,
@@ -151,6 +154,11 @@ export interface TelegramApi {
   autopost: {
     getSettings(): Promise<TelegramAutopostSettings>;
     updateSettings(values: AutopostSettingsFormValues): Promise<TelegramAutopostSettings>;
+  };
+  /** Read-only Content Plan year calendar -- see features/telegram/content-plan/. */
+  contentPlan: {
+    get(query?: ContentPlanQuery): Promise<ContentPlanReport>;
+    getDay(date: string): Promise<ContentPlanDay>;
   };
 }
 

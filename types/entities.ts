@@ -116,6 +116,69 @@ export interface TelegramAutopostSettings {
   items: AutopostSetting[];
 }
 
+/** Short, space-constrained labels for the Content Plan day-cell grid --
+ * full names (AUTOPOST_CONTENT_TYPE_LABELS above) go in tooltips instead.
+ * See features/telegram/content-plan/. */
+export const AUTOPOST_CONTENT_TYPE_SHORT_LABELS: Record<AutopostContentType, string> = {
+  morning_prayer: "Ранкова",
+  saint_of_day: "Святий",
+  gospel: "Євангеліє",
+  faith_story: "Історія",
+  evening_prayer: "Вечірня",
+};
+
+export type ContentPlanSlotStatus = "SENT" | "READY" | "DRAFT" | "SOURCE_READY" | "MISSING_SOURCE" | "REVIEW_REQUIRED" | "FAILED";
+
+export interface ContentPlanSlot {
+  contentType: AutopostContentType;
+  scheduledTime: string;
+  sourceStatus: "available" | "missing_source" | "insufficient_data";
+  verificationStatus: "verified" | "failed" | null;
+  publicationStatus: ContentPlanSlotStatus;
+  textAvailable: boolean;
+  imageAvailable: boolean;
+  sentAt: string | null;
+  telegramMessageId: number | null;
+  errorMessage: string | null;
+  /** Detail-only -- present only on a day fetched via contentPlan.getDay(),
+   * always absent from contentPlan.get()'s bulk year/range list. */
+  textPreview?: string;
+  imageUrl?: string;
+}
+
+export interface ContentPlanDay {
+  civilDate: string;
+  julianDate: string;
+  calendarTitle: string | null;
+  slots: Record<AutopostContentType, ContentPlanSlot>;
+}
+
+export interface ContentPlanSummary {
+  totalDays: number;
+  sent: number;
+  ready: number;
+  draft: number;
+  sourceReady: number;
+  missingSource: number;
+  reviewRequired: number;
+  failed: number;
+  coverage: Record<AutopostContentType, { available: number; missing: number }>;
+}
+
+export interface ContentPlanReport {
+  generatedAt: string;
+  fromCivilDate: string;
+  toCivilDate: string;
+  days: ContentPlanDay[];
+  summary: ContentPlanSummary;
+}
+
+export interface ContentPlanQuery {
+  year?: number;
+  from?: string;
+  to?: string;
+}
+
 export interface TelegramTodayContent {
   calendarDay: { id: string; title: string; description: string } | null;
   saint: { id: string; name: string; shortDescription: string } | null;

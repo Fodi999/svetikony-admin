@@ -1,5 +1,6 @@
 import type { BffAutopostSettingsDto, WorkerAutopostSettingsWritePayload } from "@/app/api/bff/telegram/autopost/settings/_contract";
 import type { BffTelegramChatDto } from "@/app/api/bff/telegram/chats/_contract";
+import type { BffContentPlanDayDto, BffContentPlanReportDto } from "@/app/api/bff/telegram/content-plan/_contract";
 import type { BffTelegramPostDto, WorkerTelegramPostWritePayload } from "@/app/api/bff/telegram/posts/_contract";
 import type { BffTelegramStatusDto } from "@/app/api/bff/telegram/status/_contract";
 import type { BffTelegramTodayDto } from "@/app/api/bff/telegram/today/_contract";
@@ -11,6 +12,9 @@ import type { AutopostSettingsFormValues, TelegramPostFormValues } from "@/lib/v
 import {
   AUTOPOST_CONTENT_TYPES,
   type AutopostContentType,
+  type ContentPlanDay,
+  type ContentPlanQuery,
+  type ContentPlanReport,
   type TelegramAutopostSettings,
   type TelegramChat,
   type TelegramDashboardStatus,
@@ -98,6 +102,19 @@ export const telegramHttpResource: TelegramApi = {
     async updateSettings(values: AutopostSettingsFormValues): Promise<TelegramAutopostSettings> {
       const payload: WorkerAutopostSettingsWritePayload = values;
       return toAutopostSettings(await httpPut<BffAutopostSettingsDto>(BFF_ENDPOINTS.telegram.autopostSettings, payload));
+    },
+  },
+  contentPlan: {
+    async get(query?: ContentPlanQuery): Promise<ContentPlanReport> {
+      const params = new URLSearchParams();
+      if (query?.year) params.set("year", String(query.year));
+      if (query?.from) params.set("from", query.from);
+      if (query?.to) params.set("to", query.to);
+      const qs = params.toString();
+      return httpGet<BffContentPlanReportDto>(`${BFF_ENDPOINTS.telegram.contentPlan}${qs ? `?${qs}` : ""}`);
+    },
+    async getDay(date: string): Promise<ContentPlanDay> {
+      return httpGet<BffContentPlanDayDto>(`${BFF_ENDPOINTS.telegram.contentPlan}/${encodeURIComponent(date)}`);
     },
   },
 };

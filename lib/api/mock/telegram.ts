@@ -2,7 +2,19 @@ import type { TelegramApi } from "@/lib/api/client";
 import { mockDelay } from "@/lib/api/mock-utils";
 import type { AutopostSettingsFormValues, TelegramPostFormValues } from "@/lib/validation/telegram.schema";
 import { ApiError } from "@/types/api";
-import type { TelegramAutopostSettings, TelegramChat, TelegramPost, TelegramUser } from "@/types/entities";
+import {
+  AUTOPOST_CONTENT_TYPES,
+  type AutopostContentType,
+  type ContentPlanDay,
+  type ContentPlanQuery,
+  type ContentPlanReport,
+  type ContentPlanSlot,
+  type ContentPlanSummary,
+  type TelegramAutopostSettings,
+  type TelegramChat,
+  type TelegramPost,
+  type TelegramUser,
+} from "@/types/entities";
 
 let autopostSettings: TelegramAutopostSettings = {
   globalEnabled: false,
@@ -45,6 +57,62 @@ const mockChats: TelegramChat[] = [
 
 let posts: TelegramPost[] = [];
 let nextPostId = 1;
+
+const SCHEDULE_TIMES: Record<AutopostContentType, string> = {
+  morning_prayer: "07:00",
+  saint_of_day: "10:00",
+  gospel: "13:00",
+  faith_story: "17:00",
+  evening_prayer: "20:00",
+};
+
+/** Small synthetic dataset: only civil 2026-09-01..2026-09-30 has any
+ * "real" content, mirroring this project's actual production D1 state at
+ * the time this mock was written -- everything else is a virtual empty
+ * day, exactly like the real backend reports for a day it has no row for. */
+function mockDay(civilDate: string): ContentPlanDay {
+  const inRange = civilDate >= "2026-09-01" && civilDate <= "2026-09-30";
+  const slots = {} as Record<AutopostContentType, ContentPlanSlot>;
+  for (const contentType of AUTOPOST_CONTENT_TYPES) {
+    slots[contentType] = {
+      contentType,
+      scheduledTime: SCHEDULE_TIMES[contentType],
+      sourceStatus: inRange ? "available" : "missing_source",
+      verificationStatus: inRange && contentType === "saint_of_day" ? "verified" : null,
+      publicationStatus: inRange ? "SOURCE_READY" : "MISSING_SOURCE",
+      textAvailable: inRange,
+      imageAvailable: false,
+      sentAt: null,
+      telegramMessageId: null,
+      errorMessage: null,
+    };
+  }
+  return { civilDate, julianDate: civilDate, calendarTitle: inRange ? "Мок: святий дня" : null, slots };
+}
+
+function mockSummary(days: ContentPlanDay[]): ContentPlanSummary {
+  const summary: ContentPlanSummary = {
+    totalDays: days.length,
+    sent: 0,
+    ready: 0,
+    draft: 0,
+    sourceReady: 0,
+    missingSource: 0,
+    reviewRequired: 0,
+    failed: 0,
+    coverage: Object.fromEntries(AUTOPOST_CONTENT_TYPES.map((t) => [t, { available: 0, missing: 0 }])) as ContentPlanSummary["coverage"],
+  };
+  for (const day of days) {
+    for (const slot of Object.values(day.slots)) {
+      if (slot.publicationStatus === "SOURCE_READY") summary.sourceReady += 1;
+      else if (slot.publicationStatus === "MISSING_SOURCE") summary.missingSource += 1;
+      const bucket = summary.coverage[slot.contentType];
+      if (slot.sourceStatus === "available") bucket.available += 1;
+      else bucket.missing += 1;
+    }
+  }
+  return summary;
+}
 
 export const telegramResource: TelegramApi = {
   async getStatus() {
@@ -160,6 +228,28 @@ export const telegramResource: TelegramApi = {
         }),
       };
       return autopostSettings;
+    },
+  },
+  contentPlan: {
+    async get(query?: ContentPlanQuery): Promise<ContentPlanReport> {
+      await mockDelay(250);
+      const year = query?.year ?? new Date().getUTCFullYear();
+      const from = query?.from ?? `${year}-01-01`;
+      const to = query?.to ?? `${year}-12-31`;
+      const days: ContentPlanDay[] = [];
+      for (let cursor = new Date(`${from}T00:00:00Z`); cursor.getTime() <= new Date(`${to}T00:00:00Z`).getTime(); ) {
+        days.push(mockDay(cursor.toISOString().slice(0, 10)));
+        cursor = new Date(cursor.getTime() + 24 * 60 * 60 * 1000);
+      }
+      return { generatedAt: new Date().toISOString(), fromCivilDate: from, toCivilDate: to, days, summary: mockSummary(days) };
+    },
+    async getDay(date: string): Promise<ContentPlanDay> {
+      await mockDelay(150);
+      const day = mockDay(date);
+      for (const slot of Object.values(day.slots)) {
+        if (slot.textAvailable) slot.textPreview = "Мок-текст для попереднього перегляду у бічній панелі.";
+      }
+      return day;
     },
   },
 };
