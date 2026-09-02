@@ -295,6 +295,10 @@ export interface CalendarImageMetadata {
 
 export interface CalendarDay extends Identifiable, Timestamps, Translatable {
   date: string; // ISO date, e.g. "2026-08-19"
+  /** Julian/old-style ISO date, straight from the Worker's `dateOldStyle`
+   * column -- never recomputed here. Undefined in mock mode (seed data
+   * doesn't carry it); UI must degrade gracefully when absent. */
+  dateOldStyle?: string | null;
   title: string;
   slug: string;
   shortDescription: string;

@@ -67,12 +67,16 @@ async function cleanupOrphanUpload(key: string) {
 interface CalendarDayFormProps {
   mode: "create" | "edit";
   day?: CalendarDay;
+  /** Prefills the date field in "create" mode -- used when arriving from
+   * an empty month-grid slot (task section 7: "виртуальный день" ->
+   * create). Ignored when `day` is set. */
+  initialDate?: string;
   onSubmit: (values: CalendarDayFormValues) => Promise<void>;
   onDelete?: () => void;
   submitting?: boolean;
 }
 
-export function CalendarDayForm({ mode, day, onSubmit, onDelete, submitting }: CalendarDayFormProps) {
+export function CalendarDayForm({ mode, day, initialDate, onSubmit, onDelete, submitting }: CalendarDayFormProps) {
   const { setDirty } = useUnsavedChanges();
   const [tab, setTab] = useState("basic");
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -98,7 +102,7 @@ export function CalendarDayForm({ mode, day, onSubmit, onDelete, submitting }: C
 
   const form = useForm<CalendarDayFormValues>({
     resolver: zodResolver(calendarDaySchema),
-    defaultValues: day ? { ...EMPTY_DEFAULTS, ...day } : EMPTY_DEFAULTS,
+    defaultValues: day ? { ...EMPTY_DEFAULTS, ...day } : initialDate ? { ...EMPTY_DEFAULTS, date: initialDate } : EMPTY_DEFAULTS,
   });
 
   useEffect(() => {

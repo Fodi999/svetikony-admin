@@ -37,6 +37,7 @@ function toEntity(dto: BffCalendarDayDto): CalendarDay {
     translationGroupId: dto.translationGroupId,
     language: safeEnum<Language>(languageSchema, dto.language, "uk"),
     date: dto.dateNewStyle || dto.dateOldStyle || "",
+    dateOldStyle: dto.dateOldStyle,
     title: dto.title,
     slug: dto.slug,
     shortDescription: dto.description,
