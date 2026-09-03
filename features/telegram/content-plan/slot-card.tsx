@@ -158,7 +158,7 @@ export function SlotCard({
           <div className="space-y-1">
             <button type="button" aria-label="Переглянути зображення" onClick={() => setPreviewOpen(true)} className="block w-full">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={slot.imageUrl} alt="" className="h-24 w-full rounded-md border object-cover" />
+              <img src={slot.imageUrl} alt="" className="aspect-video w-full rounded-md border object-cover" />
             </button>
             {canEditMedia ? (
               <Button
