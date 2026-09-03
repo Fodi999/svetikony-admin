@@ -44,7 +44,20 @@ export function TextEditorDialog({
         <DialogHeader>
           <DialogTitle>Редагувати текст — {AUTOPOST_CONTENT_TYPE_LABELS[contentType]}</DialogTitle>
         </DialogHeader>
-        <Textarea value={value} onChange={(e) => setValue(e.target.value)} rows={12} placeholder="Текст публікації…" />
+        {/* max-h + overflow-y-auto override Textarea's own field-sizing-content
+            default (which otherwise grows to fit the FULL text, no matter how
+            long -- a real church post easily runs 2500-4000 chars). Without
+            this, the dialog's own scroll (see components/ui/dialog.tsx) still
+            saves the Save button from being unreachable, but every scroll
+            gesture would page through the whole story instead of landing on
+            it directly. */}
+        <Textarea
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          rows={12}
+          className="max-h-[50vh] overflow-y-auto"
+          placeholder="Текст публікації…"
+        />
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Скасувати
