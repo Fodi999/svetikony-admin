@@ -10,6 +10,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiClient } from "@/lib/api";
 import { errorMessageFor } from "@/lib/api/errors";
+import { cn } from "@/lib/utils";
 import { AUTOPOST_CONTENT_TYPES, type ContentPlanDay } from "@/types/entities";
 import { formatFullUaDate } from "./date-format";
 import { PrepareDayPanel } from "./prepare-day-panel";
@@ -57,7 +58,31 @@ export function DayDrawer({
 
   return (
     <Sheet open={!!civilDate} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full overflow-y-auto sm:max-w-xl lg:max-w-2xl">
+      <SheetContent
+        className={cn(
+          "overflow-y-auto",
+          // components/ui/sheet.tsx's own base classes already set
+          // `data-[side=right]:w-3/4` and `data-[side=right]:sm:max-w-sm`
+          // (384px) -- a bare `sm:max-w-xl` here (no `data-[side=right]:`
+          // prefix) is a DIFFERENT tailwind-merge conflict group (different
+          // variant chain) and a lower-specificity CSS selector (no
+          // attribute selector), so it silently loses to the base classes
+          // instead of overriding them. Matching the exact `data-[side=
+          // right]:` prefix is what makes twMerge dedupe them and the
+          // override actually apply.
+          "data-[side=right]:w-full",
+          // Mobile + tablet: near-full-screen, never a narrow ~350px
+          // column (task: "не оставлять узкую колонку").
+          "data-[side=right]:sm:max-w-none",
+          // Desktop: responsive width via clamp-equivalent min()/clamp(),
+          // never more than ~45vw (comfortably under the "не больше ~50%
+          // viewport" ceiling) so the calendar underneath stays visible.
+          "data-[side=right]:lg:max-w-[min(45vw,640px)]",
+          "data-[side=right]:xl:max-w-[clamp(560px,45vw,640px)]",
+          // Large desktop: allow up to 680px.
+          "data-[side=right]:2xl:max-w-[clamp(560px,45vw,680px)]"
+        )}
+      >
         <SheetHeader>
           <SheetTitle>
             {civilDate ? formatFullUaDate(civilDate) : ""}
