@@ -17,6 +17,9 @@ function fakeActions(overrides: Partial<SlotActions> = {}): SlotActions {
     generateImage: vi.fn(),
     regenerateImage: vi.fn(),
     assignImage: vi.fn(),
+    removeImage: vi.fn(),
+    assignAudio: vi.fn(),
+    removeAudio: vi.fn(),
     markReady: vi.fn(),
     markUnready: vi.fn(),
     pendingAction: () => null,
@@ -33,6 +36,7 @@ function baseSlot(overrides: Partial<ContentPlanSlot> = {}): ContentPlanSlot {
     publicationStatus: "DRAFT",
     textAvailable: false,
     imageAvailable: false,
+    audioAvailable: false,
     sentAt: null,
     telegramMessageId: null,
     errorMessage: null,
@@ -44,12 +48,12 @@ function baseSlot(overrides: Partial<ContentPlanSlot> = {}): ContentPlanSlot {
  * useQuery internally -- a QueryClientProvider ancestor is required even
  * when nothing is actually fetched (its query is `enabled: open`, and
  * every test here leaves the picker closed). */
-function renderSlotCard(slot: ContentPlanSlot, actions: SlotActions, calendarDayId: string | null = null) {
+function renderSlotCard(slot: ContentPlanSlot, actions: SlotActions, calendarDayId: string | null = null, civilDate = "2026-09-02") {
   const queryClient = new QueryClient();
   return render(
     <QueryClientProvider client={queryClient}>
       <UnsavedChangesProvider>
-        <SlotCard slot={slot} actions={actions} calendarDayId={calendarDayId} />
+        <SlotCard slot={slot} actions={actions} calendarDayId={calendarDayId} civilDate={civilDate} />
       </UnsavedChangesProvider>
     </QueryClientProvider>,
   );
@@ -59,7 +63,9 @@ async function openDropdown(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole("button", { name: "Додаткові дії" }));
   // base-ui's Menu.Popup mounts into a portal after the trigger click --
   // await its first item rather than asserting on the DOM synchronously.
-  await screen.findByRole("menuitem", { name: "Обрати з медіатеки" });
+  // Every caller of this helper renders with textAvailable: true, so
+  // "Перегенерувати текст" is always present once the dropdown opens.
+  await screen.findByRole("menuitem", { name: "Перегенерувати текст" });
 }
 
 describe("SlotCard", () => {
@@ -85,8 +91,9 @@ describe("SlotCard", () => {
 
     await openDropdown(user);
     expect(screen.getByRole("menuitem", { name: "Перегенерувати текст" })).toBeInTheDocument();
-    expect(screen.getByRole("menuitem", { name: "Обрати з медіатеки" })).toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: "Перегенерувати фото" })).not.toBeInTheDocument(); // no image yet
+    // Manual media assign/remove lives inline in the "Медіа" block, not the [...] dropdown.
+    expect(screen.queryByRole("menuitem", { name: /Обрати/ })).not.toBeInTheDocument();
   });
 
   it("only offers 'Перегенерувати фото' once an image exists", async () => {
@@ -190,5 +197,74 @@ describe("SlotCard", () => {
     expect(screen.queryByText(/Попередній перегляд у Telegram/)).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Переглянути зображення" }));
     expect(screen.getByText(/Попередній перегляд у Telegram/)).toBeInTheDocument();
+  });
+
+  describe("Медіа block (photo/audio)", () => {
+    it("offers upload/pick buttons for both photo and audio when neither is assigned yet, on a mutable slot", () => {
+      renderSlotCard(baseSlot({ publicationStatus: "DRAFT", textAvailable: true }), fakeActions());
+
+      expect(screen.getByRole("button", { name: "Завантажити фото" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Обрати фото з медіатеки" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Завантажити аудіо" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Обрати аудіо з медіатеки" })).toBeInTheDocument();
+    });
+
+    it("shows the audio player and a remove button once audio is assigned, instead of the upload/pick buttons", () => {
+      renderSlotCard(
+        baseSlot({ publicationStatus: "DRAFT", textAvailable: true, audioAvailable: true, audioUrl: "https://x/a.mp3" }),
+        fakeActions(),
+      );
+
+      expect(screen.getByRole("button", { name: /Видалити аудіо/ })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Завантажити аудіо" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Обрати аудіо з медіатеки" })).not.toBeInTheDocument();
+      const audioEl = document.querySelector("audio");
+      expect(audioEl).toHaveAttribute("src", "https://x/a.mp3");
+    });
+
+    it("removing the photo calls actions.removeImage with the slot's content type", async () => {
+      const user = userEvent.setup();
+      const actions = fakeActions();
+      renderSlotCard(
+        baseSlot({ publicationStatus: "DRAFT", textAvailable: true, imageAvailable: true, imageUrl: "https://x/img.png" }),
+        actions,
+      );
+
+      await user.click(screen.getByRole("button", { name: /Видалити фото/ }));
+      expect(actions.removeImage).toHaveBeenCalledWith("morning_prayer");
+    });
+
+    it("removing the audio calls actions.removeAudio with the slot's content type", async () => {
+      const user = userEvent.setup();
+      const actions = fakeActions();
+      renderSlotCard(
+        baseSlot({ publicationStatus: "DRAFT", textAvailable: true, audioAvailable: true, audioUrl: "https://x/a.mp3" }),
+        actions,
+      );
+
+      await user.click(screen.getByRole("button", { name: /Видалити аудіо/ }));
+      expect(actions.removeAudio).toHaveBeenCalledWith("morning_prayer");
+    });
+
+    it("stays editable on a READY slot (no forced unready needed to change media -- this task's 'no demotion' decision)", () => {
+      renderSlotCard(baseSlot({ publicationStatus: "READY", textAvailable: true }), fakeActions());
+
+      expect(screen.getByRole("button", { name: "Обрати фото з медіатеки" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Обрати аудіо з медіатеки" })).toBeInTheDocument();
+    });
+
+    it("is not shown at all for SENT (immutable)", () => {
+      renderSlotCard(baseSlot({ publicationStatus: "SENT", textAvailable: true, telegramMessageId: 1, sentAt: "2026-09-02T10:00:00Z" }), fakeActions());
+
+      expect(screen.queryByRole("button", { name: /Завантажити/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Обрати/ })).not.toBeInTheDocument();
+    });
+
+    it("is not shown for MISSING_SOURCE (nothing to attach media to yet)", () => {
+      renderSlotCard(baseSlot({ publicationStatus: "MISSING_SOURCE", sourceStatus: "missing_source" }), fakeActions());
+
+      expect(screen.queryByRole("button", { name: /Завантажити/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Обрати/ })).not.toBeInTheDocument();
+    });
   });
 });

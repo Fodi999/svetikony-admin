@@ -12,8 +12,9 @@ export type WorkerContentPlanSlotStatus =
   | "FAILED";
 
 export interface WorkerContentPlanDeliveryPreview {
-  kind: "text_only" | "photo_with_caption" | "photo_then_text";
+  kind: "text_only" | "photo_with_caption" | "photo_then_text" | "audio_then_text" | "photo_and_audio_then_text";
   photoCaption: string | null;
+  audioCaption: string | null;
 }
 
 export interface WorkerContentPlanSlotDto {
@@ -24,11 +25,17 @@ export interface WorkerContentPlanSlotDto {
   publicationStatus: WorkerContentPlanSlotStatus;
   textAvailable: boolean;
   imageAvailable: boolean;
+  /** Manually-assigned audio (svet-ikony migration 0012) -- never a
+   * "source" fallback, unlike imageAvailable (see the Worker's own doc
+   * comment on this field). */
+  audioAvailable: boolean;
   sentAt: string | null;
   telegramMessageId: number | null;
   errorMessage: string | null;
   textPreview?: string;
   imageUrl?: string;
+  /** Detail-only, same reasoning as imageUrl. */
+  audioUrl?: string;
   /** Detail-only, from buildContentPlanDayDetail() -- never present in the
    * bulk year/range list. */
   fullText?: string;

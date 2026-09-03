@@ -11,6 +11,9 @@ type ActionName =
   | "generateImage"
   | "regenerateImage"
   | "assignImage"
+  | "removeImage"
+  | "assignAudio"
+  | "removeAudio"
   | "markReady"
   | "markUnready";
 
@@ -21,6 +24,9 @@ export type SlotActions = {
   generateImage: (contentType: AutopostContentType) => void;
   regenerateImage: (contentType: AutopostContentType) => void;
   assignImage: (contentType: AutopostContentType, mediaUrl: string) => void;
+  removeImage: (contentType: AutopostContentType) => void;
+  assignAudio: (contentType: AutopostContentType, audioUrl: string) => void;
+  removeAudio: (contentType: AutopostContentType) => void;
   markReady: (contentType: AutopostContentType) => void;
   markUnready: (contentType: AutopostContentType) => void;
   /** Which action is currently in flight for this specific content type,
@@ -85,6 +91,21 @@ export function useSlotActions(civilDate: string, year: number): SlotActions {
     onSuccess: invalidate,
     onError,
   });
+  const removeImage = useMutation({
+    mutationFn: (ct: AutopostContentType) => apiClient.telegram.contentPlan.removeImage(civilDate, ct),
+    onSuccess: invalidate,
+    onError,
+  });
+  const assignAudio = useMutation({
+    mutationFn: ([ct, audioUrl]: [AutopostContentType, string]) => apiClient.telegram.contentPlan.assignAudio(civilDate, ct, audioUrl),
+    onSuccess: invalidate,
+    onError,
+  });
+  const removeAudio = useMutation({
+    mutationFn: (ct: AutopostContentType) => apiClient.telegram.contentPlan.removeAudio(civilDate, ct),
+    onSuccess: invalidate,
+    onError,
+  });
   const markReady = useMutation({
     mutationFn: (ct: AutopostContentType) => apiClient.telegram.contentPlan.markReady(civilDate, ct),
     onSuccess: invalidate,
@@ -103,6 +124,9 @@ export function useSlotActions(civilDate: string, year: number): SlotActions {
     if (generateImage.isPending && generateImage.variables === contentType) return "generateImage";
     if (regenerateImage.isPending && regenerateImage.variables === contentType) return "regenerateImage";
     if (assignImage.isPending && assignImage.variables?.[0] === contentType) return "assignImage";
+    if (removeImage.isPending && removeImage.variables === contentType) return "removeImage";
+    if (assignAudio.isPending && assignAudio.variables?.[0] === contentType) return "assignAudio";
+    if (removeAudio.isPending && removeAudio.variables === contentType) return "removeAudio";
     if (markReady.isPending && markReady.variables === contentType) return "markReady";
     if (markUnready.isPending && markUnready.variables === contentType) return "markUnready";
     return null;
@@ -115,6 +139,9 @@ export function useSlotActions(civilDate: string, year: number): SlotActions {
     generateImage: (ct) => generateImage.mutate(ct),
     regenerateImage: (ct) => regenerateImage.mutate(ct),
     assignImage: (ct, mediaUrl) => assignImage.mutate([ct, mediaUrl]),
+    removeImage: (ct) => removeImage.mutate(ct),
+    assignAudio: (ct, audioUrl) => assignAudio.mutate([ct, audioUrl]),
+    removeAudio: (ct) => removeAudio.mutate(ct),
     markReady: (ct) => markReady.mutate(ct),
     markUnready: (ct) => markUnready.mutate(ct),
     pendingAction,

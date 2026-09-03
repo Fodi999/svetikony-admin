@@ -104,7 +104,13 @@ export function DayDrawer({
           ) : dayQuery.data ? (
             <div className="space-y-3">
               {AUTOPOST_CONTENT_TYPES.map((type) => (
-                <SlotCard key={type} slot={dayQuery.data.slots[type]} actions={actions} calendarDayId={dayQuery.data.calendarDayId} />
+                <SlotCard
+                  key={type}
+                  slot={dayQuery.data.slots[type]}
+                  actions={actions}
+                  calendarDayId={dayQuery.data.calendarDayId}
+                  civilDate={civilDate ?? ""}
+                />
               ))}
             </div>
           ) : null}

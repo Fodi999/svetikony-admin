@@ -179,6 +179,14 @@ export interface TelegramApi {
     regenerateImage(date: string, contentType: AutopostContentType): Promise<TelegramPost>;
     /** "Обрати з медіатеки" -- persists an already-uploaded R2 URL directly. */
     assignImage(date: string, contentType: AutopostContentType, mediaUrl: string): Promise<TelegramPost>;
+    /** "Видалити фото" -- clears the slot's photo without touching text/status. */
+    removeImage(date: string, contentType: AutopostContentType): Promise<TelegramPost>;
+    /** Audio counterpart of assignImage -- never AI-generated, manual
+     * "Обрати з медіатеки"/upload only. Validated server-side against
+     * Telegram's own by-URL send limits (20 MB, MP3/M4A only). */
+    assignAudio(date: string, contentType: AutopostContentType, audioUrl: string): Promise<TelegramPost>;
+    /** Audio counterpart of removeImage. */
+    removeAudio(date: string, contentType: AutopostContentType): Promise<TelegramPost>;
     /** draft -> ready, only if the slot passes the same validation the
      * autopost tick itself relies on before sending. */
     markReady(date: string, contentType: AutopostContentType): Promise<TelegramPost>;

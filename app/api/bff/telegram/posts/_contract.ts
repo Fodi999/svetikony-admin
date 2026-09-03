@@ -9,6 +9,10 @@ export interface WorkerTelegramPostDto {
   sourceId: string | null;
   text: string | null;
   mediaUrl: string | null;
+  /** Manually-assigned audio URL (svet-ikony migration 0012) -- parallel
+   * to mediaUrl, never AI-generated. See features/telegram/content-plan/
+   * slot-card.tsx's "Медіа" block. */
+  audioUrl: string | null;
   telegramMessageId: number | null;
   status: "draft" | "scheduled" | "sent" | "failed" | "ready" | "sending";
   scheduledAt: string | null;
@@ -37,6 +41,7 @@ export function toBffTelegramPostDto(worker: WorkerTelegramPostDto): BffTelegram
     sourceId: worker.sourceId,
     text: worker.text,
     mediaUrl: worker.mediaUrl,
+    audioUrl: worker.audioUrl,
     telegramMessageId: worker.telegramMessageId,
     status: worker.status,
     scheduledAt: worker.scheduledAt,

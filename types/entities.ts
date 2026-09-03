@@ -82,6 +82,9 @@ export interface TelegramPost extends Identifiable, Timestamps {
   sourceId: string | null;
   text: string | null;
   mediaUrl: string | null;
+  /** Manually-assigned audio URL -- parallel to mediaUrl, never
+   * AI-generated. See features/telegram/content-plan/slot-card.tsx. */
+  audioUrl: string | null;
   telegramMessageId: number | null;
   status: TelegramPostStatus;
   scheduledAt: string | null;
@@ -147,6 +150,9 @@ export interface ContentPlanSlot {
   publicationStatus: ContentPlanSlotStatus;
   textAvailable: boolean;
   imageAvailable: boolean;
+  /** Manually-assigned audio (never a "source" fallback, unlike
+   * imageAvailable -- see the BFF contract's own doc comment). */
+  audioAvailable: boolean;
   sentAt: string | null;
   telegramMessageId: number | null;
   errorMessage: string | null;
@@ -154,6 +160,9 @@ export interface ContentPlanSlot {
    * always absent from contentPlan.get()'s bulk year/range list. */
   textPreview?: string;
   imageUrl?: string;
+  /** Detail-only, same reasoning as imageUrl -- the assigned audio file's
+   * public URL. */
+  audioUrl?: string;
   /** Untruncated current text -- what the text editor/preview actually
    * use; textPreview stays capped at ~200 chars for lighter display. */
   fullText?: string;
@@ -161,8 +170,9 @@ export interface ContentPlanSlot {
    * via the real planDelivery() -- see features/telegram/content-plan/
    * preview-dialog.tsx, never reimplemented client-side. */
   deliveryPreview?: {
-    kind: "text_only" | "photo_with_caption" | "photo_then_text";
+    kind: "text_only" | "photo_with_caption" | "photo_then_text" | "audio_then_text" | "photo_and_audio_then_text";
     photoCaption: string | null;
+    audioCaption: string | null;
   };
 }
 

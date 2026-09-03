@@ -6,7 +6,7 @@ import type { BffTelegramStatusDto } from "@/app/api/bff/telegram/status/_contra
 import type { BffTelegramTodayDto } from "@/app/api/bff/telegram/today/_contract";
 import type { BffTelegramUserDto } from "@/app/api/bff/telegram/users/_contract";
 import { BFF_ENDPOINTS } from "@/lib/api/endpoints";
-import { httpGet, httpPost, httpPut } from "@/lib/api/http/transport";
+import { httpDeleteJson, httpGet, httpPost, httpPut } from "@/lib/api/http/transport";
 import type { TelegramApi } from "@/lib/api/client";
 import type { AutopostSettingsFormValues, TelegramPostFormValues } from "@/lib/validation/telegram.schema";
 import {
@@ -52,18 +52,20 @@ function toPayload(values: TelegramPostFormValues): WorkerTelegramPostWritePaylo
   };
 }
 
-/** Shared caller for every Content Plan Stage 2 slot action -- all eight
- * are addressed by (date, contentType) rather than a numeric post id (see
+/** Shared caller for every Content Plan slot action -- all are addressed
+ * by (date, contentType) rather than a numeric post id (see
  * TelegramApi.contentPlan's own doc comment for why). */
 function slotAction(
   date: string,
   contentType: AutopostContentType,
   action: string,
-  method: "POST" | "PUT",
+  method: "POST" | "PUT" | "DELETE",
   body?: unknown,
 ): Promise<BffTelegramPostDto> {
   const path = `${BFF_ENDPOINTS.telegram.contentPlan}/${encodeURIComponent(date)}/${encodeURIComponent(contentType)}/${action}`;
-  return method === "PUT" ? httpPut<BffTelegramPostDto>(path, body) : httpPost<BffTelegramPostDto>(path, body);
+  if (method === "PUT") return httpPut<BffTelegramPostDto>(path, body);
+  if (method === "DELETE") return httpDeleteJson<BffTelegramPostDto>(path, body);
+  return httpPost<BffTelegramPostDto>(path, body);
 }
 
 function toAutopostSettings(dto: BffAutopostSettingsDto): TelegramAutopostSettings {
@@ -148,6 +150,15 @@ export const telegramHttpResource: TelegramApi = {
     },
     async assignImage(date: string, contentType: AutopostContentType, mediaUrl: string): Promise<TelegramPost> {
       return toPost(await slotAction(date, contentType, "image", "PUT", { mediaUrl }));
+    },
+    async removeImage(date: string, contentType: AutopostContentType): Promise<TelegramPost> {
+      return toPost(await slotAction(date, contentType, "image", "DELETE"));
+    },
+    async assignAudio(date: string, contentType: AutopostContentType, audioUrl: string): Promise<TelegramPost> {
+      return toPost(await slotAction(date, contentType, "audio", "PUT", { audioUrl }));
+    },
+    async removeAudio(date: string, contentType: AutopostContentType): Promise<TelegramPost> {
+      return toPost(await slotAction(date, contentType, "audio", "DELETE"));
     },
     async markReady(date: string, contentType: AutopostContentType): Promise<TelegramPost> {
       return toPost(await slotAction(date, contentType, "ready", "POST"));

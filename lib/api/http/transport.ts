@@ -144,3 +144,10 @@ export function httpPut<T>(path: string, body: unknown, timeoutMs?: number): Pro
 export function httpDelete(path: string, body?: unknown): Promise<void> {
   return httpWrite<void>(path, "DELETE", body);
 }
+
+/** Same as httpDelete, but for a DELETE that returns a real JSON body
+ * (e.g. Content Plan's removeImage/removeAudio, which return the slot's
+ * updated TelegramPost) rather than a bare 204/empty response. */
+export function httpDeleteJson<T>(path: string, body?: unknown, timeoutMs?: number): Promise<T> {
+  return httpWrite<T>(path, "DELETE", body, timeoutMs);
+}

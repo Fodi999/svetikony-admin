@@ -79,6 +79,7 @@ function findOrCreateSlot(date: string, contentType: AutopostContentType): Teleg
     sourceId: null,
     text: null,
     mediaUrl: null,
+    audioUrl: null,
     telegramMessageId: null,
     status: "draft",
     scheduledAt: null,
@@ -145,6 +146,7 @@ function mockDay(civilDate: string): ContentPlanDay {
                   : "DRAFT",
           textAvailable: !!prepared.text?.trim(),
           imageAvailable: !!prepared.mediaUrl,
+          audioAvailable: !!prepared.audioUrl,
           sentAt: prepared.sentAt,
           telegramMessageId: prepared.telegramMessageId,
           errorMessage: prepared.errorMessage,
@@ -157,6 +159,7 @@ function mockDay(civilDate: string): ContentPlanDay {
           publicationStatus: inRange ? "SOURCE_READY" : "MISSING_SOURCE",
           textAvailable: inRange,
           imageAvailable: false,
+          audioAvailable: false,
           sentAt: null,
           telegramMessageId: null,
           errorMessage: null,
@@ -244,6 +247,7 @@ export const telegramResource: TelegramApi = {
         sourceId: null,
         text: values.text ?? null,
         mediaUrl: values.mediaUrl || null,
+        audioUrl: null,
         telegramMessageId: null,
         status: values.scheduledAt ? "scheduled" : "draft",
         scheduledAt: values.scheduledAt || null,
@@ -329,17 +333,30 @@ export const telegramResource: TelegramApi = {
       const day = mockDay(date);
       for (const slot of Object.values(day.slots)) {
         const prepared = preparedSlots.get(slotKey(date, slot.contentType));
+        if (prepared?.mediaUrl) slot.imageUrl = prepared.mediaUrl;
+        if (prepared?.audioUrl) slot.audioUrl = prepared.audioUrl;
         const fullText = prepared?.text ?? (slot.textAvailable ? "Мок-текст для попереднього перегляду у бічній панелі." : undefined);
         if (fullText) {
           slot.textPreview = fullText.slice(0, 200);
           slot.fullText = fullText;
           const longText = fullText.length > 1000;
-          slot.deliveryPreview = slot.imageAvailable
-            ? {
-                kind: longText ? "photo_then_text" : "photo_with_caption",
-                photoCaption: longText ? "Продовження — у наступному повідомленні." : null,
-              }
-            : { kind: "text_only", photoCaption: null };
+          const hasImage = slot.imageAvailable;
+          const hasAudio = slot.audioAvailable;
+          const kind =
+            hasImage && hasAudio
+              ? "photo_and_audio_then_text"
+              : hasAudio
+                ? "audio_then_text"
+                : hasImage
+                  ? longText
+                    ? "photo_then_text"
+                    : "photo_with_caption"
+                  : "text_only";
+          slot.deliveryPreview = {
+            kind,
+            photoCaption: kind === "photo_then_text" || kind === "photo_and_audio_then_text" ? "Продовження — у наступному повідомленні." : null,
+            audioCaption: kind === "audio_then_text" || kind === "photo_and_audio_then_text" ? "🎧 Аудіо\nТекст — у наступному повідомленні." : null,
+          };
         }
       }
       return day;
@@ -377,6 +394,21 @@ export const telegramResource: TelegramApi = {
       await mockDelay(200);
       assertSlotMutable(findOrCreateSlot(date, contentType));
       return saveSlot(date, contentType, { mediaUrl });
+    },
+    async removeImage(date: string, contentType: AutopostContentType): Promise<TelegramPost> {
+      await mockDelay(150);
+      assertSlotMutable(findOrCreateSlot(date, contentType));
+      return saveSlot(date, contentType, { mediaUrl: null });
+    },
+    async assignAudio(date: string, contentType: AutopostContentType, audioUrl: string): Promise<TelegramPost> {
+      await mockDelay(200);
+      assertSlotMutable(findOrCreateSlot(date, contentType));
+      return saveSlot(date, contentType, { audioUrl });
+    },
+    async removeAudio(date: string, contentType: AutopostContentType): Promise<TelegramPost> {
+      await mockDelay(150);
+      assertSlotMutable(findOrCreateSlot(date, contentType));
+      return saveSlot(date, contentType, { audioUrl: null });
     },
     async markReady(date: string, contentType: AutopostContentType): Promise<TelegramPost> {
       await mockDelay(200);
