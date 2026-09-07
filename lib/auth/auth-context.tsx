@@ -12,7 +12,7 @@ export type AuthStatus = "loading" | "authenticated" | "unauthenticated" | "expi
 interface AuthContextValue {
   user: AuthUser | null;
   status: AuthStatus;
-  login: (values: LoginFormValues) => Promise<void>;
+  login: (values: LoginFormValues) => Promise<AuthUser>;
   logout: () => Promise<void>;
   canView: (area: PermissionArea) => boolean;
   canEdit: (area: PermissionArea) => boolean;
@@ -58,6 +58,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const session = await apiClient.auth.login(values);
       setUser(session.user);
       setStatus("authenticated");
+      return session.user;
     } catch (error) {
       // Login errors already carry a precise, user-facing message (e.g. "wrong
       // email or password") — don't flatten it through the generic per-code

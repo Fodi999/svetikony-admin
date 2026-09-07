@@ -4,6 +4,7 @@ import { articlesHttpResource } from "@/lib/api/http/articles";
 import { authHttpResource } from "@/lib/api/http/auth";
 import { calendarDaysHttpResource } from "@/lib/api/http/calendar-days";
 import { churchInfoHttpResource } from "@/lib/api/http/church-info";
+import { dashboardHttpResource } from "@/lib/api/http/dashboard";
 import { gospelReadingsHttpResource } from "@/lib/api/http/gospel";
 import { iconsHttpResource } from "@/lib/api/http/icons";
 import { mediaHttpResource } from "@/lib/api/http/media";
@@ -13,7 +14,6 @@ import { categoriesHttpResource } from "@/lib/api/http/product-categories";
 import { productsHttpResource } from "@/lib/api/http/products";
 import { saintsHttpResource } from "@/lib/api/http/saints";
 import { telegramHttpResource } from "@/lib/api/http/telegram";
-import { dashboardResource } from "@/lib/api/mock/dashboard";
 
 /**
  * This is what `getApiClient()` returns by default now (see lib/api/index.ts) —
@@ -76,13 +76,12 @@ import { dashboardResource } from "@/lib/api/mock/dashboard";
  * lib/api/index.ts and this function's own test in lib/api/index.test.ts,
  * which asserts production's default choice).
  *
- * `dashboard` is the 1 remaining still-temporary mock resource (not yet
- * wired to real D1) — imported directly from its own file, not through
- * mockApiAdapter/mock/auth.ts. `articles` (Phase 2B-2), `gospelReadings`
- * (Phase 2B-3), `churchInfo` (Phase 2B-4), and `orders` (Phase 2B-5B) are
- * the 4 already connected to real D1 — see lib/api/http/articles.ts,
- * lib/api/http/gospel.ts, lib/api/http/church-info.ts, and
- * lib/api/http/orders.ts.
+ * As of Phase 2B-6, `dashboard` is the 5th and last of the "5
+ * still-temporary mock resources" to connect to real D1 — see
+ * lib/api/http/dashboard.ts. `articles` (Phase 2B-2), `gospelReadings`
+ * (Phase 2B-3), `churchInfo` (Phase 2B-4), and `orders` (Phase 2B-5B) were
+ * the first 4. This function's production adapter no longer imports
+ * anything from lib/api/mock/** at all.
  */
 export function createHttpApiAdapter(): ApiClient {
   return {
@@ -100,6 +99,6 @@ export function createHttpApiAdapter(): ApiClient {
     orders: ordersHttpResource,
     media: mediaHttpResource,
     telegram: telegramHttpResource,
-    dashboard: dashboardResource,
+    dashboard: dashboardHttpResource,
   };
 }

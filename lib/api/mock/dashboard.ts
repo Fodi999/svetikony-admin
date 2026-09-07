@@ -84,8 +84,11 @@ export const dashboardResource = {
       missingTranslations,
       missingImages,
       prayersWithoutAudio,
-      // Stage 1 has no real upload pipeline; this illustrates the dashboard tile only.
-      mediaUploadErrors: 1,
+      // No mediaUploadErrors field: Phase 2B-6 removed it from
+      // DashboardStats entirely (no real tracking table exists in
+      // svet-ikony, so the old hardcoded `1` here was never a real
+      // number) -- kept in sync with the real DTO shape rather than
+      // diverging from it in mock mode.
     };
   },
 };

@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { CalendarDays, FileWarning, ImageOff, Languages, PenLine, ShoppingBag, Volume2 } from "lucide-react";
+import { CalendarDays, ImageOff, Languages, PenLine, ShoppingBag, Volume2 } from "lucide-react";
 import { QuickActions } from "@/features/dashboard/quick-actions";
 import { StatTile } from "@/features/dashboard/stat-tile";
 import { StateMessage } from "@/components/feedback/state-message";
@@ -44,6 +44,11 @@ export function DashboardView() {
         />
       ) : data ? (
         <>
+          {/* Phase 2B-6: "Помилки завантаження медіа" tile removed, not
+              replaced with a fake 0 -- no media-upload-error tracking
+              table exists anywhere in svet-ikony's schema, so this stat
+              was never a real number, only the old mock's hardcoded
+              literal. See DashboardStats' own doc comment. */}
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             <StatTile label="Нові замовлення" value={data.newOrders} icon={ShoppingBag} href="/orders" tone="warning" />
             <StatTile label="Непрочитані замовлення" value={data.unreadOrders} icon={ShoppingBag} href="/orders" tone="warning" />
@@ -52,7 +57,6 @@ export function DashboardView() {
             <StatTile label="Без перекладу" value={data.missingTranslations} icon={Languages} tone="warning" />
             <StatTile label="Без зображення" value={data.missingImages} icon={ImageOff} tone="warning" />
             <StatTile label="Молитви без аудіо" value={data.prayersWithoutAudio} icon={Volume2} href="/prayers" tone="warning" />
-            <StatTile label="Помилки завантаження медіа" value={data.mediaUploadErrors} icon={FileWarning} href="/media" tone="warning" />
           </div>
 
           <Card>

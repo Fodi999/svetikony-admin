@@ -1,8 +1,10 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+const mockReplace = vi.fn();
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
+  useRouter: () => ({ replace: mockReplace, push: vi.fn() }),
   useSearchParams: () => new URLSearchParams(),
 }));
 
@@ -25,6 +27,8 @@ vi.mock("@/lib/auth/auth-context", () => ({
  */
 beforeEach(() => {
   vi.resetModules();
+  mockReplace.mockReset();
+  mockLogin.mockReset();
 });
 
 afterEach(() => {
@@ -59,5 +63,38 @@ describe("LoginPage", () => {
     render(<LoginPage />);
     expect(screen.getByLabelText("Email")).toBeInTheDocument();
     expect(screen.getByLabelText("Пароль")).toBeInTheDocument();
+  });
+
+  /**
+   * Phase 2B-6.1: proves the post-login redirect is role-aware end to end
+   * through the real onSubmit handler, not just getPostLoginPath() in
+   * isolation (see lib/constants/navigation.test.ts for that).
+   */
+  it("redirects an order_manager to /orders after login, not to Dashboard ('/')", async () => {
+    vi.stubEnv("NODE_ENV", "test");
+    mockLogin.mockResolvedValue({ id: "u1", name: "Manager", email: "m@svetikony.com", role: "order_manager" });
+    const { default: LoginPage } = await import("./page");
+    render(<LoginPage />);
+
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText("Email"), "m@svetikony.com");
+    await user.type(screen.getByLabelText("Пароль"), "password123");
+    await user.click(screen.getByRole("button", { name: /Увійти|Вхід/ }));
+
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/orders"));
+  });
+
+  it("redirects a super_admin to Dashboard ('/') after login -- unchanged from before this phase", async () => {
+    vi.stubEnv("NODE_ENV", "test");
+    mockLogin.mockResolvedValue({ id: "u2", name: "Admin", email: "a@svetikony.com", role: "super_admin" });
+    const { default: LoginPage } = await import("./page");
+    render(<LoginPage />);
+
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText("Email"), "a@svetikony.com");
+    await user.type(screen.getByLabelText("Пароль"), "password123");
+    await user.click(screen.getByRole("button", { name: /Увійти|Вхід/ }));
+
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/"));
   });
 });

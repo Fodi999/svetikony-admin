@@ -12,6 +12,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/lib/auth/auth-context";
+import { getPostLoginPath } from "@/lib/constants/navigation";
 import { messages } from "@/lib/i18n";
 import { loginSchema, type LoginFormValues } from "@/lib/validation/auth.schema";
 
@@ -37,7 +38,7 @@ export default function LoginPage() {
 }
 
 function LoginPageInner() {
-  const { login, status } = useAuth();
+  const { login, status, user } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -49,15 +50,15 @@ function LoginPageInner() {
   });
 
   useEffect(() => {
-    if (status === "authenticated") router.replace("/");
-  }, [status, router]);
+    if (status === "authenticated" && user) router.replace(getPostLoginPath(user.role));
+  }, [status, user, router]);
 
   async function onSubmit(values: LoginFormValues) {
     setSubmitError(null);
     try {
-      await login(values);
+      const loggedInUser = await login(values);
       toast.success("Вхід виконано успішно");
-      router.replace("/");
+      router.replace(getPostLoginPath(loggedInUser.role));
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : "Не вдалося увійти");
     }

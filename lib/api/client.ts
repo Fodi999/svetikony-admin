@@ -22,6 +22,7 @@ import type {
   ContentPlanDay,
   ContentPlanQuery,
   ContentPlanReport,
+  ContentStatus,
   GospelReading,
   Icon,
   MediaAsset,
@@ -78,16 +79,33 @@ export interface OrderQuery extends ListQuery {
   dateTo?: string;
 }
 
+/** A single field of the real church_calendar_days row, not the full
+ * CalendarDay entity — the backend aggregate endpoint only ever returns
+ * this bounded, lightweight shape (id/title/date/status), never a full
+ * editable record (see svet-ikony's lib/d1/repositories/dashboard.ts). */
+export interface DashboardUpcomingDay {
+  id: string;
+  title: string;
+  date: string;
+  status: ContentStatus;
+}
+
+/**
+ * Phase 2B-6: field-for-field with svet-ikony's real DashboardStatsDto.
+ * No `mediaUploadErrors` — no upload-error-tracking table exists
+ * anywhere in that schema (verified directly), so the old mock's
+ * hardcoded `1` literal is gone rather than replaced with a fake 0; the
+ * UI simply doesn't render that tile anymore (see dashboard-view.tsx).
+ */
 export interface DashboardStats {
   newOrders: number;
   unreadOrders: number;
   drafts: number;
   published: number;
-  upcomingCalendarDays: CalendarDay[];
+  upcomingCalendarDays: DashboardUpcomingDay[];
   missingTranslations: number;
   missingImages: number;
   prayersWithoutAudio: number;
-  mediaUploadErrors: number;
 }
 
 export interface UploadProgressHandler {

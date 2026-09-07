@@ -93,9 +93,8 @@ describe("getApiClient() adapter selection — full security matrix", () => {
 });
 
 describe("getApiClient() resource-level composition (default, real adapter)", () => {
-  it("switches alphabetLetters, prayers, calendarDays, categories, products, icons, articles, gospelReadings, churchInfo, orders, media, and auth to the real HTTP resource, leaving the 1 still-temporary resource on mock", async () => {
+  it("switches every one of the original '5 still-temporary' resources -- articles, gospelReadings, churchInfo, orders, and (Phase 2B-6, the last) dashboard -- to the real HTTP resource, alongside every resource that was already real", async () => {
     delete process.env[FLAG];
-    const { mockApiAdapter } = await import("./mock-adapter");
     const { alphabetLettersHttpResource } = await import("./http/alphabet");
     const { prayersHttpResource } = await import("./http/prayers");
     const { calendarDaysHttpResource } = await import("./http/calendar-days");
@@ -106,6 +105,7 @@ describe("getApiClient() resource-level composition (default, real adapter)", ()
     const { gospelReadingsHttpResource } = await import("./http/gospel");
     const { churchInfoHttpResource } = await import("./http/church-info");
     const { ordersHttpResource } = await import("./http/orders");
+    const { dashboardHttpResource } = await import("./http/dashboard");
     const { mediaHttpResource } = await import("./http/media");
     const { authHttpResource } = await import("./http/auth");
     const client = await freshClient();
@@ -119,8 +119,8 @@ describe("getApiClient() resource-level composition (default, real adapter)", ()
     expect(client.gospelReadings).toBe(gospelReadingsHttpResource);
     expect(client.churchInfo).toBe(churchInfoHttpResource);
     expect(client.orders).toBe(ordersHttpResource);
+    expect(client.dashboard).toBe(dashboardHttpResource);
     expect(client.media).toBe(mediaHttpResource);
     expect(client.auth).toBe(authHttpResource);
-    expect(client.dashboard).toBe(mockApiAdapter.dashboard);
   });
 });
