@@ -3,6 +3,7 @@ import { alphabetLettersHttpResource } from "@/lib/api/http/alphabet";
 import { articlesHttpResource } from "@/lib/api/http/articles";
 import { authHttpResource } from "@/lib/api/http/auth";
 import { calendarDaysHttpResource } from "@/lib/api/http/calendar-days";
+import { churchInfoHttpResource } from "@/lib/api/http/church-info";
 import { gospelReadingsHttpResource } from "@/lib/api/http/gospel";
 import { iconsHttpResource } from "@/lib/api/http/icons";
 import { mediaHttpResource } from "@/lib/api/http/media";
@@ -11,7 +12,6 @@ import { categoriesHttpResource } from "@/lib/api/http/product-categories";
 import { productsHttpResource } from "@/lib/api/http/products";
 import { saintsHttpResource } from "@/lib/api/http/saints";
 import { telegramHttpResource } from "@/lib/api/http/telegram";
-import { churchInfoResource } from "@/lib/api/mock/church-info";
 import { dashboardResource } from "@/lib/api/mock/dashboard";
 import { ordersResource } from "@/lib/api/mock/orders";
 
@@ -76,12 +76,12 @@ import { ordersResource } from "@/lib/api/mock/orders";
  * lib/api/index.ts and this function's own test in lib/api/index.test.ts,
  * which asserts production's default choice).
  *
- * `orders`, `churchInfo`, `dashboard` are the 3 remaining still-temporary
- * mock resources (not yet wired to real D1) — imported directly from
- * their own files, not through mockApiAdapter/mock/auth.ts. `articles`
- * (Phase 2B-2) and `gospelReadings` (Phase 2B-3) are the 2 already
- * connected to real D1 — see lib/api/http/articles.ts and
- * lib/api/http/gospel.ts.
+ * `orders`, `dashboard` are the 2 remaining still-temporary mock resources
+ * (not yet wired to real D1) — imported directly from their own files,
+ * not through mockApiAdapter/mock/auth.ts. `articles` (Phase 2B-2),
+ * `gospelReadings` (Phase 2B-3), and `churchInfo` (Phase 2B-4) are the 3
+ * already connected to real D1 — see lib/api/http/articles.ts,
+ * lib/api/http/gospel.ts, and lib/api/http/church-info.ts.
  */
 export function createHttpApiAdapter(): ApiClient {
   return {
@@ -95,10 +95,10 @@ export function createHttpApiAdapter(): ApiClient {
     saints: saintsHttpResource,
     articles: articlesHttpResource,
     gospelReadings: gospelReadingsHttpResource,
+    churchInfo: churchInfoHttpResource,
     media: mediaHttpResource,
     telegram: telegramHttpResource,
     orders: ordersResource,
-    churchInfo: churchInfoResource,
     dashboard: dashboardResource,
   };
 }

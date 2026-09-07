@@ -503,36 +503,46 @@ export interface AlphabetLetter extends Identifiable, Timestamps, Translatable {
 // Church info (singleton)
 // ---------------------------------------------------------------------------
 
-export interface ChurchScheduleEntry {
-  id: string;
-  dayLabel: string;
-  serviceName: string;
-  time: string;
-}
-
-export interface ChurchSocialLink {
-  id: string;
-  platform: string;
-  url: string;
-}
-
+/**
+ * Phase 2B-4: field shape matches svet-ikony's real church_info table
+ * exactly (verified against lib/d1/repositories/churchInfo.ts, not
+ * assumed). Singleton, confirmed from three independent sources: the
+ * schema's own comment ("exactly one row expected to ever exist"), the
+ * repository's get-one/upsert-one implementation (no list/create-many),
+ * and the fact the real backend has no [id] route at all — only GET/PUT
+ * on the collection path itself.
+ *
+ * Removed entirely (no backend column of any kind): `phone`+`email`
+ * (replaced by the single real `phoneOrSite` field below — the backend
+ * genuinely only stores one combined contact string, not two), `schedule`
+ * (was a structured array; the real backend only has a per-locale free
+ * text string — see `ChurchInfoTranslation.schedule`), `socialLinks`,
+ * `logoImageId`/`coverImageIds` (replaced by the real `imageUrl` — a
+ * plain URL string, not a media-library id), translation-level `history`/
+ * `seoTitle`/`seoDescription` (no backend equivalent for this entity).
+ *
+ * Added (real backend + real public-page fields the admin never exposed
+ * before): `mapsUrl`, `priestPhone`, `status` (critical — the public
+ * /churches page gates ALL rendering on `status === 'published'`, so
+ * without this field the admin had no way to ever publish this page),
+ * and per-locale `schedule`/`dedication`/`shrines`/`priest`.
+ */
 export interface ChurchInfoTranslation {
-  language: Language;
-  name: string;
+  title: string;
   description: string;
-  history: string;
-  seoTitle?: string;
-  seoDescription?: string;
+  schedule: string;
+  dedication: string;
+  shrines: string;
+  priest: string;
 }
 
-export interface ChurchInfo extends Timestamps {
+export interface ChurchInfo extends Identifiable, Timestamps {
   address: string;
-  phone?: string;
-  email?: string;
-  logoImageId?: string;
-  coverImageIds: string[];
-  schedule: ChurchScheduleEntry[];
-  socialLinks: ChurchSocialLink[];
+  mapsUrl?: string;
+  phoneOrSite?: string;
+  priestPhone?: string;
+  imageUrl?: string;
+  status: ContentStatus;
   translations: Record<Language, ChurchInfoTranslation>;
 }
 

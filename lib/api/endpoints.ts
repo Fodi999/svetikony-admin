@@ -28,6 +28,7 @@ export const UPSTREAM_ENDPOINTS = {
   saints: "/api/admin/church-content/saints", // ✅ verified (Stage 2L, full CRUD)
   articles: "/api/admin/church-content/articles", // ✅ verified (Phase 2B-2, full CRUD)
   gospelReadings: "/api/admin/church-content/gospel", // ✅ verified (Phase 2B-3, full CRUD)
+  churchInfo: "/api/admin/church-content/info", // ✅ verified (Phase 2B-4, singleton GET/PUT)
   media: {
     upload: "/api/admin/media/upload", // ✅ verified (Stage 2D)
     delete: "/api/admin/media", // ✅ verified (Stage 2D)
@@ -53,7 +54,6 @@ export const UPSTREAM_ENDPOINTS = {
   },
 
   // Not yet verified/wired for this admin — placeholders only:
-  churchInfo: "/api/church-info",
   orders: "/api/icon-orders",
   health: "/api/health",
 } as const;
@@ -74,6 +74,7 @@ export const BFF_ENDPOINTS = {
   saints: "/api/bff/saints", // ✅ implemented (Stage 2L, full CRUD)
   articles: "/api/bff/articles", // ✅ implemented (Phase 2B-2, full CRUD)
   gospelReadings: "/api/bff/gospel", // ✅ implemented (Phase 2B-3, full CRUD)
+  churchInfo: "/api/bff/church-info", // ✅ implemented (Phase 2B-4, singleton GET/PUT)
   mediaUpload: "/api/bff/media/upload", // ✅ implemented (Stage 2D)
   media: "/api/bff/media", // ✅ implemented — GET (list) + DELETE
   telegram: {
