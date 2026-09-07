@@ -4,7 +4,6 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { apiClient } from "@/lib/api";
 import { toApiError } from "@/lib/api/errors";
 import { accessLevel, canEdit, canView, type PermissionArea } from "@/lib/auth/permissions";
-import { peekMockSessionState } from "@/lib/auth/session";
 import type { LoginFormValues } from "@/lib/validation/auth.schema";
 import type { AuthUser } from "@/types/entities";
 
@@ -29,15 +28,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const session = await apiClient.auth.getSession();
-      if (cancelled) return;
-      if (session) {
-        setUser(session.user);
-        setStatus("authenticated");
-        return;
+      try {
+        const session = await apiClient.auth.getSession();
+        if (cancelled) return;
+        if (session) {
+          setUser(session.user);
+          setStatus("authenticated");
+          return;
+        }
+        setUser(null);
+        setStatus("unauthenticated");
+      } catch {
+        // A cookie was presented but the server rejected it as no longer
+        // valid (getSession() rethrows only for this case, see
+        // lib/api/http/auth.ts) -- distinct from "never had a session" so
+        // the UI can show "please log in again" rather than a bare form.
+        if (cancelled) return;
+        setUser(null);
+        setStatus("expired");
       }
-      setUser(null);
-      setStatus(peekMockSessionState() === "expired" ? "expired" : "unauthenticated");
     })();
     return () => {
       cancelled = true;

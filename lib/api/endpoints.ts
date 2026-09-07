@@ -41,12 +41,16 @@ export const UPSTREAM_ENDPOINTS = {
     contentPlan: "/api/admin/telegram/content-plan", // ✅ verified (GET, ?year= or ?from=&to=); `${contentPlan}/:date` built at call sites
   },
 
-  // Not yet verified/wired for this admin — placeholders only:
+  // Phase 1A (svet-ikony): real, service-credential-protected routes. Never
+  // fetched directly from client code -- only app/api/bff/auth/** and
+  // app/api/bff/_lib/auth.ts call these, both server-only.
   auth: {
-    login: "/api/auth/login",
-    logout: "/api/auth/logout",
-    session: "/api/auth/session",
+    login: "/api/admin/auth/login", // ✅ verified (Phase 1A)
+    logout: "/api/admin/auth/logout", // ✅ verified (Phase 1A)
+    session: "/api/admin/auth/session", // ✅ verified (Phase 1A)
   },
+
+  // Not yet verified/wired for this admin — placeholders only:
   gospelReadings: "/api/gospel",
   articles: "/api/articles",
   churchInfo: "/api/church-info",
@@ -56,6 +60,11 @@ export const UPSTREAM_ENDPOINTS = {
 
 /** This admin's own server-side proxy routes (see app/api/bff/**). */
 export const BFF_ENDPOINTS = {
+  auth: {
+    login: "/api/bff/auth/login", // ✅ implemented (Phase 1B)
+    logout: "/api/bff/auth/logout", // ✅ implemented (Phase 1B)
+    session: "/api/bff/auth/session", // ✅ implemented (Phase 1B)
+  },
   alphabetLetters: "/api/bff/alphabet", // ✅ implemented (list + get only)
   prayers: "/api/bff/prayers", // ✅ implemented (Stage 2I, full CRUD)
   calendarDays: "/api/bff/calendar-days", // ✅ implemented (Stage 2H, full CRUD)

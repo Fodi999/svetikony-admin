@@ -1,5 +1,7 @@
 import { UPSTREAM_ENDPOINTS } from "@/lib/api/endpoints";
+import { withAuth } from "../../_lib/auth";
 import { proxyMultipartUpload } from "../../_lib/proxy";
+import { POLICY } from "../../_lib/route-policies";
 
 /**
  * Same-origin proxy for the verified svet-ikony media upload endpoint.
@@ -7,7 +9,7 @@ import { proxyMultipartUpload } from "../../_lib/proxy";
  * and the server-side admin token — never the file's contents — is the
  * only thing ever logged-worthy here, and this route doesn't log at all.
  */
-export async function POST(request: Request) {
+async function handlePost(request: Request) {
   let formData: FormData;
   try {
     formData = await request.formData();
@@ -19,3 +21,5 @@ export async function POST(request: Request) {
   }
   return proxyMultipartUpload(UPSTREAM_ENDPOINTS.media.upload, formData);
 }
+
+export const POST = withAuth(POLICY.mediaEdit, handlePost);

@@ -1,5 +1,6 @@
 import type { ApiClient } from "@/lib/api/client";
 import { alphabetLettersHttpResource } from "@/lib/api/http/alphabet";
+import { authHttpResource } from "@/lib/api/http/auth";
 import { calendarDaysHttpResource } from "@/lib/api/http/calendar-days";
 import { iconsHttpResource } from "@/lib/api/http/icons";
 import { mediaHttpResource } from "@/lib/api/http/media";
@@ -8,12 +9,33 @@ import { categoriesHttpResource } from "@/lib/api/http/product-categories";
 import { productsHttpResource } from "@/lib/api/http/products";
 import { saintsHttpResource } from "@/lib/api/http/saints";
 import { telegramHttpResource } from "@/lib/api/http/telegram";
-import { mockApiAdapter } from "@/lib/api/mock-adapter";
+import { articlesResource } from "@/lib/api/mock/articles";
+import { churchInfoResource } from "@/lib/api/mock/church-info";
+import { dashboardResource } from "@/lib/api/mock/dashboard";
+import { gospelReadingsResource } from "@/lib/api/mock/gospel";
+import { ordersResource } from "@/lib/api/mock/orders";
 
 /**
  * This is what `getApiClient()` returns by default now (see lib/api/index.ts) —
  * only `NEXT_PUBLIC_FORCE_MOCK_API=true` bypasses it in favor of the plain
  * mock adapter.
+ *
+ * Phase 1B.1: this used to spread `...mockApiAdapter` (the whole
+ * lib/api/mock-adapter.ts module, all 15 resources) as its base and
+ * override the verified ones on top. That pulled `lib/api/mock/auth.ts` —
+ * and through it `lib/mock-data/users.ts`'s plaintext demo passwords —
+ * into every production build's dependency graph, even though `auth` was
+ * always immediately overridden below and the mock login path was never
+ * reachable at runtime. Overriding a property after a spread doesn't stop
+ * a bundler from having to evaluate the spread source first, so the
+ * plaintext credentials still ended up in the compiled output (confirmed
+ * by grepping .next/static/ — see the Phase 1B.1 report). Fixed by naming
+ * every property explicitly instead of spreading: 10 real resources below,
+ * plus the 5 still-temporary ones (orders/articles/gospelReadings/
+ * churchInfo/dashboard) imported directly from their own individual mock
+ * resource modules — never from lib/api/mock-adapter.ts, and critically,
+ * never from lib/api/mock/auth.ts. This function's whole import graph now
+ * has zero edges into the mock auth implementation.
  *
  * Alphabet is READ-only against the real svet-ikony API; its
  * create/update/remove throw a controlled `not_implemented` ApiError (see
@@ -23,15 +45,14 @@ import { mockApiAdapter } from "@/lib/api/mock-adapter";
  * `calendarDays` (Stage 2H), `prayers` (Stage 2I), `categories`/`products`
  * (Stage 2J), `icons` (Stage 2K), and `saints` (Stage 2L) have full real
  * CRUD — list/get/create/update/remove all reach real D1 (and, via their
- * image fields, real R2). All fully replace MockApiAdapter's resource; no
- * sessionStorage fallback is reachable for any of them. `products`
- * intentionally leaves `linkedIconId`/`dimensions`/`materials`/`variants`
- * UI-only — no matching real D1 column/table exists yet (see
- * lib/api/http/products.ts). `icons` intentionally leaves
- * `relatedPrayerIds`/`relatedArticleIds`/`relatedCalendarDayIds`/
- * `history`/`saintImageDescription`/`materials`/`dimensions` UI-only for
- * the same reason (`galleryImageIds` IS real — migration 0005 added a
- * proper gallery column) (see lib/api/http/icons.ts). `saints` leaves
+ * image fields, real R2). `products` intentionally leaves
+ * `linkedIconId`/`dimensions`/`materials`/`variants` UI-only — no matching
+ * real D1 column/table exists yet (see lib/api/http/products.ts). `icons`
+ * intentionally leaves `relatedPrayerIds`/`relatedArticleIds`/
+ * `relatedCalendarDayIds`/`history`/`saintImageDescription`/`materials`/
+ * `dimensions` UI-only for the same reason (`galleryImageIds` IS real —
+ * migration 0005 added a proper gallery column) (see
+ * lib/api/http/icons.ts). `saints` leaves
  * `relatedIconIds`/`relatedCalendarDayIds` UI-only — the Worker only has a
  * single `icon_id`/`calendar_day_id` FK per saint, not the many-to-many
  * shape the admin's relation picker needs (see lib/api/http/saints.ts).
@@ -46,12 +67,22 @@ import { mockApiAdapter } from "@/lib/api/mock-adapter";
  * real — every method reaches svet-ikony's D1-backed `/api/admin/telegram/*`
  * routes via the BFF, no mock fallback for any of it.
  *
- * Every other resource still delegates to the mock adapter — no other
- * module has been verified against the real svet-ikony API yet.
+ * `auth` (Phase 1B) is fully real — login/session/logout all go through
+ * app/api/bff/auth/**, which in turn call svet-ikony's Phase 1A
+ * /api/admin/auth/** routes. No sessionStorage/mockAccounts path is
+ * reachable here, and — as of Phase 1B.1 — none of that mock's code is
+ * even in this function's build output; it stays wired only under
+ * mockApiAdapter, used only when NEXT_PUBLIC_FORCE_MOCK_API=true (see
+ * lib/api/index.ts and this function's own test in lib/api/index.test.ts,
+ * which asserts production's default choice).
+ *
+ * `orders`, `articles`, `gospelReadings`, `churchInfo`, `dashboard` are the
+ * 5 still-temporary mock resources (not yet wired to real D1) — imported
+ * directly from their own files, not through mockApiAdapter/mock/auth.ts.
  */
 export function createHttpApiAdapter(): ApiClient {
   return {
-    ...mockApiAdapter,
+    auth: authHttpResource,
     alphabetLetters: alphabetLettersHttpResource,
     prayers: prayersHttpResource,
     calendarDays: calendarDaysHttpResource,
@@ -61,5 +92,10 @@ export function createHttpApiAdapter(): ApiClient {
     saints: saintsHttpResource,
     media: mediaHttpResource,
     telegram: telegramHttpResource,
+    orders: ordersResource,
+    articles: articlesResource,
+    gospelReadings: gospelReadingsResource,
+    churchInfo: churchInfoResource,
+    dashboard: dashboardResource,
   };
 }

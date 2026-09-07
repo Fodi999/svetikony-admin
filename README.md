@@ -52,7 +52,9 @@ npm run format        # Prettier (запис)
 npm run format:check  # Prettier (перевірка)
 npm run test          # Vitest, один прогін
 npm run test:watch    # Vitest, watch-режим
-npm run test:e2e      # Playwright e2e (build + start + тести)
+npm run test:e2e:mock # Playwright e2e, mock-режим (next dev + NEXT_PUBLIC_FORCE_MOCK_API=true)
+npm run test:e2e:real # Playwright e2e, реальний API (build + start; потрібен другий dev-сервер svet-ikony на :3001)
+npm run verify:production-auth-bundle  # перевірка, що production build не містить mock-credentials
 ```
 
 ### Важливо: dev/build запускаються з `--webpack`

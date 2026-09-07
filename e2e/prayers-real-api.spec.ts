@@ -3,10 +3,10 @@ import { expect, test, type Page } from "@playwright/test";
 /**
  * Stage 2C, Prayers READ smoke test. Requires a second local dev server
  * (svet-ikony on :3001) — the real HttpApiAdapter is the default now (see
- * lib/api/index.ts), so plain `npm run test:e2e` forces mock mode via
+ * lib/api/index.ts), so plain `npm run test:e2e:mock` forces mock mode via
  * NEXT_PUBLIC_FORCE_MOCK_API instead. Opt in explicitly:
  *
- *   RUN_REAL_API_E2E=true npm run test:e2e -- e2e/prayers-real-api.spec.ts
+ *   npm run test:e2e:real -- e2e/prayers-real-api.spec.ts
  *
  * Local real data currently has exactly one prayer ("Отче наш!!", slug
  * "отче-наш") — this test is deliberately written against that single real

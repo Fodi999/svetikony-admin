@@ -1,4 +1,6 @@
+import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { mockAuthenticatedFetch, withSessionCookie } from "../../_lib/test-support";
 import { GET } from "./route";
 
 const ENV_KEYS = ["SVET_IKONY_API_BASE_URL", "SVET_IKONY_ADMIN_TOKEN"] as const;
@@ -55,9 +57,14 @@ describe("GET /api/bff/prayers/:id", () => {
   it("never returns internal Worker fields", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue(new Response(JSON.stringify(workerPrayer), { status: 200, headers: { "content-type": "application/json" } })),
+      mockAuthenticatedFetch("viewer", () =>
+        new Response(JSON.stringify(workerPrayer), { status: 200, headers: { "content-type": "application/json" } }),
+      ),
     );
-    const response = await GET(new Request("http://localhost/api/bff/prayers/prayer-1"), { params: Promise.resolve({ id: "prayer-1" }) });
+    const response = await GET(
+      new NextRequest("http://localhost/api/bff/prayers/prayer-1", withSessionCookie()),
+      { params: Promise.resolve({ id: "prayer-1" }) },
+    );
     const bodyText = await response.text();
     expect(bodyText).not.toContain("siteId");
     expect(bodyText).not.toContain("translationGroupId");
@@ -65,19 +72,29 @@ describe("GET /api/bff/prayers/:id", () => {
   });
 
   it("URL-encodes the id in the upstream path", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(workerPrayer), { status: 200, headers: { "content-type": "application/json" } }));
+    const fetchMock = mockAuthenticatedFetch("viewer", () =>
+      new Response(JSON.stringify(workerPrayer), { status: 200, headers: { "content-type": "application/json" } }),
+    );
     vi.stubGlobal("fetch", fetchMock);
-    await GET(new Request("http://localhost/api/bff/prayers/id with space"), { params: Promise.resolve({ id: "id with space" }) });
-    const [url] = fetchMock.mock.calls[0];
-    expect(String(url)).toContain("id%20with%20space");
+    await GET(
+      new NextRequest("http://localhost/api/bff/prayers/id with space", withSessionCookie()),
+      { params: Promise.resolve({ id: "id with space" }) },
+    );
+    const resourceCall = fetchMock.mock.calls.find(([url]) => !String(url).includes("/api/admin/auth/session"))!;
+    expect(String(resourceCall[0])).toContain("id%20with%20space");
   });
 
   it("passes through a 404 unchanged", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue(new Response(JSON.stringify({ code: "NOT_FOUND", message: "not found" }), { status: 404, headers: { "content-type": "application/json" } })),
+      mockAuthenticatedFetch("viewer", () =>
+        new Response(JSON.stringify({ code: "NOT_FOUND", message: "not found" }), { status: 404, headers: { "content-type": "application/json" } }),
+      ),
     );
-    const response = await GET(new Request("http://localhost/api/bff/prayers/missing"), { params: Promise.resolve({ id: "missing" }) });
+    const response = await GET(
+      new NextRequest("http://localhost/api/bff/prayers/missing", withSessionCookie()),
+      { params: Promise.resolve({ id: "missing" }) },
+    );
     expect(response.status).toBe(404);
   });
 });

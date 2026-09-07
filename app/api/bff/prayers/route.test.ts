@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { mockAuthenticatedFetch, withSessionCookie } from "../_lib/test-support";
 import { GET } from "./route";
 
 const ENV_KEYS = ["SVET_IKONY_API_BASE_URL", "SVET_IKONY_ADMIN_TOKEN"] as const;
@@ -56,9 +57,11 @@ describe("GET /api/bff/prayers", () => {
   it("never returns internal Worker fields (siteId, translationGroupId, isGlobal)", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue(new Response(JSON.stringify([workerPrayer]), { status: 200, headers: { "content-type": "application/json" } })),
+      mockAuthenticatedFetch("viewer", () =>
+        new Response(JSON.stringify([workerPrayer]), { status: 200, headers: { "content-type": "application/json" } }),
+      ),
     );
-    const response = await GET(new NextRequest("http://localhost/api/bff/prayers"));
+    const response = await GET(new NextRequest("http://localhost/api/bff/prayers", withSessionCookie()));
     const bodyText = await response.text();
     expect(bodyText).not.toContain("siteId");
     expect(bodyText).not.toContain("translationGroupId");
@@ -69,16 +72,16 @@ describe("GET /api/bff/prayers", () => {
   });
 
   it("forwards the language query param upstream", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response("[]", { status: 200, headers: { "content-type": "application/json" } }));
+    const fetchMock = mockAuthenticatedFetch("viewer", () => new Response("[]", { status: 200, headers: { "content-type": "application/json" } }));
     vi.stubGlobal("fetch", fetchMock);
-    await GET(new NextRequest("http://localhost/api/bff/prayers?language=uk"));
-    const [url] = fetchMock.mock.calls[0];
-    expect(String(url)).toContain("language=uk");
+    await GET(new NextRequest("http://localhost/api/bff/prayers?language=uk", withSessionCookie()));
+    const resourceCall = fetchMock.mock.calls.find(([url]) => !String(url).includes("/api/admin/auth/session"))!;
+    expect(String(resourceCall[0])).toContain("language=uk");
   });
 
-  it("passes through a 401 unchanged", async () => {
+  it("passes through a 401 unchanged when the service credential is missing (fails at withAuth's own session check, same observable status)", async () => {
     delete process.env.SVET_IKONY_ADMIN_TOKEN;
-    const response = await GET(new NextRequest("http://localhost/api/bff/prayers"));
+    const response = await GET(new NextRequest("http://localhost/api/bff/prayers", withSessionCookie()));
     expect(response.status).toBe(401);
   });
 });

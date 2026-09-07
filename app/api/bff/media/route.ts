@@ -1,5 +1,7 @@
 import { UPSTREAM_ENDPOINTS } from "@/lib/api/endpoints";
+import { withAuth } from "../_lib/auth";
 import { proxyAndMap, proxyJsonWrite } from "../_lib/proxy";
+import { POLICY } from "../_lib/route-policies";
 
 /**
  * Same-origin proxy for the verified svet-ikony media list endpoint (used
@@ -7,7 +9,7 @@ import { proxyAndMap, proxyJsonWrite } from "../_lib/proxy";
  * narrows to that module's uploads). The Worker's `{items, cursor}` shape
  * is already the stable DTO both sides share, so there's nothing to remap.
  */
-export async function GET(request: Request) {
+async function handleGet(request: Request) {
   const { searchParams } = new URL(request.url);
   return proxyAndMap(
     UPSTREAM_ENDPOINTS.media.list,
@@ -22,7 +24,7 @@ export async function GET(request: Request) {
  * orphan cleanup of not-yet-saved uploads). Body is `{ key: string }`, the
  * R2 object key returned by a prior upload.
  */
-export async function DELETE(request: Request) {
+async function handleDelete(request: Request) {
   let body: unknown;
   try {
     body = await request.json();
@@ -37,3 +39,6 @@ export async function DELETE(request: Request) {
   // rather than mapping to undefined (which Response.json() can't encode).
   return proxyJsonWrite(UPSTREAM_ENDPOINTS.media.delete, "DELETE", body, (raw: { key: string; deleted: boolean }) => raw);
 }
+
+export const GET = withAuth(POLICY.mediaView, handleGet);
+export const DELETE = withAuth(POLICY.mediaEdit, handleDelete);

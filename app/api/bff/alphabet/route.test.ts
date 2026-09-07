@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { mockAuthenticatedFetch, withSessionCookie } from "../_lib/test-support";
 import { GET } from "./route";
 
 const ENV_KEYS = ["SVET_IKONY_API_BASE_URL", "SVET_IKONY_ADMIN_TOKEN"] as const;
@@ -47,9 +48,11 @@ describe("GET /api/bff/alphabet", () => {
   it("never returns internal Worker fields after the Stage 2C retrofit", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue(new Response(JSON.stringify([workerLetter]), { status: 200, headers: { "content-type": "application/json" } })),
+      mockAuthenticatedFetch("viewer", () =>
+        new Response(JSON.stringify([workerLetter]), { status: 200, headers: { "content-type": "application/json" } }),
+      ),
     );
-    const response = await GET(new NextRequest("http://localhost/api/bff/alphabet"));
+    const response = await GET(new NextRequest("http://localhost/api/bff/alphabet", withSessionCookie()));
     const bodyText = await response.text();
     for (const field of ["siteId", "letter\"", "modernEquivalent", "color\"", "cardImageUrl", "mainImageUrl", "seoTitle", "seoDescription", "isGlobal"]) {
       expect(bodyText).not.toContain(field);

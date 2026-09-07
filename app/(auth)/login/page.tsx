@@ -2,6 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Church } from "lucide-react";
+import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
@@ -12,8 +13,20 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/lib/auth/auth-context";
 import { messages } from "@/lib/i18n";
-import { mockAccounts } from "@/lib/mock-data/users";
 import { loginSchema, type LoginFormValues } from "@/lib/validation/auth.schema";
+
+/**
+ * `process.env.NODE_ENV !== "production"` is a compile-time constant after
+ * Next's build-time inlining, so in a production build this whole
+ * expression collapses to `null` and the `import()` below is never
+ * reachable — the dev-only panel's chunk (and its mockAccounts/plaintext-
+ * demo-password data) is not merely unrendered but never emitted into the
+ * build output at all. See features/auth/dev-test-accounts-panel.tsx's own
+ * doc comment for why this needed a real module boundary, not just a
+ * runtime JSX guard around an inline component.
+ */
+const DevTestAccountsPanel =
+  process.env.NODE_ENV !== "production" ? dynamic(() => import("@/features/auth/dev-test-accounts-panel")) : null;
 
 export default function LoginPage() {
   return (
@@ -66,7 +79,7 @@ function LoginPageInner() {
       <Card className="w-full max-w-sm">
         <CardHeader>
           <CardTitle>Вхід у систему</CardTitle>
-          <CardDescription>Stage 1: мок-автентифікація, без реального бекенду.</CardDescription>
+          <CardDescription>Введіть email та пароль вашого облікового запису.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {expired ? (
@@ -90,24 +103,7 @@ function LoginPageInner() {
             </Button>
           </form>
 
-          <div className="space-y-2 border-t pt-4">
-            <p className="text-xs font-medium text-muted-foreground">Тестові облікові записи (Stage 1):</p>
-            <div className="grid grid-cols-2 gap-2">
-              {mockAccounts.map((account) => (
-                <Button
-                  key={account.user.id}
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-auto flex-col items-start gap-0 py-2 text-left"
-                  onClick={() => fillAccount(account.user.email, account.password)}
-                >
-                  <span className="text-xs font-medium">{account.user.name}</span>
-                  <span className="text-[11px] text-muted-foreground">{account.user.email}</span>
-                </Button>
-              ))}
-            </div>
-          </div>
+          {DevTestAccountsPanel ? <DevTestAccountsPanel onFill={fillAccount} /> : null}
         </CardContent>
       </Card>
     </div>

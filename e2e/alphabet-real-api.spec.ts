@@ -3,10 +3,10 @@ import { expect, test } from "@playwright/test";
 /**
  * Stage 2, Alphabet READ smoke test. Requires a second local dev server
  * (svet-ikony on :3001) — the real HttpApiAdapter is the default now (see
- * lib/api/index.ts), so plain `npm run test:e2e` forces mock mode via
+ * lib/api/index.ts), so plain `npm run test:e2e:mock` forces mock mode via
  * NEXT_PUBLIC_FORCE_MOCK_API instead. Opt in explicitly:
  *
- *   RUN_REAL_API_E2E=true npm run test:e2e -- e2e/alphabet-real-api.spec.ts
+ *   npm run test:e2e:real -- e2e/alphabet-real-api.spec.ts
  */
 test.describe("Alphabet via HttpApiAdapter (real local D1 data)", () => {
   test.skip(
