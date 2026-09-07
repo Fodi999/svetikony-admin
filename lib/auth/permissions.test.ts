@@ -14,10 +14,10 @@ describe("permissions matrix", () => {
     expect(canEdit("editor", "settings")).toBe(false);
   });
 
-  it("lets editor edit content and catalog but only view orders", () => {
+  it("lets editor edit content and catalog, but has no orders access at all (Phase 2B-5B: orders carries customer PII editor has no business need for)", () => {
     expect(canEdit("editor", "content")).toBe(true);
     expect(canEdit("editor", "catalog")).toBe(true);
-    expect(canView("editor", "orders")).toBe(true);
+    expect(canView("editor", "orders")).toBe(false);
     expect(canEdit("editor", "orders")).toBe(false);
   });
 
@@ -28,11 +28,12 @@ describe("permissions matrix", () => {
     expect(canEdit("order_manager", "settings")).toBe(false);
   });
 
-  it("makes viewer read-only everywhere except settings", () => {
-    for (const area of ["content", "catalog", "orders", "media"] as const) {
+  it("makes viewer read-only for content/catalog/media, but grants no orders access at all (Phase 2B-5B: same PII reasoning as editor)", () => {
+    for (const area of ["content", "catalog", "media"] as const) {
       expect(canView("viewer", area)).toBe(true);
       expect(canEdit("viewer", area)).toBe(false);
     }
+    expect(canView("viewer", "orders")).toBe(false);
     expect(canView("viewer", "settings")).toBe(false);
   });
 });

@@ -29,6 +29,7 @@ export const UPSTREAM_ENDPOINTS = {
   articles: "/api/admin/church-content/articles", // ✅ verified (Phase 2B-2, full CRUD)
   gospelReadings: "/api/admin/church-content/gospel", // ✅ verified (Phase 2B-3, full CRUD)
   churchInfo: "/api/admin/church-content/info", // ✅ verified (Phase 2B-4, singleton GET/PUT)
+  orders: "/api/admin/church-content/icon-orders", // ✅ verified (Phase 2B-5B, list/get/update/mark-read -- no create/delete admin-side)
   media: {
     upload: "/api/admin/media/upload", // ✅ verified (Stage 2D)
     delete: "/api/admin/media", // ✅ verified (Stage 2D)
@@ -54,7 +55,6 @@ export const UPSTREAM_ENDPOINTS = {
   },
 
   // Not yet verified/wired for this admin — placeholders only:
-  orders: "/api/icon-orders",
   health: "/api/health",
 } as const;
 
@@ -75,6 +75,7 @@ export const BFF_ENDPOINTS = {
   articles: "/api/bff/articles", // ✅ implemented (Phase 2B-2, full CRUD)
   gospelReadings: "/api/bff/gospel", // ✅ implemented (Phase 2B-3, full CRUD)
   churchInfo: "/api/bff/church-info", // ✅ implemented (Phase 2B-4, singleton GET/PUT)
+  orders: "/api/bff/orders", // ✅ implemented (Phase 2B-5B, list/get/update; `${orders}/:id` and `${orders}/:id/read` built at call sites)
   mediaUpload: "/api/bff/media/upload", // ✅ implemented (Stage 2D)
   media: "/api/bff/media", // ✅ implemented — GET (list) + DELETE
   telegram: {

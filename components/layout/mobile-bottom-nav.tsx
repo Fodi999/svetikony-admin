@@ -6,17 +6,27 @@ import { Menu } from "lucide-react";
 import { GuardedLink } from "@/components/layout/guarded-link";
 import { MoreMenuList } from "@/components/layout/more-menu-list";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { useAuth } from "@/lib/auth/auth-context";
 import { messages } from "@/lib/i18n";
 import { MOBILE_PRIMARY_HREFS, NAV_ITEMS } from "@/lib/constants/navigation";
 import { cn } from "@/lib/utils";
 
 export function MobileBottomNav() {
   const pathname = usePathname();
+  const { canView } = useAuth();
   const [moreOpen, setMoreOpen] = useState(false);
 
-  const primaryItems = MOBILE_PRIMARY_HREFS.map((href) => NAV_ITEMS.find((item) => item.href === href)).filter(
-    (item): item is NonNullable<typeof item> => !!item,
-  );
+  /** Phase 2B-5B: must filter by permission, not just map the hardcoded
+   * href list — Orders is now `none` for editor/viewer (was `view` for
+   * everyone before), and this bar previously showed it unconditionally
+   * regardless of role. more-menu-list.tsx already excludes every
+   * MOBILE_PRIMARY_HREFS item from its own listing unconditionally, so a
+   * filtered-out item here doesn't leak into the "More" sheet either —
+   * it's simply not shown anywhere for a role without access, matching
+   * the sidebar/global-search's existing canView-based filtering. */
+  const primaryItems = MOBILE_PRIMARY_HREFS.map((href) => NAV_ITEMS.find((item) => item.href === href))
+    .filter((item): item is NonNullable<typeof item> => !!item)
+    .filter((item) => canView(item.area));
 
   return (
     <>
@@ -25,7 +35,7 @@ export function MobileBottomNav() {
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
         aria-label="Основна навігація"
       >
-        <div className="grid grid-cols-5">
+        <div className="grid" style={{ gridTemplateColumns: `repeat(${primaryItems.length + 1}, minmax(0, 1fr))` }}>
           {primaryItems.map((item) => {
             const active = pathname === item.href;
             return (

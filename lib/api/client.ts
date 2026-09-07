@@ -5,7 +5,6 @@ import type { ChurchInfoFormValues } from "@/lib/validation/church-info.schema";
 import type { GospelReadingFormValues } from "@/lib/validation/gospel.schema";
 import type { IconFormValues } from "@/lib/validation/icon.schema";
 import type { LoginFormValues } from "@/lib/validation/auth.schema";
-import type { OrderUpdateFormValues } from "@/lib/validation/order.schema";
 import type { ProductCategoryFormValues } from "@/lib/validation/category.schema";
 import type { PrayerFormValues } from "@/lib/validation/prayer.schema";
 import type { ProductFormValues } from "@/lib/validation/product.schema";
@@ -133,11 +132,20 @@ export interface ChurchInfoApi {
   update(values: ChurchInfoFormValues): Promise<ChurchInfo>;
 }
 
+/**
+ * Phase 2B-5B: `updateStatus`/`updateNote` are separate calls, each
+ * sending only the one field it owns — matches svet-ikony's real PUT,
+ * which merges correctly against the current row for whatever's omitted
+ * (see order.schema.ts's doc comment). `markRead(id)` takes no boolean:
+ * the real backend has no "mark unread" endpoint at all, so there is
+ * nothing to parameterize.
+ */
 export interface OrdersApi {
   list(query?: OrderQuery): Promise<PaginatedResult<Order>>;
   get(id: string): Promise<Order>;
-  updateStatus(id: string, values: OrderUpdateFormValues): Promise<Order>;
-  markRead(id: string, isRead: boolean): Promise<Order>;
+  updateStatus(id: string, status: OrderStatus): Promise<Order>;
+  updateNote(id: string, adminNote: string): Promise<Order>;
+  markRead(id: string): Promise<Order>;
 }
 
 /** Hand-written rather than `CrudResource` — no `remove`, and `publish` has

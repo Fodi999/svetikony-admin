@@ -93,7 +93,7 @@ describe("getApiClient() adapter selection — full security matrix", () => {
 });
 
 describe("getApiClient() resource-level composition (default, real adapter)", () => {
-  it("switches alphabetLetters, prayers, calendarDays, categories, products, icons, articles, gospelReadings, churchInfo, media, and auth to the real HTTP resource, leaving the 2 still-temporary resources on mock", async () => {
+  it("switches alphabetLetters, prayers, calendarDays, categories, products, icons, articles, gospelReadings, churchInfo, orders, media, and auth to the real HTTP resource, leaving the 1 still-temporary resource on mock", async () => {
     delete process.env[FLAG];
     const { mockApiAdapter } = await import("./mock-adapter");
     const { alphabetLettersHttpResource } = await import("./http/alphabet");
@@ -105,6 +105,7 @@ describe("getApiClient() resource-level composition (default, real adapter)", ()
     const { articlesHttpResource } = await import("./http/articles");
     const { gospelReadingsHttpResource } = await import("./http/gospel");
     const { churchInfoHttpResource } = await import("./http/church-info");
+    const { ordersHttpResource } = await import("./http/orders");
     const { mediaHttpResource } = await import("./http/media");
     const { authHttpResource } = await import("./http/auth");
     const client = await freshClient();
@@ -117,9 +118,9 @@ describe("getApiClient() resource-level composition (default, real adapter)", ()
     expect(client.articles).toBe(articlesHttpResource);
     expect(client.gospelReadings).toBe(gospelReadingsHttpResource);
     expect(client.churchInfo).toBe(churchInfoHttpResource);
+    expect(client.orders).toBe(ordersHttpResource);
     expect(client.media).toBe(mediaHttpResource);
     expect(client.auth).toBe(authHttpResource);
-    expect(client.orders).toBe(mockApiAdapter.orders);
     expect(client.dashboard).toBe(mockApiAdapter.dashboard);
   });
 });

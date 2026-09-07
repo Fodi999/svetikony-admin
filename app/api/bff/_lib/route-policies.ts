@@ -13,22 +13,24 @@ import type { AccessLevel, PermissionArea } from "@/lib/auth/permissions";
  * validates this object's own contents against the real permission
  * matrix (lib/auth/permissions.ts).
  *
- * Exactly 8 entries: the 4 real areas resource routes fall into
- * (content/catalog/media/telegram — no BFF route exists yet for
- * orders/settings, see the Phase 1C report's "temporary mock module
- * status" section) × the 2 real levels (view/edit). No route needed a
- * policy outside this 4x2 grid — checked every handler's actual semantics
- * during the retrofit, not just applied GET=view/POST=edit blindly; see
- * the Phase 1C report's "POLICY MAP" section for the handful of routes
- * that got explicit scrutiny (all AI-generation actions and Telegram
- * content-plan state changes are real writes, not read-like, so they're
- * `edit` even though several are conceptually "generate a preview").
+ * Originally exactly 8 entries: the 4 real areas resource routes fell
+ * into (content/catalog/media/telegram) × the 2 real levels (view/edit) —
+ * no route needed a policy outside that 4x2 grid, checked every handler's
+ * actual semantics during the Phase 1C retrofit, not just applied
+ * GET=view/POST=edit blindly. Phase 2B-5B added `orders` as a genuinely
+ * new area (unlike Articles/Gospel/Church-Info, which all reused
+ * `content`): Orders is a real, distinct area in the permission matrix
+ * with its own role grants (super_admin/order_manager = edit,
+ * editor/viewer = none — a real least-privilege restriction over customer
+ * PII, not the `content` area's broader viewer/editor access).
  */
 export const POLICY = {
   contentView: { area: "content", level: "view" },
   contentEdit: { area: "content", level: "edit" },
   catalogView: { area: "catalog", level: "view" },
   catalogEdit: { area: "catalog", level: "edit" },
+  ordersView: { area: "orders", level: "view" },
+  ordersEdit: { area: "orders", level: "edit" },
   mediaView: { area: "media", level: "view" },
   mediaEdit: { area: "media", level: "edit" },
   telegramView: { area: "telegram", level: "view" },

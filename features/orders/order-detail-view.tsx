@@ -2,16 +2,18 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Copy, Mail, Phone } from "lucide-react";
-import { useEffect } from "react";
+import { ArrowRight, Copy, Mail, Phone, XCircle } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
-import { SelectField } from "@/components/forms/select-field";
-import { SwitchField } from "@/components/forms/switch-field";
+import { ConfirmDialog } from "@/components/feedback/confirm-dialog";
 import { TextField } from "@/components/forms/text-field";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { OrderStatusBadge } from "@/features/orders/order-status-badge";
+import { isCancellable, isTerminal, NEXT_STATUS, ORDER_STATUS_LABELS, ORDER_STATUS_OPTIONS } from "@/features/orders/order-status-labels";
 import { StateMessage } from "@/components/feedback/state-message";
 import { useUnsavedChanges } from "@/components/feedback/unsaved-changes-context";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -19,51 +21,110 @@ import { apiClient } from "@/lib/api";
 import { errorMessageFor } from "@/lib/api/errors";
 import { messages } from "@/lib/i18n";
 import { useBeforeUnloadWarning } from "@/lib/utils/use-before-unload";
-import { orderUpdateSchema, type OrderUpdateFormValues } from "@/lib/validation/order.schema";
+import { formatCents } from "@/lib/utils/format-money";
+import { orderNoteSchema, type OrderNoteFormValues } from "@/lib/validation/order.schema";
+import type { Order, OrderStatus } from "@/types/entities";
 
-const ORDER_TYPE_LABELS: Record<string, string> = {
-  icon_order: "Замовлення ікони",
-  product_order: "Замовлення товару",
-  custom_request: "Індивідуальний запит",
-};
+/** What was actually ordered — prefers the icon snapshot, falls back to
+ * the primary product snapshot, matching svet-ikony's own two order-
+ * creation paths (createIconOrder / createProductOrder). Always real
+ * historical snapshots, never a live Product/Icon lookup — see the
+ * Phase 2B-5B report's ORDER SNAPSHOT DISPLAY section. */
+function primaryTargetLabel(order: Order): string | null {
+  if (order.iconTitleSnapshot) return order.iconTitleSnapshot;
+  if (order.primaryProductNameSnapshot) return order.primaryProductNameSnapshot;
+  return null;
+}
+
+function confirmDialogContent(order: Order, pendingStatus: OrderStatus) {
+  if (pendingStatus === "cancelled") {
+    return {
+      title: "Скасувати замовлення?",
+      description: `Замовлення ${order.orderNumber} буде позначено як скасоване.`,
+      destructive: true,
+      confirmLabel: "Скасувати замовлення",
+    };
+  }
+  return {
+    title: "Повернути замовлення в роботу?",
+    description: `Замовлення ${order.orderNumber} наразі має статус «${ORDER_STATUS_LABELS[order.status]}». Змінити на «${ORDER_STATUS_LABELS[pendingStatus]}»?`,
+    destructive: false,
+    confirmLabel: "Змінити статус",
+  };
+}
 
 export function OrderDetailView({ id }: { id: string }) {
   const queryClient = useQueryClient();
   const { setDirty } = useUnsavedChanges();
+  const [pendingStatus, setPendingStatus] = useState<OrderStatus | null>(null);
 
   const query = useQuery({ queryKey: ["orders", id], queryFn: () => apiClient.orders.get(id) });
+  const order = query.data;
 
-  const form = useForm<OrderUpdateFormValues>({
-    resolver: zodResolver(orderUpdateSchema),
-    values: query.data ? { status: query.data.status, isRead: query.data.isRead, internalNote: query.data.internalNote ?? "" } : undefined,
+  const noteForm = useForm<OrderNoteFormValues>({
+    resolver: zodResolver(orderNoteSchema),
+    values: order ? { adminNote: order.adminNote ?? "" } : undefined,
   });
 
   useEffect(() => {
-    const subscription = form.watch(() => setDirty(form.formState.isDirty));
+    const subscription = noteForm.watch(() => setDirty(noteForm.formState.isDirty));
     return () => subscription.unsubscribe();
-  }, [form, setDirty]);
+  }, [noteForm, setDirty]);
 
-  useBeforeUnloadWarning(form.formState.isDirty);
+  useBeforeUnloadWarning(noteForm.formState.isDirty);
 
-  const updateMutation = useMutation({
-    mutationFn: (values: OrderUpdateFormValues) => apiClient.orders.updateStatus(id, values),
+  function invalidate() {
+    queryClient.invalidateQueries({ queryKey: ["orders"] });
+  }
+
+  const statusMutation = useMutation({
+    mutationFn: (status: OrderStatus) => apiClient.orders.updateStatus(id, status),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["orders"] });
-      toast.success("Замовлення оновлено");
-      setDirty(false);
+      invalidate();
+      toast.success("Статус оновлено");
+      setPendingStatus(null);
     },
     onError: (error) => toast.error(errorMessageFor(error)),
   });
 
-  async function handleSave() {
-    const valid = await form.trigger();
-    if (!valid) return;
-    updateMutation.mutate(form.getValues());
+  const noteMutation = useMutation({
+    mutationFn: (values: OrderNoteFormValues) => apiClient.orders.updateNote(id, values.adminNote ?? ""),
+    onSuccess: () => {
+      invalidate();
+      toast.success("Нотатку збережено");
+      noteForm.reset(noteForm.getValues());
+    },
+    onError: (error) => toast.error(errorMessageFor(error)),
+  });
+
+  const markReadMutation = useMutation({
+    mutationFn: () => apiClient.orders.markRead(id),
+    onSuccess: () => {
+      invalidate();
+      toast.success("Позначено як прочитане");
+    },
+    onError: (error) => toast.error(errorMessageFor(error)),
+  });
+
+  /** Every status change (quick action or dropdown) goes through here.
+   * Confirmation is required in exactly two cases (your decision, not
+   * invented): moving TO cancelled, or moving AWAY from an already-
+   * terminal status (completed/cancelled) — see isTerminal(). A normal
+   * forward quick-action never triggers either condition, since its
+   * target is never 'cancelled' and its source is never terminal by
+   * construction (NEXT_STATUS has no entry for completed/cancelled). */
+  function requestStatusChange(next: OrderStatus) {
+    if (!order || next === order.status) return;
+    if (next === "cancelled" || isTerminal(order.status)) {
+      setPendingStatus(next);
+      return;
+    }
+    statusMutation.mutate(next);
   }
 
   function copyNumber() {
-    if (!query.data) return;
-    navigator.clipboard.writeText(query.data.number);
+    if (!order) return;
+    navigator.clipboard.writeText(order.orderNumber);
     toast.success("Номер скопійовано");
   }
 
@@ -76,7 +137,7 @@ export function OrderDetailView({ id }: { id: string }) {
     );
   }
 
-  if (query.isError || !query.data) {
+  if (query.isError || !order) {
     return (
       <div className="p-4">
         <StateMessage
@@ -89,20 +150,30 @@ export function OrderDetailView({ id }: { id: string }) {
     );
   }
 
-  const order = query.data;
+  const nextStatus = NEXT_STATUS[order.status];
+  const targetLabel = primaryTargetLabel(order);
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex-1 space-y-4 overflow-y-auto p-4 pb-28 md:p-6 md:pb-6">
+    <div className="flex h-full flex-col overflow-y-auto p-4 pb-8 md:p-6">
+      <div className="space-y-4">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-semibold">{order.number}</h1>
+            <h1 className="text-xl font-semibold">{order.orderNumber}</h1>
             <Button variant="ghost" size="icon" className="size-8" onClick={copyNumber} aria-label={messages.actions.copy}>
               <Copy className="size-4" />
             </Button>
           </div>
-          <OrderStatusBadge status={order.status} />
+          <div className="flex items-center gap-2">
+            {!order.isRead ? <Badge className="bg-primary text-primary-foreground">Непрочитано</Badge> : null}
+            <OrderStatusBadge status={order.status} />
+          </div>
         </div>
+
+        {!order.isRead ? (
+          <Button variant="outline" size="sm" disabled={markReadMutation.isPending} onClick={() => markReadMutation.mutate()}>
+            Позначити прочитаним
+          </Button>
+        ) : null}
 
         <Card>
           <CardHeader>
@@ -111,41 +182,41 @@ export function OrderDetailView({ id }: { id: string }) {
           <CardContent className="space-y-2 text-sm">
             <p className="font-medium">{order.customerName}</p>
             <div className="flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" nativeButton={false} render={<a href={`tel:${order.phone}`} />}>
-                <Phone className="size-3.5" />
-                {order.phone}
-              </Button>
-              {order.email ? (
-                <Button variant="outline" size="sm" nativeButton={false} render={<a href={`mailto:${order.email}`} />}>
+              {order.contactMethod === "email" ? (
+                <Button variant="outline" size="sm" nativeButton={false} render={<a href={`mailto:${order.contactValue}`} />}>
                   <Mail className="size-3.5" />
-                  {order.email}
+                  {order.contactValue}
                 </Button>
-              ) : null}
+              ) : (
+                <Button variant="outline" size="sm" nativeButton={false} render={<a href={`tel:${order.contactValue}`} />}>
+                  <Phone className="size-3.5" />
+                  {order.contactValue}
+                </Button>
+              )}
             </div>
-            <p className="text-muted-foreground">{ORDER_TYPE_LABELS[order.orderType]}</p>
+            {order.country || order.city ? (
+              <p className="text-muted-foreground">{[order.country, order.city].filter(Boolean).join(", ")}</p>
+            ) : null}
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Позиції замовлення</CardTitle>
+            <CardTitle className="text-base">Що замовлено</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
+            {targetLabel ? <p className="font-medium">{targetLabel}</p> : null}
             {order.items.map((item) => (
               <div key={item.id} className="flex items-center justify-between text-sm">
                 <span>
-                  {item.title} × {item.quantity}
+                  {item.optionNameSnapshot} × {item.quantity}
                 </span>
-                <span className="font-medium">
-                  {item.unitPrice * item.quantity} {item.currency}
-                </span>
+                <span className="font-medium">{formatCents(item.priceCentsSnapshot * item.quantity, order.currency)}</span>
               </div>
             ))}
             <div className="flex items-center justify-between border-t pt-2 font-semibold">
               <span>Разом</span>
-              <span>
-                {order.amount} {order.currency}
-              </span>
+              <span>{formatCents(order.totalPriceCents, order.currency)}</span>
             </div>
           </CardContent>
         </Card>
@@ -161,50 +232,78 @@ export function OrderDetailView({ id }: { id: string }) {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Керування</CardTitle>
+            <CardTitle className="text-base">Статус замовлення</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <SelectField
-              control={form.control}
-              name="status"
-              label="Статус"
-              options={[
-                { value: "new", label: "Нове" },
-                { value: "in_progress", label: "В роботі" },
-                { value: "completed", label: "Виконано" },
-                { value: "cancelled", label: "Скасовано" },
-              ]}
-            />
-            <SwitchField control={form.control} name="isRead" label="Прочитано" />
-            <TextField control={form.control} name="internalNote" label="Внутрішня примітка" textarea rows={3} />
+            <div className="flex flex-wrap gap-2">
+              {nextStatus ? (
+                <Button type="button" size="sm" disabled={statusMutation.isPending} onClick={() => requestStatusChange(nextStatus)}>
+                  {ORDER_STATUS_LABELS[nextStatus]}
+                  <ArrowRight className="size-3.5" />
+                </Button>
+              ) : null}
+              {isCancellable(order.status) ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="text-destructive hover:text-destructive"
+                  disabled={statusMutation.isPending}
+                  onClick={() => requestStatusChange("cancelled")}
+                >
+                  <XCircle className="size-3.5" />
+                  Скасувати
+                </Button>
+              ) : null}
+            </div>
+            <div className="space-y-1.5">
+              <p className="text-sm font-medium">Змінити статус вручну</p>
+              <Select
+                value={order.status}
+                onValueChange={(value) => requestStatusChange(value as OrderStatus)}
+                items={ORDER_STATUS_OPTIONS}
+                disabled={statusMutation.isPending}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ORDER_STATUS_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </CardContent>
         </Card>
 
-        {order.statusHistory.length > 0 ? (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Історія статусів</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {order.statusHistory.map((entry) => (
-                <div key={entry.id} className="flex items-center justify-between text-sm">
-                  <OrderStatusBadge status={entry.status} />
-                  <span className="text-muted-foreground">{new Date(entry.changedAt).toLocaleString("uk-UA")}</span>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        ) : null}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Внутрішня нотатка</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-xs text-muted-foreground">Видно лише команді — клієнт її не бачить.</p>
+            <TextField control={noteForm.control} name="adminNote" label="Текст нотатки" textarea rows={3} />
+            <Button
+              type="button"
+              size="sm"
+              disabled={noteMutation.isPending || !noteForm.formState.isDirty}
+              onClick={noteForm.handleSubmit((values) => noteMutation.mutate(values))}
+            >
+              Зберегти нотатку
+            </Button>
+          </CardContent>
+        </Card>
       </div>
 
-      <div
-        className="fixed inset-x-0 bottom-16 z-20 border-t bg-background p-3 md:sticky md:bottom-0 md:inset-x-auto"
-        style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 0.75rem)" }}
-      >
-        <Button type="button" className="h-11 w-full" disabled={updateMutation.isPending} onClick={handleSave}>
-          {messages.actions.save}
-        </Button>
-      </div>
+      <ConfirmDialog
+        open={pendingStatus !== null}
+        onOpenChange={(open) => !open && setPendingStatus(null)}
+        {...(pendingStatus ? confirmDialogContent(order, pendingStatus) : { title: "" })}
+        onConfirm={() => pendingStatus && statusMutation.mutate(pendingStatus)}
+      />
     </div>
   );
 }

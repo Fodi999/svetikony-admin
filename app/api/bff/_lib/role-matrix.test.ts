@@ -14,9 +14,13 @@ import { isAuditCall, mockAuthenticatedFetch, withSessionCookie } from "./test-s
  * examples:
  *
  *   super_admin:    content=edit catalog=edit orders=edit settings=edit media=edit telegram=edit
- *   editor:         content=edit catalog=edit orders=view settings=none media=edit telegram=none
+ *   editor:         content=edit catalog=edit orders=none settings=none media=edit telegram=none
  *   order_manager:  content=none catalog=edit orders=edit settings=none media=edit telegram=none
- *   viewer:         content=view catalog=view orders=view settings=none media=view telegram=none
+ *   viewer:         content=view catalog=view orders=none settings=none media=view telegram=none
+ *
+ * `orders` changed in Phase 2B-5B (was editor=view, viewer=view) — a
+ * deliberate least-privilege tightening given orders carry real customer
+ * PII; see lib/auth/permissions.ts's own doc comment for the reasoning.
  */
 
 const ENV_KEYS = ["SVET_IKONY_API_BASE_URL", "SVET_IKONY_ADMIN_TOKEN"] as const;
@@ -108,43 +112,50 @@ describe("Role matrix — CATALOG area (real route: products)", () => {
   });
 });
 
-describe("Role matrix — ORDERS area (mechanism proof: no real BFF route exists for orders yet, see Phase 1C report)", () => {
-  // Orders is still entirely mock-backed on the data side (Phase 1C's own
-  // scope explicitly doesn't wire it to real D1 — see item 10 of the
-  // brief), so no app/api/bff/orders/** route exists to integration-test
-  // against. This proves the withAuth() mechanism itself correctly honors
-  // area="orders" against the real matrix, so wiring a real orders route
-  // later is a pure "reuse withAuth(POLICY-equivalent)" exercise with no
-  // new authorization logic to write.
-  it("viewer GET-equivalent (level: view) allowed (viewer.orders = view)", async () => {
-    const handler = vi.fn().mockResolvedValue(Response.json({ ok: true }));
-    const wrapped = withAuth({ area: "orders", level: "view" }, handler);
-    vi.stubGlobal("fetch", mockAuthenticatedFetch("viewer", () => okResponse({})));
-    const response = await wrapped(new NextRequest("http://localhost/api/bff/orders", withSessionCookie()));
-    expect(response.status).toBe(200);
-    expect(handler).toHaveBeenCalledTimes(1);
-  });
-
-  it("viewer mutation (level: edit) 403 (viewer.orders = view, not edit)", async () => {
-    const handler = vi.fn();
-    const wrapped = withAuth({ area: "orders", level: "edit" }, handler);
-    vi.stubGlobal("fetch", mockAuthenticatedFetch("viewer", () => okResponse({})));
-    const response = await wrapped(
-      new NextRequest("http://localhost/api/bff/orders", withSessionCookie({ method: "POST", body: "{}" })),
-    );
+describe("Role matrix — ORDERS area (real route: orders; Phase 2B-5B — orders=none for editor/viewer, a deliberate PII restriction)", () => {
+  it("viewer GET (list) forbidden — orders carries customer PII, viewer.orders = none (was view before Phase 2B-5B)", async () => {
+    const { GET } = await import("../orders/route");
+    const fetchMock = mockAuthenticatedFetch("viewer", () => okResponse([]));
+    vi.stubGlobal("fetch", fetchMock);
+    const response = await GET(new NextRequest("http://localhost/api/bff/orders", withSessionCookie()));
     expect(response.status).toBe(403);
-    expect(handler).not.toHaveBeenCalled();
+    expect(resourceCallCount(fetchMock)).toBe(0);
   });
 
-  it("order_manager mutation allowed (order_manager.orders = edit)", async () => {
-    const handler = vi.fn().mockResolvedValue(Response.json({ ok: true }));
-    const wrapped = withAuth({ area: "orders", level: "edit" }, handler);
-    vi.stubGlobal("fetch", mockAuthenticatedFetch("order_manager", () => okResponse({})));
-    const response = await wrapped(
-      new NextRequest("http://localhost/api/bff/orders", withSessionCookie({ method: "POST", body: "{}" })),
+  it("editor GET (list) forbidden — editor.orders = none", async () => {
+    const { GET } = await import("../orders/route");
+    const fetchMock = mockAuthenticatedFetch("editor", () => okResponse([]));
+    vi.stubGlobal("fetch", fetchMock);
+    const response = await GET(new NextRequest("http://localhost/api/bff/orders", withSessionCookie()));
+    expect(response.status).toBe(403);
+    expect(resourceCallCount(fetchMock)).toBe(0);
+  });
+
+  it("order_manager GET (list) allowed (order_manager.orders = edit, which implies view)", async () => {
+    const { GET } = await import("../orders/route");
+    vi.stubGlobal("fetch", mockAuthenticatedFetch("order_manager", () => okResponse([])));
+    const response = await GET(new NextRequest("http://localhost/api/bff/orders", withSessionCookie()));
+    expect(response.status).toBe(200);
+  });
+
+  it("order_manager mutation allowed (order_manager.orders = edit) — real route: orders/[id]", async () => {
+    const { PUT } = await import("../orders/[id]/route");
+    vi.stubGlobal(
+      "fetch",
+      mockAuthenticatedFetch("order_manager", () => okResponse({ id: "o1", status: "contacted", items: [] })),
+    );
+    const response = await PUT(
+      new NextRequest("http://localhost/api/bff/orders/o1", withSessionCookie({ method: "PUT", body: JSON.stringify({ status: "contacted" }) })),
+      { params: Promise.resolve({ id: "o1" }) },
     );
     expect(response.status).toBe(200);
-    expect(handler).toHaveBeenCalledTimes(1);
+  });
+
+  it("super_admin GET (list) and mutation both allowed", async () => {
+    const { GET } = await import("../orders/route");
+    vi.stubGlobal("fetch", mockAuthenticatedFetch("super_admin", () => okResponse([])));
+    const response = await GET(new NextRequest("http://localhost/api/bff/orders", withSessionCookie()));
+    expect(response.status).toBe(200);
   });
 });
 

@@ -593,39 +593,68 @@ export interface Product extends Identifiable, Timestamps {
 // Orders
 // ---------------------------------------------------------------------------
 
-export type OrderStatus = "new" | "in_progress" | "completed" | "cancelled";
-export type OrderType = "icon_order" | "product_order" | "custom_request";
+/**
+ * Phase 2B-5B: the authoritative 8 values, verified identical in two
+ * independent places in svet-ikony (the D1 CHECK constraint and
+ * lib/d1/repositories/orders.ts's own ORDER_STATUSES validation list) —
+ * not the old 4-value admin-only enum. `in_progress` (the old admin-only
+ * value) is retired entirely, per your explicit decision: it had no
+ * backend counterpart at all, not even as a subset of one of these 8.
+ */
+export type OrderStatus = "new" | "contacted" | "confirmed" | "in_production" | "ready" | "shipped" | "completed" | "cancelled";
 
+/** Mirrors svet-ikony's IconOrderItemDto field-for-field (Phase 2B-5B) —
+ * `optionNameSnapshot`/`priceCentsSnapshot` are real snapshots taken at
+ * order-creation time, never live Product data (see the phase report's
+ * PRICE SNAPSHOT / ORDER SNAPSHOT DISPLAY sections) — do not resolve
+ * `optionId` back to a current product to "refresh" these values. */
 export interface OrderItem {
   id: string;
-  productId?: string;
-  title: string;
+  optionId?: string;
+  optionNameSnapshot: string;
+  priceCentsSnapshot: number;
   quantity: number;
-  unitPrice: number;
-  currency: string;
 }
 
-export interface OrderStatusHistoryEntry {
-  id: string;
-  status: OrderStatus;
-  changedAt: string;
-  note?: string;
-}
-
+/**
+ * Phase 2B-5B: field shape matches svet-ikony's real ChurchIconOrderDto
+ * field-for-field (verified against lib/d1/repositories/orders.ts, not
+ * assumed). No `orderType`: the backend has no such literal field —
+ * whether this is a plain icon order or a product order is inferable from
+ * whether `primaryProductId` is set, not a stored enum (the old
+ * `"custom_request"` value never had any backend basis at all). No
+ * `statusHistory`: no history table exists anywhere in svet-ikony —
+ * removed per your explicit decision rather than kept as fabricated data
+ * (a real audit-log-backed timeline is a possible future feature, not
+ * this phase). `contactMethod`+`contactValue` (one tagged field) replaces
+ * the old separate `phone`+`email?` (the real backend only ever stores
+ * one contact value, tagged by which kind it is). `totalPriceCents`
+ * (integer cents, matching the DB exactly) replaces the old ambiguous-
+ * unit `amount` — see lib/utils/format-money.ts for display formatting;
+ * the domain model itself never stores a floating decimal.
+ */
 export interface Order extends Identifiable, Timestamps {
-  number: string;
-  customerName: string;
-  phone: string;
-  email?: string;
-  amount: number;
-  currency: string;
+  orderNumber: string;
   status: OrderStatus;
   isRead: boolean;
-  orderType: OrderType;
+  customerName: string;
+  contactMethod: "phone" | "email";
+  contactValue: string;
+  country?: string;
+  city?: string;
+  iconId?: string;
+  iconTitleSnapshot?: string;
+  iconSlugSnapshot?: string;
+  primaryProductId?: string;
+  primaryProductNameSnapshot?: string;
+  primaryProductSlugSnapshot?: string;
+  primaryProductPriceCentsSnapshot?: number;
+  primaryProductPhotoSnapshot?: string;
   items: OrderItem[];
+  totalPriceCents: number;
+  currency: string;
   comment?: string;
-  internalNote?: string;
-  statusHistory: OrderStatusHistoryEntry[];
+  adminNote?: string;
 }
 
 // ---------------------------------------------------------------------------

@@ -1,5 +1,5 @@
 import type { OrderQuery, OrdersApi } from "@/lib/api/client";
-import { loadStore, matchesSearch, mockDelay, notFound, nextId, nowIso, paginate, saveStore } from "@/lib/api/mock-utils";
+import { loadStore, matchesSearch, mockDelay, notFound, paginate, saveStore } from "@/lib/api/mock-utils";
 import { mockOrders } from "@/lib/mock-data/orders";
 import type { Order } from "@/types/entities";
 
@@ -7,6 +7,11 @@ const STORE_KEY = "orders";
 const store: Order[] = loadStore(STORE_KEY, mockOrders);
 const persist = () => saveStore(STORE_KEY, store);
 
+/** Dev/test mock only (NEXT_PUBLIC_FORCE_MOCK_API=true) -- production
+ * uses lib/api/http/orders.ts against real D1 (Phase 2B-5B). Kept in
+ * sync with the real OrdersApi shape: status and note updates are
+ * separate calls, mark-read has no boolean parameter (the real backend
+ * has no mark-unread endpoint either). */
 export const ordersResource: OrdersApi = {
   async list(query?: OrderQuery) {
     await mockDelay();
@@ -18,9 +23,7 @@ export const ordersResource: OrdersApi = {
     }
     if (query?.dateFrom) items = items.filter((o) => o.createdAt >= query.dateFrom!);
     if (query?.dateTo) items = items.filter((o) => o.createdAt <= query.dateTo!);
-    items = items.filter((o) =>
-      matchesSearch([o.number, o.customerName, o.phone, o.email], query?.search),
-    );
+    items = items.filter((o) => matchesSearch([o.orderNumber, o.customerName, o.contactValue], query?.search));
     items.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     return paginate(items, query);
   },
@@ -32,33 +35,29 @@ export const ordersResource: OrdersApi = {
     return found;
   },
 
-  async updateStatus(id, values) {
+  async updateStatus(id, status) {
     await mockDelay();
     const index = store.findIndex((o) => o.id === id);
     if (index === -1) notFound("Замовлення");
-    const current = store[index];
-    const historyEntry =
-      values.status !== current.status
-        ? [{ id: nextId("hist"), status: values.status, changedAt: nowIso() }]
-        : [];
-    const updated: Order = {
-      ...current,
-      status: values.status,
-      isRead: values.isRead,
-      internalNote: values.internalNote,
-      statusHistory: [...current.statusHistory, ...historyEntry],
-      updatedAt: nowIso(),
-    };
-    store[index] = updated;
+    store[index] = { ...store[index], status, updatedAt: new Date().toISOString() };
     persist();
-    return updated;
+    return store[index];
   },
 
-  async markRead(id, isRead) {
+  async updateNote(id, adminNote) {
+    await mockDelay();
+    const index = store.findIndex((o) => o.id === id);
+    if (index === -1) notFound("Замовлення");
+    store[index] = { ...store[index], adminNote, updatedAt: new Date().toISOString() };
+    persist();
+    return store[index];
+  },
+
+  async markRead(id) {
     await mockDelay(150);
     const index = store.findIndex((o) => o.id === id);
     if (index === -1) notFound("Замовлення");
-    store[index] = { ...store[index], isRead, updatedAt: nowIso() };
+    store[index] = { ...store[index], isRead: true, updatedAt: new Date().toISOString() };
     persist();
     return store[index];
   },

@@ -7,13 +7,13 @@ import { churchInfoHttpResource } from "@/lib/api/http/church-info";
 import { gospelReadingsHttpResource } from "@/lib/api/http/gospel";
 import { iconsHttpResource } from "@/lib/api/http/icons";
 import { mediaHttpResource } from "@/lib/api/http/media";
+import { ordersHttpResource } from "@/lib/api/http/orders";
 import { prayersHttpResource } from "@/lib/api/http/prayers";
 import { categoriesHttpResource } from "@/lib/api/http/product-categories";
 import { productsHttpResource } from "@/lib/api/http/products";
 import { saintsHttpResource } from "@/lib/api/http/saints";
 import { telegramHttpResource } from "@/lib/api/http/telegram";
 import { dashboardResource } from "@/lib/api/mock/dashboard";
-import { ordersResource } from "@/lib/api/mock/orders";
 
 /**
  * This is what `getApiClient()` returns by default now (see lib/api/index.ts) —
@@ -76,12 +76,13 @@ import { ordersResource } from "@/lib/api/mock/orders";
  * lib/api/index.ts and this function's own test in lib/api/index.test.ts,
  * which asserts production's default choice).
  *
- * `orders`, `dashboard` are the 2 remaining still-temporary mock resources
- * (not yet wired to real D1) — imported directly from their own files,
- * not through mockApiAdapter/mock/auth.ts. `articles` (Phase 2B-2),
- * `gospelReadings` (Phase 2B-3), and `churchInfo` (Phase 2B-4) are the 3
- * already connected to real D1 — see lib/api/http/articles.ts,
- * lib/api/http/gospel.ts, and lib/api/http/church-info.ts.
+ * `dashboard` is the 1 remaining still-temporary mock resource (not yet
+ * wired to real D1) — imported directly from its own file, not through
+ * mockApiAdapter/mock/auth.ts. `articles` (Phase 2B-2), `gospelReadings`
+ * (Phase 2B-3), `churchInfo` (Phase 2B-4), and `orders` (Phase 2B-5B) are
+ * the 4 already connected to real D1 — see lib/api/http/articles.ts,
+ * lib/api/http/gospel.ts, lib/api/http/church-info.ts, and
+ * lib/api/http/orders.ts.
  */
 export function createHttpApiAdapter(): ApiClient {
   return {
@@ -96,9 +97,9 @@ export function createHttpApiAdapter(): ApiClient {
     articles: articlesHttpResource,
     gospelReadings: gospelReadingsHttpResource,
     churchInfo: churchInfoHttpResource,
+    orders: ordersHttpResource,
     media: mediaHttpResource,
     telegram: telegramHttpResource,
-    orders: ordersResource,
     dashboard: dashboardResource,
   };
 }

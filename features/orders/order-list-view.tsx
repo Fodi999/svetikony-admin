@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Mail, Phone, Search } from "lucide-react";
 import { useState } from "react";
 import { OrderStatusBadge } from "@/features/orders/order-status-badge";
+import { ORDER_STATUS_OPTIONS } from "@/features/orders/order-status-labels";
 import { StateMessage } from "@/components/feedback/state-message";
 import { GuardedLink } from "@/components/layout/guarded-link";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { apiClient } from "@/lib/api";
 import { errorMessageFor } from "@/lib/api/errors";
 import { messages } from "@/lib/i18n";
+import { formatCents } from "@/lib/utils/format-money";
 import { cn } from "@/lib/utils";
 import type { OrderStatus } from "@/types/entities";
 
@@ -21,12 +23,18 @@ type FilterValue = OrderStatus | "unread" | "all";
 
 const FILTERS: { value: FilterValue; label: string }[] = [
   { value: "all", label: "Усі" },
-  { value: "new", label: "Нові" },
   { value: "unread", label: "Непрочитані" },
-  { value: "in_progress", label: "В роботі" },
-  { value: "completed", label: "Виконані" },
-  { value: "cancelled", label: "Скасовані" },
+  ...ORDER_STATUS_OPTIONS,
 ];
+
+function contactLine(order: { contactMethod: "phone" | "email"; contactValue: string }) {
+  const Icon = order.contactMethod === "email" ? Mail : Phone;
+  return (
+    <div className="flex items-center gap-1">
+      <Icon className="size-3" /> {order.contactValue}
+    </div>
+  );
+}
 
 export function OrderListView() {
   const [search, setSearch] = useState("");
@@ -102,7 +110,7 @@ export function OrderListView() {
                   <CardContent className="space-y-2 p-4">
                     <div className="flex items-start justify-between gap-2">
                       <div>
-                        <p className={cn("font-medium", !order.isRead && "font-semibold")}>{order.number}</p>
+                        <p className={cn("font-medium", !order.isRead && "font-semibold")}>{order.orderNumber}</p>
                         <p className="text-sm text-muted-foreground">{order.customerName}</p>
                       </div>
                       <div className="flex flex-col items-end gap-1">
@@ -111,9 +119,7 @@ export function OrderListView() {
                       </div>
                     </div>
                     <div className="flex items-center justify-between text-sm">
-                      <span className="font-medium">
-                        {order.amount} {order.currency}
-                      </span>
+                      <span className="font-medium">{formatCents(order.totalPriceCents, order.currency)}</span>
                       <span className="text-muted-foreground">{order.items.length} поз.</span>
                     </div>
                   </CardContent>
@@ -141,23 +147,12 @@ export function OrderListView() {
                     <TableCell>
                       <GuardedLink href={`/orders/${order.id}`} className="flex items-center gap-1.5 font-medium">
                         {!order.isRead ? <span className="size-2 rounded-full bg-primary" /> : null}
-                        {order.number}
+                        {order.orderNumber}
                       </GuardedLink>
                     </TableCell>
                     <TableCell>{order.customerName}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      <div className="flex items-center gap-1">
-                        <Phone className="size-3" /> {order.phone}
-                      </div>
-                      {order.email ? (
-                        <div className="flex items-center gap-1">
-                          <Mail className="size-3" /> {order.email}
-                        </div>
-                      ) : null}
-                    </TableCell>
-                    <TableCell>
-                      {order.amount} {order.currency}
-                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{contactLine(order)}</TableCell>
+                    <TableCell>{formatCents(order.totalPriceCents, order.currency)}</TableCell>
                     <TableCell>
                       <OrderStatusBadge status={order.status} />
                     </TableCell>
