@@ -13,6 +13,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "verify:production-auth-bundle": "node scripts/verify-production-auth-bundle.mjs",
+    "verify:production-api-bundle": "node scripts/verify-production-api-bundle.mjs",
     "test:e2e:mock": "playwright test",
     "test:e2e:real": "RUN_REAL_API_E2E=true playwright test"
   },

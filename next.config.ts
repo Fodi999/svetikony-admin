@@ -105,27 +105,53 @@ const SECURITY_HEADERS = [
   { key: "Strict-Transport-Security", value: "max-age=15552000" },
 ];
 
+/**
+ * Extracted as its own named export (rather than inlined into
+ * `nextConfig.webpack` below) purely so next.config.webpack.test.ts can call
+ * it directly with a minimal fake `{ plugins, webpack }` shape. Calling the
+ * final wrapped `withSerwist(nextConfig)`'s own `.webpack()` in a test
+ * doesn't work -- @serwist/next's wrapper reads several other Next-supplied
+ * build-context fields (e.g. `options.basePath`) this file never needed to
+ * fabricate before. Runtime behavior is unchanged: `nextConfig.webpack`
+ * below still delegates to this exact function.
+ */
+export function productionMockBundleWebpackConfig(config: { plugins: unknown[] }, { webpack }: { webpack: { NormalModuleReplacementPlugin: new (pattern: RegExp, cb: (resource: { request: string }) => void) => unknown } }): { plugins: unknown[] } {
+  if (process.env.NODE_ENV === "production") {
+    // NormalModuleReplacementPlugin, not `resolve.alias`: it matches
+    // against the already-resolved module *path* (after Next's own
+    // tsconfig-paths handling has turned `@/lib/mock-data/users` into an
+    // absolute file path), so it works regardless of which resolution
+    // mechanism got there first -- confirmed necessary empirically, see
+    // lib/mock-data/users.production-stub.ts's doc comment.
+    config.plugins.push(
+      new webpack.NormalModuleReplacementPlugin(/lib[\\/]mock-data[\\/]users(\.ts)?$/, (resource: { request: string }) => {
+        resource.request = path.join(process.cwd(), "lib/mock-data/users.production-stub.ts");
+      }),
+    );
+    // Phase 2C: same mechanism, applied to the single choke point that
+    // pulls all 15 lib/api/mock/** resources (and, through most of them,
+    // lib/mock-data/**'s business seed data -- mock orders, articles,
+    // church info, etc.) into the module graph. getApiClient() never
+    // selects mockApiAdapter in production (canUseMock is compile-time
+    // false there), but that dead reference alone doesn't stop webpack
+    // from bundling the subtree it points at -- confirmed empirically the
+    // same way the users.ts case was. See
+    // lib/api/mock-adapter.production-stub.ts's own doc comment.
+    config.plugins.push(
+      new webpack.NormalModuleReplacementPlugin(/lib[\\/]api[\\/]mock-adapter(\.ts)?$/, (resource: { request: string }) => {
+        resource.request = path.join(process.cwd(), "lib/api/mock-adapter.production-stub.ts");
+      }),
+    );
+  }
+  return config;
+}
+
 const nextConfig: NextConfig = {
   async headers() {
     if (process.env.NODE_ENV !== "production") return [];
     return [{ source: "/(.*)", headers: SECURITY_HEADERS }];
   },
-  webpack: (config, { webpack }) => {
-    if (process.env.NODE_ENV === "production") {
-      // NormalModuleReplacementPlugin, not `resolve.alias`: it matches
-      // against the already-resolved module *path* (after Next's own
-      // tsconfig-paths handling has turned `@/lib/mock-data/users` into an
-      // absolute file path), so it works regardless of which resolution
-      // mechanism got there first -- confirmed necessary empirically, see
-      // lib/mock-data/users.production-stub.ts's doc comment.
-      config.plugins.push(
-        new webpack.NormalModuleReplacementPlugin(/lib[\\/]mock-data[\\/]users(\.ts)?$/, (resource: { request: string }) => {
-          resource.request = path.join(process.cwd(), "lib/mock-data/users.production-stub.ts");
-        }),
-      );
-    }
-    return config;
-  },
+  webpack: productionMockBundleWebpackConfig,
 };
 
 /**
