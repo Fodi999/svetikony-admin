@@ -1,6 +1,21 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+/**
+ * Simulates browser/password-manager autofill: sets the native input's
+ * value through the DOM's own property setter (bypassing React's
+ * value-tracking) and deliberately dispatches NO input/change event
+ * afterwards -- the worst-case (and real-world-observed) version of the
+ * bug this phase fixes, where autofill sets the DOM value without firing
+ * anything React's synthetic event system would catch. A register()-bound
+ * (uncontrolled) input must not depend on that event at all: RHF reads the
+ * live DOM value straight from the ref at submit time.
+ */
+function autofill(input: HTMLInputElement, value: string) {
+  const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")!.set!;
+  nativeSetter.call(input, value);
+}
 
 const mockReplace = vi.fn();
 vi.mock("next/navigation", () => ({
@@ -96,5 +111,84 @@ describe("LoginPage", () => {
     await user.click(screen.getByRole("button", { name: /Увійти|Вхід/ }));
 
     await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/"));
+  });
+
+  /**
+   * PHASE LOGIN AUTOFILL FIX: the actual bug -- both errors appeared
+   * together while the fields visually looked filled. Reproduced here by
+   * setting the DOM value the way autofill does (see the `autofill()`
+   * helper above) and confirming submit both (a) receives the real DOM
+   * values, not the stale "" defaultValues, and (b) never shows either
+   * validation error. Before the fix (Controller-bound TextField), this
+   * exact scenario left RHF's state at "" and both errors rendered.
+   */
+  it("autofill regression: DOM values set without a React onChange event still reach login() and never trigger validation errors", async () => {
+    vi.stubEnv("NODE_ENV", "test");
+    mockLogin.mockResolvedValue({ id: "u3", name: "Auto", email: "auto@svetikony.com", role: "super_admin" });
+    const { default: LoginPage } = await import("./page");
+    const { container } = render(<LoginPage />);
+
+    const emailInput = container.querySelector<HTMLInputElement>("input#email")!;
+    const passwordInput = container.querySelector<HTMLInputElement>("input#password")!;
+    autofill(emailInput, "auto@svetikony.com");
+    autofill(passwordInput, "s3cr3t-password");
+
+    const form = container.querySelector("form")!;
+    fireEvent.submit(form);
+
+    await waitFor(() => expect(mockLogin).toHaveBeenCalledWith({ email: "auto@svetikony.com", password: "s3cr3t-password" }));
+    expect(screen.queryByText("Некоректний email")).not.toBeInTheDocument();
+    expect(screen.queryByText("Мінімум 4 символи")).not.toBeInTheDocument();
+  });
+
+  it("shows 'Некоректний email' and never calls login() for a malformed email typed normally", async () => {
+    vi.stubEnv("NODE_ENV", "test");
+    const { default: LoginPage } = await import("./page");
+    render(<LoginPage />);
+
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText("Email"), "not-an-email");
+    await user.type(screen.getByLabelText("Пароль"), "password123");
+    await user.click(screen.getByRole("button", { name: /Увійти|Вхід/ }));
+
+    expect(await screen.findByText("Некоректний email")).toBeInTheDocument();
+    expect(mockLogin).not.toHaveBeenCalled();
+  });
+
+  it("shows 'Мінімум 4 символи' and never calls login() for a too-short password typed normally", async () => {
+    vi.stubEnv("NODE_ENV", "test");
+    const { default: LoginPage } = await import("./page");
+    render(<LoginPage />);
+
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText("Email"), "real@svetikony.com");
+    await user.type(screen.getByLabelText("Пароль"), "abc");
+    await user.click(screen.getByRole("button", { name: /Увійти|Вхід/ }));
+
+    expect(await screen.findByText("Мінімум 4 символи")).toBeInTheDocument();
+    expect(mockLogin).not.toHaveBeenCalled();
+  });
+
+  it("normal manual typing calls login() with the exact typed values", async () => {
+    vi.stubEnv("NODE_ENV", "test");
+    mockLogin.mockResolvedValue({ id: "u4", name: "Manual", email: "manual@svetikony.com", role: "super_admin" });
+    const { default: LoginPage } = await import("./page");
+    render(<LoginPage />);
+
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText("Email"), "manual@svetikony.com");
+    await user.type(screen.getByLabelText("Пароль"), "correct-password");
+    await user.click(screen.getByRole("button", { name: /Увійти|Вхід/ }));
+
+    await waitFor(() => expect(mockLogin).toHaveBeenCalledWith({ email: "manual@svetikony.com", password: "correct-password" }));
+  });
+
+  it("sets the correct autocomplete attributes for password-manager compatibility (username / current-password)", async () => {
+    vi.stubEnv("NODE_ENV", "test");
+    const { default: LoginPage } = await import("./page");
+    render(<LoginPage />);
+
+    expect(screen.getByLabelText("Email")).toHaveAttribute("autocomplete", "username");
+    expect(screen.getByLabelText("Пароль")).toHaveAttribute("autocomplete", "current-password");
   });
 });
