@@ -10,7 +10,6 @@ interface GospelSeed {
   titles: Record<Language, string>;
   texts: Record<Language, string>;
   explanations: Record<Language, string>;
-  relatedCalendarDayIds?: string[];
 }
 
 const seeds: GospelSeed[] = [
@@ -34,7 +33,6 @@ const seeds: GospelSeed[] = [
       ru: "Пролог Евангелия от Иоанна раскрывает богословское учение о Логосе.",
       en: "The prologue of John's Gospel reveals the theological teaching about the Logos.",
     },
-    relatedCalendarDayIds: ["cal-nativity-uk"],
   },
   {
     groupId: "gospel-matthew-5",
@@ -73,7 +71,6 @@ const seeds: GospelSeed[] = [
       ru: "Евангельский рассказ о рождении Спасителя в Вифлееме.",
       en: "The Gospel account of the Savior's birth in Bethlehem.",
     },
-    relatedCalendarDayIds: ["cal-nativity-uk"],
   },
   {
     groupId: "gospel-matthew-3",
@@ -91,7 +88,6 @@ const seeds: GospelSeed[] = [
       ru: "Чтение на праздник Богоявления.",
       en: "The reading for the feast of Theophany.",
     },
-    relatedCalendarDayIds: ["cal-theophany-uk"],
   },
   {
     groupId: "gospel-john-15",
@@ -123,7 +119,6 @@ function buildReading(seed: GospelSeed, language: Language): GospelReading {
     text: seed.texts[language],
     explanation: seed.explanations[language],
     status: seed.status,
-    relatedCalendarDayIds: seed.relatedCalendarDayIds ?? [],
     createdAt: now,
     updatedAt: now,
   };

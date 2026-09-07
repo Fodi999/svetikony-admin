@@ -434,6 +434,18 @@ export interface Saint extends Identifiable, Timestamps, Translatable {
 // Gospel readings
 // ---------------------------------------------------------------------------
 
+/**
+ * Phase 2B-3: field shape matches svet-ikony's real church_gospel_readings
+ * table exactly (verified against lib/d1/repositories/gospel.ts, not
+ * assumed). `calendarDayId` (singular) replaces the old
+ * `relatedCalendarDayIds` (plural) — the real backend has a real, singular
+ * `calendar_day_id` FK, so the admin now edits exactly that relation
+ * instead of a multi-select the backend could never fully honor (same
+ * reasoning as Article's `iconId`). `translationGroupId` (required by
+ * Translatable) has no backend equivalent either — see
+ * lib/api/http/gospel.ts's toEntity() for how it's synthesized. No
+ * image/cover field: church_gospel_readings has none, same as articles.
+ */
 export interface GospelReading extends Identifiable, Timestamps, Translatable {
   title: string;
   slug: string;
@@ -441,7 +453,7 @@ export interface GospelReading extends Identifiable, Timestamps, Translatable {
   text: string;
   explanation?: string;
   status: ContentStatus;
-  relatedCalendarDayIds: string[];
+  calendarDayId?: string;
 }
 
 // ---------------------------------------------------------------------------

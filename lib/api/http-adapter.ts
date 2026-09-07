@@ -3,6 +3,7 @@ import { alphabetLettersHttpResource } from "@/lib/api/http/alphabet";
 import { articlesHttpResource } from "@/lib/api/http/articles";
 import { authHttpResource } from "@/lib/api/http/auth";
 import { calendarDaysHttpResource } from "@/lib/api/http/calendar-days";
+import { gospelReadingsHttpResource } from "@/lib/api/http/gospel";
 import { iconsHttpResource } from "@/lib/api/http/icons";
 import { mediaHttpResource } from "@/lib/api/http/media";
 import { prayersHttpResource } from "@/lib/api/http/prayers";
@@ -12,7 +13,6 @@ import { saintsHttpResource } from "@/lib/api/http/saints";
 import { telegramHttpResource } from "@/lib/api/http/telegram";
 import { churchInfoResource } from "@/lib/api/mock/church-info";
 import { dashboardResource } from "@/lib/api/mock/dashboard";
-import { gospelReadingsResource } from "@/lib/api/mock/gospel";
 import { ordersResource } from "@/lib/api/mock/orders";
 
 /**
@@ -76,11 +76,12 @@ import { ordersResource } from "@/lib/api/mock/orders";
  * lib/api/index.ts and this function's own test in lib/api/index.test.ts,
  * which asserts production's default choice).
  *
- * `orders`, `gospelReadings`, `churchInfo`, `dashboard` are the 4 remaining
- * still-temporary mock resources (not yet wired to real D1) — imported
- * directly from their own files, not through mockApiAdapter/mock/auth.ts.
- * `articles` was the 5th; Phase 2B-2 connected it to real D1 through
- * app/api/bff/articles/** — see lib/api/http/articles.ts.
+ * `orders`, `churchInfo`, `dashboard` are the 3 remaining still-temporary
+ * mock resources (not yet wired to real D1) — imported directly from
+ * their own files, not through mockApiAdapter/mock/auth.ts. `articles`
+ * (Phase 2B-2) and `gospelReadings` (Phase 2B-3) are the 2 already
+ * connected to real D1 — see lib/api/http/articles.ts and
+ * lib/api/http/gospel.ts.
  */
 export function createHttpApiAdapter(): ApiClient {
   return {
@@ -93,10 +94,10 @@ export function createHttpApiAdapter(): ApiClient {
     icons: iconsHttpResource,
     saints: saintsHttpResource,
     articles: articlesHttpResource,
+    gospelReadings: gospelReadingsHttpResource,
     media: mediaHttpResource,
     telegram: telegramHttpResource,
     orders: ordersResource,
-    gospelReadings: gospelReadingsResource,
     churchInfo: churchInfoResource,
     dashboard: dashboardResource,
   };

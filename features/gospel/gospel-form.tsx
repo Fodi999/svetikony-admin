@@ -6,7 +6,6 @@ import { Eye } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
-import { RelationPickerField } from "@/components/forms/relation-picker-field";
 import { SelectField } from "@/components/forms/select-field";
 import { TextField } from "@/components/forms/text-field";
 import { useUnsavedChanges } from "@/components/feedback/unsaved-changes-context";
@@ -27,7 +26,7 @@ const EMPTY_DEFAULTS: GospelReadingFormValues = {
   text: "",
   explanation: "",
   status: "draft",
-  relatedCalendarDayIds: [],
+  calendarDayId: undefined,
 };
 
 interface GospelFormProps {
@@ -56,7 +55,10 @@ export function GospelForm({ mode, reading, onSubmit, onDelete, submitting }: Go
   useBeforeUnloadWarning(form.formState.isDirty);
 
   const calendarQuery = useQuery({ queryKey: ["calendarDays", "options"], queryFn: () => apiClient.calendarDays.list({ pageSize: 200 }) });
-  const calendarOptions = (calendarQuery.data?.items ?? []).map((d) => ({ value: d.id, label: `${d.title} (${d.date})` }));
+  const calendarOptions = [
+    { value: "", label: "Без зв'язку" },
+    ...(calendarQuery.data?.items ?? []).map((d) => ({ value: d.id, label: `${d.title} (${d.date})` })),
+  ];
 
   async function handleSave(publish: boolean) {
     if (publish) form.setValue("status", "published", { shouldDirty: true });
@@ -99,7 +101,7 @@ export function GospelForm({ mode, reading, onSubmit, onDelete, submitting }: Go
           </TabsContent>
 
           <TabsContent value="relations" className="space-y-4">
-            <RelationPickerField control={form.control} name="relatedCalendarDayIds" label="Пов'язані календарні дні" options={calendarOptions} />
+            <SelectField control={form.control} name="calendarDayId" label="Пов'язаний календарний день" options={calendarOptions} />
           </TabsContent>
 
           <TabsContent value="publication" className="space-y-4">
