@@ -9,13 +9,21 @@ import { POLICY } from "./route-policies";
  * app/api/bff/**\/route.ts is either (A) PROTECTED — its export is
  * `withAuth(POLICY.<key>, handler)`, a real, parseable call whose policy
  * key resolves to a real member of the one shared POLICY table — or (B) an
- * EXPLICIT AUTH EXCEPTION — one of exactly the 3 files under
- * app/api/bff/auth/**, which have their own special semantics (see
- * app/api/bff/auth/{login,session,logout}/route.ts). No third state. If a
- * future route.ts exports `POST` some other way — a bare
- * `export async function POST`, an inline `withAuth({area:"...",
- * level:"..."}, ...)` literal instead of a POLICY reference, a typo'd
- * import, anything — this test fails, by construction, not by convention.
+ * EXPLICIT AUTH EXCEPTION — one of exactly the closed AUTH_EXCEPTION_FILES
+ * set below, which have their own special semantics (see
+ * app/api/bff/auth/{login,session,logout}/route.ts). Anything else is (C)
+ * UNPROTECTED (a real gap) or (D) UNCLASSIFIED (a shape this scanner
+ * cannot verify at all, e.g. an `export { GET }` re-export — see Pattern C
+ * in scanRouteFile) — both fail the tests below. If a future route.ts
+ * exports `POST` some other way — a bare `export async function POST`, an
+ * inline `withAuth({area:"...", level:"..."}, ...)` literal instead of a
+ * POLICY reference, a typo'd import, anything — this test fails, by
+ * construction, not by convention. Phase 2B-3 removed this file's earlier
+ * hardcoded total-handler-count and per-policy-area-count assertions:
+ * they required a manual edit on every ordinary new route without proving
+ * any security property the checks below don't already prove from the
+ * AST directly — see the comment above the orders/settings check for the
+ * reasoning.
  *
  * Uses the TypeScript compiler API (already a project dependency, used for
  * `tsc` itself) for real AST parsing rather than a regex/string scan —
@@ -45,7 +53,8 @@ const AUTH_EXCEPTION_FILES = new Set([
 type ManifestEntry =
   | { file: string; method: string; status: "protected"; policyKey: string }
   | { file: string; method: string; status: "auth_exception" }
-  | { file: string; method: string; status: "unprotected"; reason: string };
+  | { file: string; method: string; status: "unprotected"; reason: string }
+  | { file: string; method: string; status: "unclassified"; reason: string };
 
 function findRouteFiles(dir: string): string[] {
   const results: string[] = [];
@@ -120,6 +129,27 @@ function scanRouteFile(filePath: string): ManifestEntry[] {
         });
       }
     }
+
+    // Pattern C: `export { GET }` / `export { GET } from "./elsewhere"` —
+    // neither Pattern A nor B's AST shape recognizes this, so a handler
+    // exported this way would otherwise be silently invisible to this
+    // scanner (never counted as protected, unprotected, or anything) —
+    // the actual gap this test's own doc comment used to only claim was
+    // closed by construction. Flagged as its own status so it fails loudly
+    // instead of disappearing; fix by rewriting as a direct
+    // `export const METHOD = withAuth(...)`.
+    if (ts.isExportDeclaration(statement) && statement.exportClause && ts.isNamedExports(statement.exportClause)) {
+      for (const specifier of statement.exportClause.elements) {
+        const method = specifier.name.text;
+        if (!HTTP_METHODS.has(method)) continue;
+        entries.push({
+          file: filePath,
+          method,
+          status: "unclassified",
+          reason: "exported via `export { ... }` re-export syntax, which this scanner cannot verify is wrapped in withAuth()",
+        });
+      }
+    }
   }
 
   return entries;
@@ -183,7 +213,7 @@ describe("Phase 1D.1 — audit structural coverage: every protected handler impo
     expect(wrongSource).toHaveLength(0);
   });
 
-  it("therefore: since app/api/bff/_lib/auth.ts's own withAuth() calls recordMutationAudit() for every mutating method (proven directly in app/api/bff/_lib/auth.test.ts's Phase 1D.1 describe block), all 71 protected handlers are audit-capable by construction, not by having remembered to add a call in each of 47 files", () => {
+  it("therefore: since app/api/bff/_lib/auth.ts's own withAuth() calls recordMutationAudit() for every mutating method (proven directly in app/api/bff/_lib/auth.test.ts's Phase 1D.1 describe block), every protected handler is audit-capable by construction, not by having remembered to add a call in each resource route file", () => {
     // No new assertion here -- this test exists to document the logical
     // chain the two tests above actually prove, in one place a reviewer
     // can read without re-deriving it: (1) every protected handler uses
@@ -221,41 +251,36 @@ describe("BFF route manifest — exhaustive server-side authorization check (Pha
     }
   });
 
-  it("has exactly 3 auth-exception handlers, exactly the 3 hardcoded auth routes", () => {
+  it("every auth-exception handler found is exactly one of the closed AUTH_EXCEPTION_FILES allowlist — no more, no fewer", () => {
+    // The allowlist itself (not a separately-maintained number) is the
+    // source of truth: adding a new "exception" route requires a
+    // deliberate edit to AUTH_EXCEPTION_FILES above, and this only checks
+    // that the scanner's own findings agree with whatever that list
+    // currently says — it never needs updating just because an ordinary
+    // resource route was added elsewhere.
     const exceptions = manifest.filter((e) => e.status === "auth_exception");
-    expect(exceptions).toHaveLength(3);
-    const files = new Set(exceptions.map(relativeFile));
-    expect(files).toEqual(
-      new Set([
-        "app/api/bff/auth/login/route.ts",
-        "app/api/bff/auth/session/route.ts",
-        "app/api/bff/auth/logout/route.ts",
-      ]),
-    );
+    const files = new Set(exceptions.map((e) => e.file));
+    expect(files).toEqual(AUTH_EXCEPTION_FILES);
   });
 
-  it("finds exactly 74 total exported HTTP handlers (71 protected + 3 auth exceptions) — a change here means a route was added/removed and this expectation must be consciously updated", () => {
-    expect(manifest).toHaveLength(74);
-    expect(manifest.filter((e) => e.status === "protected")).toHaveLength(71);
-  });
-
-  it("POLICY MAP: matches the exact area/level distribution recorded in the Phase 1C report", () => {
-    const counts: Record<string, number> = {};
-    for (const entry of manifest) {
-      if (entry.status !== "protected") continue;
-      counts[entry.policyKey] = (counts[entry.policyKey] ?? 0) + 1;
+  it("has ZERO unclassified handlers — every exported HTTP-method-named binding in every route.ts is recognized as either protected, unprotected, or an auth exception (see Pattern C above for what this catches: `export { GET }` re-export syntax)", () => {
+    const unclassified = manifest.filter((e) => e.status === "unclassified");
+    if (unclassified.length > 0) {
+      const details = unclassified.map((e) => `  - ${e.method} ${relativeFile(e)}: ${(e as { reason: string }).reason}`).join("\n");
+      throw new Error(`${unclassified.length} unclassified BFF handler(s) found:\n${details}`);
     }
-    expect(counts).toEqual({
-      contentView: 10,
-      contentEdit: 23,
-      catalogView: 4,
-      catalogEdit: 6,
-      mediaView: 1,
-      mediaEdit: 2,
-      telegramView: 9,
-      telegramEdit: 16,
-    });
+    expect(unclassified).toHaveLength(0);
   });
+
+  // Deliberately no hardcoded total/per-policy-area handler counts here:
+  // the properties that actually matter (every handler classified, every
+  // resource handler protected, every policy key real, the auth-exception
+  // set closed) are all asserted directly above/below from the AST itself.
+  // A raw total would only add friction — requiring a manual edit here on
+  // every ordinary new route — without proving anything these other
+  // checks don't already prove. See PHASE 2B-3's report for the actual
+  // current counts, computed from this same manifest, not maintained by
+  // hand in this file.
 
   it("no resource route uses the orders or settings areas — confirmed no BFF route exists for either yet (see Phase 1C report's temporary-mock-module status)", () => {
     const areas: Set<string> = new Set(

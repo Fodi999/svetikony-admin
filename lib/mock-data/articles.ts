@@ -6,7 +6,6 @@ interface ArticleSeed {
   groupId: string;
   slug: string;
   status: Article["status"];
-  coverImageId?: string;
   titles: Record<Language, string>;
   contents: Record<Language, string>;
   seoTitles?: Partial<Record<Language, string>>;
@@ -18,7 +17,6 @@ const seeds: ArticleSeed[] = [
     groupId: "article-icon-history",
     slug: "istoriya-ikonopysu",
     status: "published",
-    coverImageId: "media-icon-troitsa",
     titles: {
       uk: "Історія іконопису: від Візантії до наших днів",
       ru: "История иконописи: от Византии до наших дней",
@@ -62,7 +60,6 @@ const seeds: ArticleSeed[] = [
     groupId: "article-church-slavonic",
     slug: "chomu-varto-znaty-tserkovnoslovyansku",
     status: "published",
-    coverImageId: "media-church-interior",
     titles: {
       uk: "Чому варто знати церковнослов'янську мову",
       ru: "Почему стоит знать церковнославянский язык",
@@ -102,9 +99,6 @@ function buildArticle(seed: ArticleSeed, language: Language): Article {
     seoTitle: seed.seoTitles?.[language],
     seoDescription: seed.seoDescriptions?.[language],
     status: seed.status,
-    coverImageId: seed.coverImageId,
-    relatedIconIds: [],
-    relatedSaintIds: [],
     createdAt: now,
     updatedAt: now,
   };

@@ -6,7 +6,6 @@ import { Eye } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
-import { RelationPickerField } from "@/components/forms/relation-picker-field";
 import { SelectField } from "@/components/forms/select-field";
 import { TextField } from "@/components/forms/text-field";
 import { useUnsavedChanges } from "@/components/feedback/unsaved-changes-context";
@@ -28,9 +27,7 @@ const EMPTY_DEFAULTS: ArticleFormValues = {
   seoTitle: "",
   seoDescription: "",
   status: "draft",
-  coverImageId: undefined,
-  relatedIconIds: [],
-  relatedSaintIds: [],
+  iconId: undefined,
 };
 
 interface ArticleFormProps {
@@ -67,9 +64,10 @@ export function ArticleForm({ mode, article, onSubmit, onDelete, submitting }: A
   useBeforeUnloadWarning(form.formState.isDirty);
 
   const iconsQuery = useQuery({ queryKey: ["icons", "options"], queryFn: () => apiClient.icons.list({ pageSize: 200 }) });
-  const saintsQuery = useQuery({ queryKey: ["saints", "options"], queryFn: () => apiClient.saints.list({ pageSize: 200 }) });
-  const iconOptions = (iconsQuery.data?.items ?? []).map((i) => ({ value: i.id, label: i.title }));
-  const saintOptions = (saintsQuery.data?.items ?? []).map((s) => ({ value: s.id, label: s.name }));
+  const iconOptions = [
+    { value: "", label: "Без зв'язку" },
+    ...(iconsQuery.data?.items ?? []).map((i) => ({ value: i.id, label: i.title })),
+  ];
 
   async function handleSave(publish: boolean) {
     if (publish) form.setValue("status", "published", { shouldDirty: true });
@@ -106,7 +104,9 @@ export function ArticleForm({ mode, article, onSubmit, onDelete, submitting }: A
               options={Object.entries(LANGUAGE_LABELS).map(([value, label]) => ({ value, label }))}
             />
             <TextField control={form.control} name="content" label="Зміст статті" textarea rows={12} />
-            <TextField control={form.control} name="coverImageId" label="ID обкладинки" description="Stage 1: ID з медіатеки" />
+            <p className="text-xs text-muted-foreground">
+              Обкладинка статті поки не підтримується backend (немає відповідної колонки в базі даних) — поле буде додано окремим етапом.
+            </p>
           </TabsContent>
 
           <TabsContent value="seo" className="space-y-2">
@@ -119,8 +119,10 @@ export function ArticleForm({ mode, article, onSubmit, onDelete, submitting }: A
           </TabsContent>
 
           <TabsContent value="relations" className="space-y-4">
-            <RelationPickerField control={form.control} name="relatedIconIds" label="Пов'язані ікони" options={iconOptions} />
-            <RelationPickerField control={form.control} name="relatedSaintIds" label="Пов'язані святі" options={saintOptions} />
+            <SelectField control={form.control} name="iconId" label="Пов'язана ікона" options={iconOptions} />
+            <p className="text-xs text-muted-foreground">
+              Зв&apos;язок зі святими поки не підтримується backend для статей — таблиця не має відповідного поля.
+            </p>
           </TabsContent>
 
           <TabsContent value="publication" className="space-y-4">

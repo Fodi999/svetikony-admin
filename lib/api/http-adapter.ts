@@ -1,5 +1,6 @@
 import type { ApiClient } from "@/lib/api/client";
 import { alphabetLettersHttpResource } from "@/lib/api/http/alphabet";
+import { articlesHttpResource } from "@/lib/api/http/articles";
 import { authHttpResource } from "@/lib/api/http/auth";
 import { calendarDaysHttpResource } from "@/lib/api/http/calendar-days";
 import { iconsHttpResource } from "@/lib/api/http/icons";
@@ -9,7 +10,6 @@ import { categoriesHttpResource } from "@/lib/api/http/product-categories";
 import { productsHttpResource } from "@/lib/api/http/products";
 import { saintsHttpResource } from "@/lib/api/http/saints";
 import { telegramHttpResource } from "@/lib/api/http/telegram";
-import { articlesResource } from "@/lib/api/mock/articles";
 import { churchInfoResource } from "@/lib/api/mock/church-info";
 import { dashboardResource } from "@/lib/api/mock/dashboard";
 import { gospelReadingsResource } from "@/lib/api/mock/gospel";
@@ -76,9 +76,11 @@ import { ordersResource } from "@/lib/api/mock/orders";
  * lib/api/index.ts and this function's own test in lib/api/index.test.ts,
  * which asserts production's default choice).
  *
- * `orders`, `articles`, `gospelReadings`, `churchInfo`, `dashboard` are the
- * 5 still-temporary mock resources (not yet wired to real D1) — imported
+ * `orders`, `gospelReadings`, `churchInfo`, `dashboard` are the 4 remaining
+ * still-temporary mock resources (not yet wired to real D1) — imported
  * directly from their own files, not through mockApiAdapter/mock/auth.ts.
+ * `articles` was the 5th; Phase 2B-2 connected it to real D1 through
+ * app/api/bff/articles/** — see lib/api/http/articles.ts.
  */
 export function createHttpApiAdapter(): ApiClient {
   return {
@@ -90,10 +92,10 @@ export function createHttpApiAdapter(): ApiClient {
     products: productsHttpResource,
     icons: iconsHttpResource,
     saints: saintsHttpResource,
+    articles: articlesHttpResource,
     media: mediaHttpResource,
     telegram: telegramHttpResource,
     orders: ordersResource,
-    articles: articlesResource,
     gospelReadings: gospelReadingsResource,
     churchInfo: churchInfoResource,
     dashboard: dashboardResource,

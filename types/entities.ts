@@ -448,6 +448,20 @@ export interface GospelReading extends Identifiable, Timestamps, Translatable {
 // Articles
 // ---------------------------------------------------------------------------
 
+/**
+ * Phase 2B-2: field shape matches svet-ikony's real church_articles table
+ * exactly (verified against lib/d1/repositories/articles.ts, not assumed).
+ * Deliberately does NOT have `coverImageId`/`relatedSaintIds` — the real
+ * backend has no image column and no saint-relation column of any kind for
+ * articles, so those Stage-1 mock fields were removed rather than kept as
+ * editable-but-silently-discarded UI controls. `iconId` (singular) replaces
+ * the old `relatedIconIds` (plural) for the same reason in the other
+ * direction: church_articles has a real, singular `icon_id` FK, so the
+ * admin now edits exactly that relation instead of a multi-select the
+ * backend could never fully honor. `translationGroupId` (required by
+ * Translatable) has no backend equivalent either — see
+ * lib/api/http/articles.ts's toEntity() for how it's synthesized.
+ */
 export interface Article extends Identifiable, Timestamps, Translatable {
   title: string;
   slug: string;
@@ -455,9 +469,7 @@ export interface Article extends Identifiable, Timestamps, Translatable {
   seoTitle?: string;
   seoDescription?: string;
   status: ContentStatus;
-  coverImageId?: string;
-  relatedIconIds: string[];
-  relatedSaintIds: string[];
+  iconId?: string;
 }
 
 // ---------------------------------------------------------------------------

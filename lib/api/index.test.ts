@@ -93,7 +93,7 @@ describe("getApiClient() adapter selection — full security matrix", () => {
 });
 
 describe("getApiClient() resource-level composition (default, real adapter)", () => {
-  it("switches alphabetLetters, prayers, calendarDays, categories, products, icons, media, and auth to the real HTTP resource, leaving the 5 still-temporary resources on mock", async () => {
+  it("switches alphabetLetters, prayers, calendarDays, categories, products, icons, articles, media, and auth to the real HTTP resource, leaving the 4 still-temporary resources on mock", async () => {
     delete process.env[FLAG];
     const { mockApiAdapter } = await import("./mock-adapter");
     const { alphabetLettersHttpResource } = await import("./http/alphabet");
@@ -102,6 +102,7 @@ describe("getApiClient() resource-level composition (default, real adapter)", ()
     const { categoriesHttpResource } = await import("./http/product-categories");
     const { productsHttpResource } = await import("./http/products");
     const { iconsHttpResource } = await import("./http/icons");
+    const { articlesHttpResource } = await import("./http/articles");
     const { mediaHttpResource } = await import("./http/media");
     const { authHttpResource } = await import("./http/auth");
     const client = await freshClient();
@@ -111,11 +112,11 @@ describe("getApiClient() resource-level composition (default, real adapter)", ()
     expect(client.categories).toBe(categoriesHttpResource);
     expect(client.products).toBe(productsHttpResource);
     expect(client.icons).toBe(iconsHttpResource);
+    expect(client.articles).toBe(articlesHttpResource);
     expect(client.media).toBe(mediaHttpResource);
     expect(client.auth).toBe(authHttpResource);
     expect(client.churchInfo).toBe(mockApiAdapter.churchInfo);
     expect(client.orders).toBe(mockApiAdapter.orders);
-    expect(client.articles).toBe(mockApiAdapter.articles);
     expect(client.gospelReadings).toBe(mockApiAdapter.gospelReadings);
     expect(client.dashboard).toBe(mockApiAdapter.dashboard);
   });

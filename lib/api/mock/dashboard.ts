@@ -64,9 +64,13 @@ export const dashboardResource = {
       countMissingTranslationGroups(articles.items) +
       countMissingTranslationGroups(calendarDays.items);
 
+    // Articles no longer contributes here: Phase 2B-2 removed `coverImageId`
+    // from the real Article type (church_articles has no image column at
+    // all — see that phase's report), so counting "articles missing a
+    // cover" is no longer a representable question, not just an unmocked
+    // one.
     const missingImages =
       icons.items.filter((icon) => !icon.mainImageId).length +
-      articles.items.filter((article) => !article.coverImageId).length +
       saints.items.filter((saint) => !saint.imageId).length;
 
     const prayersWithoutAudio = prayers.items.filter((prayer) => !prayer.audioUrl).length;
