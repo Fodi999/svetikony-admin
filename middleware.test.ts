@@ -44,7 +44,7 @@ function request(path: string, opts: { basicAuth?: boolean; cookie?: string } = 
 }
 
 describe("middleware", () => {
-  it("rejects every request with no Basic Auth credential, regardless of cookie", () => {
+  it("rejects a request with no Basic Auth credential and no admin_session cookie", () => {
     const response = middleware(request("/calendar", { basicAuth: false }));
     expect(response.status).toBe(401);
   });
@@ -78,6 +78,45 @@ describe("middleware", () => {
 
     it("/telegram-login (Phase 3) stays reachable with no cookie -- the Telegram button opens it before any session exists; its own JS is what creates one", () => {
       const response = middleware(request("/telegram-login"));
+      expect(response.status).toBe(200);
+      expect(response.headers.get("location")).toBeNull();
+    });
+  });
+
+  describe("Phase 3C -- Telegram login must survive a browser with no cached Basic Auth credentials", () => {
+    it("/telegram-login is reachable with NO Basic Auth credential AND no cookie -- the exact production failure this phase fixes", () => {
+      const response = middleware(request("/telegram-login", { basicAuth: false }));
+      expect(response.status).toBe(200);
+    });
+
+    it("POST /api/bff/auth/telegram/exchange is reachable with NO Basic Auth credential AND no cookie", () => {
+      const response = middleware(request("/api/bff/auth/telegram/exchange", { basicAuth: false }));
+      expect(response.status).toBe(200);
+    });
+
+    it("a request carrying ANY admin_session cookie value bypasses Basic Auth entirely, even with no/wrong credential -- real authorization is still the BFF's job, not middleware's", () => {
+      const response = middleware(request("/", { basicAuth: false, cookie: "some-real-or-fake-session-token" }));
+      expect(response.status).toBe(200);
+    });
+
+    it("a request with a WRONG Basic Auth credential but a real cookie still bypasses the gate (cookie presence wins, matching the documented design)", () => {
+      const response = middleware(
+        new NextRequest("http://localhost/", {
+          headers: { authorization: "Basic d3Jvbmc6Y3JlZHM=", cookie: "admin_session=some-token" }, // "wrong:creds"
+        }),
+      );
+      expect(response.status).toBe(200);
+    });
+
+    it("routes OTHER than the two Telegram pre-auth paths still require Basic Auth when there is no cookie -- the bypass is narrow, not a blanket exemption", () => {
+      for (const path of ["/login", "/no-access", "/calendar", "/api/bff/icons", "/api/bff/auth/login", "/api/bff/auth/session"]) {
+        const response = middleware(request(path, { basicAuth: false }));
+        expect(response.status, `${path} should still require Basic Auth with no cookie`).toBe(401);
+      }
+    });
+
+    it("no redirect loop: a cookie-bearing request to a protected page never redirects (neither to /login via the cookie-presence check, nor anywhere via Basic Auth)", () => {
+      const response = middleware(request("/calendar", { basicAuth: false, cookie: "some-token" }));
       expect(response.status).toBe(200);
       expect(response.headers.get("location")).toBeNull();
     });
