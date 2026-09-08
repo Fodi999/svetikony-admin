@@ -104,4 +104,8 @@ export const ordersHttpResource: ApiClient["orders"] = {
     await httpPut<void>(`${BFF_ENDPOINTS.orders}/${encodeURIComponent(id)}/read`, undefined);
     return get(id);
   },
+  async unreadCount(): Promise<number> {
+    const { count } = await httpGet<{ count: number }>(`${BFF_ENDPOINTS.orders}/unread-count`);
+    return count;
+  },
 };

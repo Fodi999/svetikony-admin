@@ -173,6 +173,8 @@ export interface OrdersApi {
   updateStatus(id: string, status: OrderStatus): Promise<Order>;
   updateNote(id: string, adminNote: string): Promise<Order>;
   markRead(id: string): Promise<Order>;
+  /** Powers the sidebar's unread-order badge — a bare count, not a list. */
+  unreadCount(): Promise<number>;
 }
 
 /** Hand-written rather than `CrudResource` — no `remove`, and `publish` has

@@ -3,7 +3,9 @@
 import { ChevronsLeft, ChevronsRight, Church } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { GuardedLink } from "@/components/layout/guarded-link";
+import { UnreadBadge } from "@/components/layout/unread-badge";
 import { Button } from "@/components/ui/button";
+import { useUnreadOrders } from "@/features/orders/use-unread-orders";
 import { useAuth } from "@/lib/auth/auth-context";
 import { NAV_ITEMS, type NavItem } from "@/lib/constants/navigation";
 import { cn } from "@/lib/utils";
@@ -36,7 +38,7 @@ const SECTIONS: Section[] = [
   { heading: "Система", hrefs: ["/settings"] },
 ];
 
-function NavLink({ item, collapsed, active }: { item: NavItem; collapsed: boolean; active: boolean }) {
+function NavLink({ item, collapsed, active, unreadCount }: { item: NavItem; collapsed: boolean; active: boolean; unreadCount?: number }) {
   return (
     <GuardedLink
       href={item.href}
@@ -50,6 +52,7 @@ function NavLink({ item, collapsed, active }: { item: NavItem; collapsed: boolea
     >
       <item.icon className="size-4.5 shrink-0" aria-hidden />
       {!collapsed && <span className="truncate">{item.label}</span>}
+      {!collapsed && typeof unreadCount === "number" ? <UnreadBadge count={unreadCount} /> : null}
     </GuardedLink>
   );
 }
@@ -57,6 +60,7 @@ function NavLink({ item, collapsed, active }: { item: NavItem; collapsed: boolea
 export function DesktopSidebar() {
   const pathname = usePathname();
   const { canView } = useAuth();
+  const { count: unreadOrders } = useUnreadOrders();
   const [collapsed, setCollapsed] = usePersistentToggle(COLLAPSE_KEY);
 
   function toggleCollapsed() {
@@ -91,7 +95,13 @@ export function DesktopSidebar() {
                 </p>
               ) : null}
               {items.map((item) => (
-                <NavLink key={item.href} item={item} collapsed={collapsed} active={pathname === item.href} />
+                <NavLink
+                  key={item.href}
+                  item={item}
+                  collapsed={collapsed}
+                  active={pathname === item.href}
+                  unreadCount={item.area === "orders" ? unreadOrders : undefined}
+                />
               ))}
             </div>
           );

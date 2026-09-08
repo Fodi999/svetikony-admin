@@ -61,4 +61,9 @@ export const ordersResource: OrdersApi = {
     persist();
     return store[index];
   },
+
+  async unreadCount() {
+    await mockDelay();
+    return store.filter((o) => !o.isRead).length;
+  },
 };

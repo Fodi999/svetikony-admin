@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, Copy, Mail, Phone, XCircle } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/feedback/confirm-dialog";
@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useUnreadOrders } from "@/features/orders/use-unread-orders";
 import { apiClient } from "@/lib/api";
 import { errorMessageFor } from "@/lib/api/errors";
 import { messages } from "@/lib/i18n";
@@ -56,7 +57,9 @@ function confirmDialogContent(order: Order, pendingStatus: OrderStatus) {
 export function OrderDetailView({ id }: { id: string }) {
   const queryClient = useQueryClient();
   const { setDirty } = useUnsavedChanges();
+  const { refreshUnreadOrders } = useUnreadOrders();
   const [pendingStatus, setPendingStatus] = useState<OrderStatus | null>(null);
+  const markReadRequestedForId = useRef<string | null>(null);
 
   const query = useQuery({ queryKey: ["orders", id], queryFn: () => apiClient.orders.get(id) });
   const order = query.data;
@@ -99,12 +102,31 @@ export function OrderDetailView({ id }: { id: string }) {
 
   const markReadMutation = useMutation({
     mutationFn: () => apiClient.orders.markRead(id),
-    onSuccess: () => {
+    onSuccess: (updated) => {
+      queryClient.setQueryData(["orders", id], updated);
       invalidate();
-      toast.success("Позначено як прочитане");
+      refreshUnreadOrders();
     },
-    onError: (error) => toast.error(errorMessageFor(error)),
+    onError: (error) => {
+      toast.error(errorMessageFor(error));
+    },
   });
+
+  /** Opening a specific unread order's detail view marks it read exactly
+   * once per order id -- never from list rendering, search/filter, or just
+   * visiting /orders (see order-list-view.tsx, which never calls this).
+   * Keyed by order id (not a plain boolean) so this still fires correctly
+   * if the admin navigates from one order straight to another without this
+   * component unmounting, but a refetch of the *same* order (e.g. from an
+   * unrelated invalidate() while this page is open, or a failed attempt)
+   * never re-triggers it. */
+  useEffect(() => {
+    if (order && !order.isRead && markReadRequestedForId.current !== order.id) {
+      markReadRequestedForId.current = order.id;
+      markReadMutation.mutate();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [order]);
 
   /** Every status change (quick action or dropdown) goes through here.
    * Confirmation is required in exactly two cases (your decision, not
@@ -168,12 +190,6 @@ export function OrderDetailView({ id }: { id: string }) {
             <OrderStatusBadge status={order.status} />
           </div>
         </div>
-
-        {!order.isRead ? (
-          <Button variant="outline" size="sm" disabled={markReadMutation.isPending} onClick={() => markReadMutation.mutate()}>
-            Позначити прочитаним
-          </Button>
-        ) : null}
 
         <Card>
           <CardHeader>

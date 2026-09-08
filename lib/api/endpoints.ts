@@ -78,7 +78,7 @@ export const BFF_ENDPOINTS = {
   articles: "/api/bff/articles", // ✅ implemented (Phase 2B-2, full CRUD)
   gospelReadings: "/api/bff/gospel", // ✅ implemented (Phase 2B-3, full CRUD)
   churchInfo: "/api/bff/church-info", // ✅ implemented (Phase 2B-4, singleton GET/PUT)
-  orders: "/api/bff/orders", // ✅ implemented (Phase 2B-5B, list/get/update; `${orders}/:id` and `${orders}/:id/read` built at call sites)
+  orders: "/api/bff/orders", // ✅ implemented (Phase 2B-5B, list/get/update; `${orders}/:id`, `${orders}/:id/read` and `${orders}/unread-count` built at call sites)
   dashboard: "/api/bff/dashboard", // ✅ implemented (Phase 2B-6, GET only)
   mediaUpload: "/api/bff/media/upload", // ✅ implemented (Stage 2D)
   media: "/api/bff/media", // ✅ implemented — GET (list) + DELETE
