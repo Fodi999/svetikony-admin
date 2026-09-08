@@ -38,11 +38,19 @@ function workerDto(overrides: Partial<WorkerPrayerDto> = {}): WorkerPrayerDto {
 }
 
 describe("toBffPrayerDto", () => {
-  it("drops internal Worker-only fields (siteId, translationGroupId, isGlobal)", () => {
+  it("drops internal Worker-only fields (siteId, isGlobal)", () => {
     const bff = toBffPrayerDto(workerDto());
     expect(bff).not.toHaveProperty("siteId");
-    expect(bff).not.toHaveProperty("translationGroupId");
     expect(bff).not.toHaveProperty("isGlobal");
+  });
+
+  /** PHASE MULTILINGUAL-3: unlike siteId/isGlobal, translationGroupId is
+   * now KEPT -- the Worker always had a real, correctly-auto-linked value
+   * here, and Prayer now extends Translatable so the admin's
+   * TranslationSwitcher can use it, same as Icons/Saints/Calendar. */
+  it("keeps translationGroupId -- Prayer is Translatable now", () => {
+    const bff = toBffPrayerDto(workerDto());
+    expect(bff).toHaveProperty("translationGroupId");
   });
 
   it("keeps every field the admin entity mapper needs", () => {
@@ -52,6 +60,7 @@ describe("toBffPrayerDto", () => {
       slug: "otche-nash",
       title: "Отче наш",
       language: "uk",
+      translationGroupId: workerDto().translationGroupId,
       prayerType: "prayer",
       status: "draft",
       particleColorMode: "silver_gold",

@@ -3,23 +3,24 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
 import { Eye, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { MediaUploadButton } from "@/components/forms/media-upload-button";
 import { RelationPickerField } from "@/components/forms/relation-picker-field";
 import { SelectField } from "@/components/forms/select-field";
 import { TextField } from "@/components/forms/text-field";
+import { TranslationSwitcher, type Completeness } from "@/components/forms/translation-switcher";
 import { useUnsavedChanges } from "@/components/feedback/unsaved-changes-context";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { apiClient } from "@/lib/api";
-import { LANGUAGE_LABELS } from "@/lib/constants/labels";
 import { messages } from "@/lib/i18n";
 import { resolveMediaPreviewUrl } from "@/lib/media/resolve-preview-url";
 import { useBeforeUnloadWarning } from "@/lib/utils/use-before-unload";
 import { saintSchema, type SaintFormValues } from "@/lib/validation/saint.schema";
-import type { Saint } from "@/types/entities";
+import type { Language, Saint } from "@/types/entities";
 
 /** Best-effort orphan cleanup for a not-yet-saved upload. No-op in mock
  * mode (nothing real to clean up) — same real-mode detection
@@ -50,12 +51,16 @@ const EMPTY_DEFAULTS: SaintFormValues = {
 interface SaintFormProps {
   mode: "create" | "edit";
   saint?: Saint;
+  groupId?: string;
+  initialLanguage?: Language;
+  initialSlug?: string;
   onSubmit: (values: SaintFormValues) => Promise<void>;
   onDelete?: () => void;
   submitting?: boolean;
 }
 
-export function SaintForm({ mode, saint, onSubmit, onDelete, submitting }: SaintFormProps) {
+export function SaintForm({ mode, saint, groupId, initialLanguage, initialSlug, onSubmit, onDelete, submitting }: SaintFormProps) {
+  const router = useRouter();
   const { setDirty } = useUnsavedChanges();
   const [tab, setTab] = useState("main");
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -67,7 +72,9 @@ export function SaintForm({ mode, saint, onSubmit, onDelete, submitting }: Saint
 
   const form = useForm<SaintFormValues>({
     resolver: zodResolver(saintSchema),
-    defaultValues: saint ? { ...EMPTY_DEFAULTS, ...saint } : EMPTY_DEFAULTS,
+    defaultValues: saint
+      ? { ...EMPTY_DEFAULTS, ...saint }
+      : { ...EMPTY_DEFAULTS, language: initialLanguage ?? "uk", slug: initialSlug ?? "" },
   });
 
   useEffect(() => {
@@ -96,6 +103,40 @@ export function SaintForm({ mode, saint, onSubmit, onDelete, submitting }: Saint
   const iconOptions = (iconsQuery.data?.items ?? []).map((i) => ({ value: i.id, label: i.title }));
   const calendarOptions = (calendarQuery.data?.items ?? []).map((d) => ({ value: d.id, label: `${d.title} (${d.date})` }));
 
+  const effectiveGroupId = saint?.translationGroupId ?? groupId;
+
+  const siblingsQuery = useQuery({
+    queryKey: ["saints", "group", effectiveGroupId],
+    queryFn: () => apiClient.saints.list({ pageSize: 200 }),
+    enabled: !!effectiveGroupId,
+  });
+  const siblings = (siblingsQuery.data?.items ?? []).filter((s) => s.translationGroupId === effectiveGroupId);
+
+  const completeness = useMemo(() => {
+    const result = {} as Record<Language, Completeness>;
+    (["uk", "ru", "en"] as Language[]).forEach((lang) => {
+      const sibling = siblings.find((s) => s.language === lang);
+      if (!sibling) {
+        result[lang] = "empty";
+      } else if (sibling.name && sibling.biography) {
+        result[lang] = "done";
+      } else {
+        result[lang] = "partial";
+      }
+    });
+    return result;
+  }, [siblings]);
+
+  function handleSwitchLanguage(lang: Language) {
+    if (lang === saint?.language) return;
+    const sibling = siblings.find((s) => s.language === lang);
+    if (sibling) {
+      router.push(`/saints/${sibling.id}`);
+    } else if (effectiveGroupId) {
+      router.push(`/saints/new?groupId=${effectiveGroupId}&language=${lang}&slug=${encodeURIComponent(form.getValues("slug"))}`);
+    }
+  }
+
   async function handleSave(publish: boolean) {
     if (publish) form.setValue("status", "published", { shouldDirty: true });
     const valid = await form.trigger();
@@ -115,6 +156,13 @@ export function SaintForm({ mode, saint, onSubmit, onDelete, submitting }: Saint
   return (
     <div className="flex h-full flex-col">
       <div className="flex-1 space-y-4 overflow-y-auto p-4 pb-28 md:p-6 md:pb-24">
+        {effectiveGroupId ? (
+          <div className="space-y-1.5">
+            <p className="text-xs font-medium text-muted-foreground">Переклади</p>
+            <TranslationSwitcher active={values.language} onSelect={handleSwitchLanguage} completeness={completeness} />
+          </div>
+        ) : null}
+
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="w-full overflow-x-auto">
             <TabsTrigger value="main">Основне</TabsTrigger>
@@ -125,12 +173,6 @@ export function SaintForm({ mode, saint, onSubmit, onDelete, submitting }: Saint
           <TabsContent value="main" className="space-y-4">
             <TextField control={form.control} name="name" label="Ім'я" />
             <TextField control={form.control} name="slug" label="Slug" description="Латиниця, цифри, дефіси" />
-            <SelectField
-              control={form.control}
-              name="language"
-              label="Мова"
-              options={Object.entries(LANGUAGE_LABELS).map(([value, label]) => ({ value, label }))}
-            />
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <TextField control={form.control} name="feastDayNewStyle" label="День пам'яті (новий стиль, ММ-ДД)" placeholder="12-04" />
               <TextField control={form.control} name="feastDayOldStyle" label="День пам'яті (старий стиль, ММ-ДД)" placeholder="11-21" />

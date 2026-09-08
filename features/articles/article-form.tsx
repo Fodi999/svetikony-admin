@@ -3,21 +3,22 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
 import { Eye } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { SelectField } from "@/components/forms/select-field";
 import { TextField } from "@/components/forms/text-field";
+import { TranslationSwitcher, type Completeness } from "@/components/forms/translation-switcher";
 import { useUnsavedChanges } from "@/components/feedback/unsaved-changes-context";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { apiClient } from "@/lib/api";
-import { LANGUAGE_LABELS } from "@/lib/constants/labels";
 import { messages } from "@/lib/i18n";
 import { useBeforeUnloadWarning } from "@/lib/utils/use-before-unload";
 import { cn } from "@/lib/utils";
 import { articleSchema, type ArticleFormValues } from "@/lib/validation/article.schema";
-import type { Article } from "@/types/entities";
+import type { Article, Language } from "@/types/entities";
 
 const EMPTY_DEFAULTS: ArticleFormValues = {
   title: "",
@@ -33,6 +34,9 @@ const EMPTY_DEFAULTS: ArticleFormValues = {
 interface ArticleFormProps {
   mode: "create" | "edit";
   article?: Article;
+  groupId?: string;
+  initialLanguage?: Language;
+  initialSlug?: string;
   onSubmit: (values: ArticleFormValues) => Promise<void>;
   onDelete?: () => void;
   submitting?: boolean;
@@ -46,14 +50,17 @@ function SeoCounter({ length, max }: { length: number; max: number }) {
   );
 }
 
-export function ArticleForm({ mode, article, onSubmit, onDelete, submitting }: ArticleFormProps) {
+export function ArticleForm({ mode, article, groupId, initialLanguage, initialSlug, onSubmit, onDelete, submitting }: ArticleFormProps) {
+  const router = useRouter();
   const { setDirty } = useUnsavedChanges();
   const [tab, setTab] = useState("main");
   const [previewOpen, setPreviewOpen] = useState(false);
 
   const form = useForm<ArticleFormValues>({
     resolver: zodResolver(articleSchema),
-    defaultValues: article ? { ...EMPTY_DEFAULTS, ...article } : EMPTY_DEFAULTS,
+    defaultValues: article
+      ? { ...EMPTY_DEFAULTS, ...article }
+      : { ...EMPTY_DEFAULTS, language: initialLanguage ?? "uk", slug: initialSlug ?? "" },
   });
 
   useEffect(() => {
@@ -68,6 +75,40 @@ export function ArticleForm({ mode, article, onSubmit, onDelete, submitting }: A
     { value: "", label: "Без зв'язку" },
     ...(iconsQuery.data?.items ?? []).map((i) => ({ value: i.id, label: i.title })),
   ];
+
+  const effectiveGroupId = article?.translationGroupId ?? groupId;
+
+  const siblingsQuery = useQuery({
+    queryKey: ["articles", "group", effectiveGroupId],
+    queryFn: () => apiClient.articles.list({ pageSize: 200 }),
+    enabled: !!effectiveGroupId,
+  });
+  const siblings = (siblingsQuery.data?.items ?? []).filter((a) => a.translationGroupId === effectiveGroupId);
+
+  const completeness = useMemo(() => {
+    const result = {} as Record<Language, Completeness>;
+    (["uk", "ru", "en"] as Language[]).forEach((lang) => {
+      const sibling = siblings.find((s) => s.language === lang);
+      if (!sibling) {
+        result[lang] = "empty";
+      } else if (sibling.title && sibling.content) {
+        result[lang] = "done";
+      } else {
+        result[lang] = "partial";
+      }
+    });
+    return result;
+  }, [siblings]);
+
+  function handleSwitchLanguage(lang: Language) {
+    if (lang === article?.language) return;
+    const sibling = siblings.find((s) => s.language === lang);
+    if (sibling) {
+      router.push(`/articles/${sibling.id}`);
+    } else if (effectiveGroupId) {
+      router.push(`/articles/new?groupId=${effectiveGroupId}&language=${lang}&slug=${encodeURIComponent(form.getValues("slug"))}`);
+    }
+  }
 
   async function handleSave(publish: boolean) {
     if (publish) form.setValue("status", "published", { shouldDirty: true });
@@ -86,6 +127,13 @@ export function ArticleForm({ mode, article, onSubmit, onDelete, submitting }: A
   return (
     <div className="flex h-full flex-col">
       <div className="flex-1 space-y-4 overflow-y-auto p-4 pb-28 md:p-6 md:pb-24">
+        {effectiveGroupId ? (
+          <div className="space-y-1.5">
+            <p className="text-xs font-medium text-muted-foreground">Переклади</p>
+            <TranslationSwitcher active={form.watch("language")} onSelect={handleSwitchLanguage} completeness={completeness} />
+          </div>
+        ) : null}
+
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="w-full overflow-x-auto">
             <TabsTrigger value="main">Основне</TabsTrigger>
@@ -97,12 +145,6 @@ export function ArticleForm({ mode, article, onSubmit, onDelete, submitting }: A
           <TabsContent value="main" className="space-y-4">
             <TextField control={form.control} name="title" label="Назва" />
             <TextField control={form.control} name="slug" label="Slug" description="Латиниця, цифри, дефіси" />
-            <SelectField
-              control={form.control}
-              name="language"
-              label="Мова"
-              options={Object.entries(LANGUAGE_LABELS).map(([value, label]) => ({ value, label }))}
-            />
             <TextField control={form.control} name="content" label="Зміст статті" textarea rows={12} />
             <p className="text-xs text-muted-foreground">
               Обкладинка статті поки не підтримується backend (немає відповідної колонки в базі даних) — поле буде додано окремим етапом.

@@ -385,11 +385,10 @@ export interface SceneTimelineEvent {
   intensity: number; // 0..1
 }
 
-export interface Prayer extends Identifiable, Timestamps {
+export interface Prayer extends Identifiable, Timestamps, Translatable {
   title: string;
   slug: string;
   text: string;
-  language: Language;
   prayerType: PrayerType;
   status: ContentStatus;
   iconId?: string;
@@ -441,10 +440,14 @@ export interface Saint extends Identifiable, Timestamps, Translatable {
  * `relatedCalendarDayIds` (plural) — the real backend has a real, singular
  * `calendar_day_id` FK, so the admin now edits exactly that relation
  * instead of a multi-select the backend could never fully honor (same
- * reasoning as Article's `iconId`). `translationGroupId` (required by
- * Translatable) has no backend equivalent either — see
- * lib/api/http/gospel.ts's toEntity() for how it's synthesized. No
- * image/cover field: church_gospel_readings has none, same as articles.
+ * reasoning as Article's `iconId`). PHASE MULTILINGUAL-4: `translationGroupId`
+ * (required by Translatable) is now a real backend field too — migration
+ * 0017_articles_gospel_translation_group.sql (svet-ikony) added
+ * `translation_group_id` to church_gospel_readings, and gospel.ts's
+ * create/update auto-link it by slug, same as Icons/Prayers/Saints — see
+ * lib/api/http/gospel.ts's toEntity() and the new TranslationSwitcher
+ * wiring in features/gospel/gospel-form.tsx. No image/cover field:
+ * church_gospel_readings has none, same as articles.
  */
 export interface GospelReading extends Identifiable, Timestamps, Translatable {
   title: string;
@@ -470,9 +473,13 @@ export interface GospelReading extends Identifiable, Timestamps, Translatable {
  * the old `relatedIconIds` (plural) for the same reason in the other
  * direction: church_articles has a real, singular `icon_id` FK, so the
  * admin now edits exactly that relation instead of a multi-select the
- * backend could never fully honor. `translationGroupId` (required by
- * Translatable) has no backend equivalent either — see
- * lib/api/http/articles.ts's toEntity() for how it's synthesized.
+ * backend could never fully honor. PHASE MULTILINGUAL-4: `translationGroupId`
+ * (required by Translatable) is now a real backend field too — migration
+ * 0017_articles_gospel_translation_group.sql (svet-ikony) added
+ * `translation_group_id` to church_articles, and articles.ts's
+ * create/update auto-link it by slug, same as Icons/Prayers/Saints — see
+ * lib/api/http/articles.ts's toEntity() and the new TranslationSwitcher
+ * wiring in features/articles/article-form.tsx.
  */
 export interface Article extends Identifiable, Timestamps, Translatable {
   title: string;
@@ -550,6 +557,23 @@ export interface ChurchInfo extends Identifiable, Timestamps {
 // Catalog: categories & products
 // ---------------------------------------------------------------------------
 
+/**
+ * Phase MULTILINGUAL-1 (P1.2): icon_product_categories is a single-row-
+ * per-category table with per-language COLUMNS (name_uk/name_ru/name_en,
+ * description_uk/description_ru/description_en) -- not row-per-language
+ * like Icons. `name`/`description` above stay as read-only convenience
+ * fields (always mirroring `translations.uk`, same value the real
+ * backend's nameUk/descriptionUk columns hold) so every existing list-
+ * view/breadcrumb/delete-dialog consumer keeps working unchanged; the
+ * admin form itself now edits ONLY `translations.{uk,ru,en}`, matching
+ * ChurchInfoTranslation's precedent (Church Info has no flat `title` at
+ * all, only `translations`) -- see category-form.tsx.
+ */
+export interface ProductCategoryTranslation {
+  name: string;
+  description: string;
+}
+
 export interface ProductCategory extends Identifiable, Timestamps {
   name: string;
   slug: string;
@@ -557,6 +581,7 @@ export interface ProductCategory extends Identifiable, Timestamps {
   imageId?: string;
   order: number;
   active: boolean;
+  translations: Record<Language, ProductCategoryTranslation>;
 }
 
 export type StockStatus = "in_stock" | "made_to_order" | "out_of_stock";
@@ -566,6 +591,26 @@ export interface ProductVariant {
   label: string;
   priceOverride?: number;
   sku?: string;
+}
+
+/**
+ * Phase MULTILINGUAL-1 (P1.1): icon_order_options (DTO ChurchProductDto) is
+ * a single-row-per-product table with per-language COLUMNS for name_*,
+ * full_description_*, seo_title_* and seo_description_* -- same
+ * column-per-language shape as categories, not row-per-language like
+ * Icons. The plain `description` column (mapped to `Product.description`
+ * below) has no *_ru/*_en variant in the schema at all and stays a single
+ * flat field, unlike `fullDescription`, which does. `title`/`seoTitle`/
+ * `seoDescription` stay as read-only convenience fields mirroring
+ * `translations.uk` (same reasoning as ProductCategory above) for existing
+ * list-view/breadcrumb/delete-dialog consumers; the admin form edits only
+ * `translations.{uk,ru,en}` -- see product-form.tsx.
+ */
+export interface ProductTranslation {
+  title: string;
+  fullDescription: string;
+  seoTitle: string;
+  seoDescription: string;
 }
 
 export interface Product extends Identifiable, Timestamps {
@@ -587,6 +632,7 @@ export interface Product extends Identifiable, Timestamps {
   variants: ProductVariant[];
   seoTitle?: string;
   seoDescription?: string;
+  translations: Record<Language, ProductTranslation>;
 }
 
 // ---------------------------------------------------------------------------

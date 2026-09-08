@@ -19,11 +19,12 @@ function safeEnum<T extends string>(schema: z.ZodType<T>, value: string, fallbac
 /**
  * BFF DTO -> admin entity mapping.
  *
- * `translationGroupId` synthesized as the reading's own id — same
- * reasoning as Articles' toEntity(): church_gospel_readings has no
- * translation_group_id column, and no Gospel UI anywhere reads/displays
- * this field (grepped directly), so each reading standing in as its own
- * singleton group is an honest placeholder, not a claim of real grouping.
+ * PHASE MULTILINGUAL-4: `translationGroupId` now comes straight from the
+ * Worker (a real, auto-linked-by-slug value, same as Icons/Prayers/Saints)
+ * — church_gospel_readings gained a real `translation_group_id` column in
+ * migration 0017 (svet-ikony), so this is no longer a synthesized
+ * placeholder. GospelReading extends Translatable now, so the
+ * TranslationSwitcher pattern works here too.
  *
  * `calendarDayId` maps straight through as a single relation — the real
  * schema has exactly this singular FK. The admin form now edits it as a
@@ -34,7 +35,7 @@ function safeEnum<T extends string>(schema: z.ZodType<T>, value: string, fallbac
 function toEntity(dto: BffGospelDto): GospelReading {
   return {
     id: dto.id,
-    translationGroupId: dto.id,
+    translationGroupId: dto.translationGroupId,
     language: safeEnum<Language>(languageSchema, dto.language, "uk"),
     title: dto.title,
     slug: dto.slug,
@@ -85,8 +86,15 @@ export const gospelReadingsHttpResource: ApiClient["gospelReadings"] = {
   async remove(id: string): Promise<void> {
     await httpDelete(`${BFF_ENDPOINTS.gospelReadings}/${encodeURIComponent(id)}`);
   },
-  // createTranslation intentionally left as the shared factory's default
-  // (throws a controlled not_implemented error) — same reasoning as
-  // Articles: no translation_group_id, no slug-based auto-join precedent,
-  // and no Gospel UI anywhere calls this today.
+  /** PHASE MULTILINGUAL-4: the Worker has no explicit "join this
+   * translation group" input, same as Icons/Prayers/Saints -- it
+   * auto-links by matching `slug` at insert time (gospel.ts's COALESCE),
+   * so a new translation is just a plain create with the same slug and a
+   * different language; `groupId` isn't needed by the Worker call itself,
+   * only by the caller (gospel/new/page.tsx) to know it's in "add
+   * translation" mode. */
+  async createTranslation(_groupId: string, language: string, values: GospelReadingFormValues): Promise<GospelReading> {
+    const dto = await httpPost<BffGospelDto>(BFF_ENDPOINTS.gospelReadings, toPayload({ ...values, language: language as GospelReadingFormValues["language"] }));
+    return toEntity(dto);
+  },
 };

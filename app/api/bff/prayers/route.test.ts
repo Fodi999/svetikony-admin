@@ -54,7 +54,7 @@ describe("GET /api/bff/prayers", () => {
     vi.unstubAllGlobals();
   });
 
-  it("never returns internal Worker fields (siteId, translationGroupId, isGlobal)", async () => {
+  it("never returns internal Worker-only fields (siteId, isGlobal)", async () => {
     vi.stubGlobal(
       "fetch",
       mockAuthenticatedFetch("viewer", () =>
@@ -64,11 +64,13 @@ describe("GET /api/bff/prayers", () => {
     const response = await GET(new NextRequest("http://localhost/api/bff/prayers", withSessionCookie()));
     const bodyText = await response.text();
     expect(bodyText).not.toContain("siteId");
-    expect(bodyText).not.toContain("translationGroupId");
     expect(bodyText).not.toContain("isGlobal");
     const body = JSON.parse(bodyText);
     expect(body).toHaveLength(1);
     expect(body[0].id).toBe("prayer-1");
+    // PHASE MULTILINGUAL-3: translationGroupId IS now returned -- Prayer is
+    // Translatable, the admin's TranslationSwitcher needs it.
+    expect(body[0].translationGroupId).toBe("group-1");
   });
 
   it("forwards the language query param upstream", async () => {

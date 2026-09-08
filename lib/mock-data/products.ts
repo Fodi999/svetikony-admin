@@ -2,7 +2,16 @@ import type { Product } from "@/types/entities";
 
 const now = new Date().toISOString();
 
-export const mockProducts: Product[] = [
+/**
+ * Phase MULTILINGUAL-1 (P1.1): seed data below stays UK-only, same as real
+ * production D1 today (RU/EN and fullDescription columns exist but are
+ * empty until real translations are populated — this phase makes the
+ * admin able to fill them in, not populates them itself). `translations`
+ * is derived from each entry's own flat `title`/`seoTitle`/
+ * `seoDescription` below rather than duplicated by hand, so the two can
+ * never drift.
+ */
+const rawProducts: Omit<Product, "translations">[] = [
   {
     id: "product-icon-spas-small",
     title: "Ікона «Спас Нерукотворний», мала",
@@ -198,3 +207,12 @@ export const mockProducts: Product[] = [
     updatedAt: now,
   },
 ];
+
+export const mockProducts: Product[] = rawProducts.map((product) => ({
+  ...product,
+  translations: {
+    uk: { title: product.title, fullDescription: "", seoTitle: product.seoTitle ?? "", seoDescription: product.seoDescription ?? "" },
+    ru: { title: "", fullDescription: "", seoTitle: "", seoDescription: "" },
+    en: { title: "", fullDescription: "", seoTitle: "", seoDescription: "" },
+  },
+}));

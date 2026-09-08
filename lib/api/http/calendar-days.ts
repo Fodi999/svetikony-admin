@@ -134,6 +134,21 @@ export const calendarDaysHttpResource: ApiClient["calendarDays"] = {
   async remove(id: string): Promise<void> {
     await httpDelete(`${BFF_ENDPOINTS.calendarDays}/${encodeURIComponent(id)}`);
   },
+  /**
+   * Same slug-matching auto-join as Saints/Icons (lib/api/http/saints.ts) —
+   * the Worker's createCalendarDay inherits translation_group_id from an
+   * existing row with the same slug, so a new translation is just a plain
+   * create with the same slug and a different language. `_groupId` is
+   * unused by the Worker call itself; it's informational only for the
+   * caller.
+   */
+  async createTranslation(_groupId: string, language: string, values: CalendarDayFormValues): Promise<CalendarDay> {
+    const dto = await httpPost<BffCalendarDayDto>(
+      BFF_ENDPOINTS.calendarDays,
+      toPayload({ ...values, language: language as CalendarDayFormValues["language"] }),
+    );
+    return toEntity(dto);
+  },
   async generateDescription(id: string): Promise<CalendarDay> {
     return toEntity(await httpPost<BffCalendarDayDto>(aiActionPath(id, "generate-description"), undefined, AI_TEXT_TIMEOUT_MS));
   },

@@ -9,12 +9,15 @@
  */
 
 /** Mirrors svet-ikony's lib/d1/repositories/articles.ts's ChurchArticleDto
- * exactly (Phase 2B-2). Do not add fields here that aren't in that type —
- * in particular, there is no translationGroupId, no image/cover column,
- * and no saint-relation column of any kind: church_articles genuinely has
- * none of these (verified directly against the migration and repository,
- * not assumed) — see the Phase 2B-2 report's ARTICLE FIELD CONTRACT
- * section for the full reasoning. */
+ * exactly (Phase 2B-2). PHASE MULTILINGUAL-4: `translationGroupId` is now a
+ * real column here too — migration 0017_articles_gospel_translation_group.sql
+ * (svet-ikony) added `translation_group_id` to church_articles, and
+ * articles.ts's create/update now auto-link it by slug (same COALESCE
+ * pattern icons.ts/prayers.ts/saints.ts/alphabet.ts already use). There is
+ * still no image/cover column and no saint-relation column of any kind:
+ * church_articles genuinely has neither (verified directly against the
+ * migration and repository, not assumed) — see the Phase 2B-2 report's
+ * ARTICLE FIELD CONTRACT section for the full reasoning on those two. */
 export interface WorkerArticleDto {
   id: string;
   siteId: string;
@@ -24,6 +27,7 @@ export interface WorkerArticleDto {
   slug: string;
   content: string;
   language: string;
+  translationGroupId: string;
   seoTitle: string;
   seoDescription: string;
   status: string;
@@ -41,6 +45,12 @@ export interface WorkerArticleDto {
  * real but not yet exposed by any admin field; left in the contract for
  * forward compatibility, unused today. Dropped: `siteId`, `isGlobal`
  * (internal single-tenant/Worker fields with no admin use).
+ *
+ * PHASE MULTILINGUAL-4: `translationGroupId` is now exposed -- the Worker
+ * has a real, auto-linked-by-slug value here (see WorkerArticleDto's doc
+ * comment). Article extends Translatable (types/entities.ts) so the
+ * TranslationSwitcher pattern can work here the same way it already does
+ * for Icons/Saints/Prayers.
  */
 export interface BffArticleDto {
   id: string;
@@ -50,6 +60,7 @@ export interface BffArticleDto {
   slug: string;
   content: string;
   language: string;
+  translationGroupId: string;
   seoTitle: string;
   seoDescription: string;
   status: string;
@@ -66,6 +77,7 @@ export function toBffArticleDto(worker: WorkerArticleDto): BffArticleDto {
     slug: worker.slug,
     content: worker.content,
     language: worker.language,
+    translationGroupId: worker.translationGroupId,
     seoTitle: worker.seoTitle,
     seoDescription: worker.seoDescription,
     status: worker.status,

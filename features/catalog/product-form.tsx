@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, Eye, ImageIcon, Plus, Star, Trash2, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { MediaUploadButton } from "@/components/forms/media-upload-button";
@@ -11,6 +11,7 @@ import { NumberField } from "@/components/forms/number-field";
 import { SelectField } from "@/components/forms/select-field";
 import { SwitchField } from "@/components/forms/switch-field";
 import { TextField } from "@/components/forms/text-field";
+import { TranslationSwitcher, type Completeness } from "@/components/forms/translation-switcher";
 import { useUnsavedChanges } from "@/components/feedback/unsaved-changes-context";
 import { applyApiFieldErrors } from "@/lib/api/errors";
 import { Button } from "@/components/ui/button";
@@ -22,7 +23,7 @@ import { resolveMediaPreviewUrl } from "@/lib/media/resolve-preview-url";
 import { useBeforeUnloadWarning } from "@/lib/utils/use-before-unload";
 import { cn } from "@/lib/utils";
 import { productSchema, type ProductFormValues } from "@/lib/validation/product.schema";
-import type { Product } from "@/types/entities";
+import type { Language, Product } from "@/types/entities";
 
 function newVariantId(): string {
   return `var-${Date.now().toString(36)}-${Math.round(Math.random() * 1000)}`;
@@ -41,7 +42,6 @@ async function cleanupOrphanUpload(key: string) {
 }
 
 const EMPTY_DEFAULTS: ProductFormValues = {
-  title: "",
   slug: "",
   description: "",
   price: 0,
@@ -57,8 +57,11 @@ const EMPTY_DEFAULTS: ProductFormValues = {
   productionTimeDays: 0,
   consecrated: false,
   variants: [],
-  seoTitle: "",
-  seoDescription: "",
+  translations: {
+    uk: { title: "", fullDescription: "", seoTitle: "", seoDescription: "" },
+    ru: { title: "", fullDescription: "", seoTitle: "", seoDescription: "" },
+    en: { title: "", fullDescription: "", seoTitle: "", seoDescription: "" },
+  },
 };
 
 interface ProductFormProps {
@@ -72,6 +75,13 @@ interface ProductFormProps {
 export function ProductForm({ mode, product, onSubmit, onDelete, submitting }: ProductFormProps) {
   const { setDirty } = useUnsavedChanges();
   const [tab, setTab] = useState("main");
+  // Which language's title/full description/SEO fields are currently
+  // shown — shared across the "main" and "seo" top-level tabs. This is ONE
+  // row (icon_order_options is column-per-language, not row-per-language),
+  // so switching languages only ever swaps which `translations.{lang}.*`
+  // fields are visible, never navigates to a different record (unlike
+  // Icons' TranslationSwitcher usage).
+  const [translationTab, setTranslationTab] = useState<Language>("uk");
   const [previewOpen, setPreviewOpen] = useState(false);
   // Uploads made this session, not yet confirmed saved — distinct from the
   // form's persisted `imageIds` so an in-progress edit can never delete an
@@ -140,9 +150,25 @@ export function ProductForm({ mode, product, onSubmit, onDelete, submitting }: P
 
   const values = form.watch();
 
+  const completeness = useMemo(() => {
+    const result = {} as Record<Language, Completeness>;
+    (["uk", "ru", "en"] as Language[]).forEach((lang) => {
+      const t = values.translations?.[lang];
+      if (!t?.title) result[lang] = "empty";
+      else if (t.fullDescription && t.seoTitle && t.seoDescription) result[lang] = "done";
+      else result[lang] = "partial";
+    });
+    return result;
+  }, [values.translations]);
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex-1 space-y-4 overflow-y-auto p-4 pb-28 md:p-6 md:pb-24">
+        <div className="space-y-1.5">
+          <p className="text-xs font-medium text-muted-foreground">Переклади</p>
+          <TranslationSwitcher active={translationTab} onSelect={setTranslationTab} completeness={completeness} />
+        </div>
+
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="w-full overflow-x-auto">
             <TabsTrigger value="main">Основне</TabsTrigger>
@@ -154,9 +180,17 @@ export function ProductForm({ mode, product, onSubmit, onDelete, submitting }: P
           </TabsList>
 
           <TabsContent value="main" className="space-y-4">
-            <TextField control={form.control} name="title" label="Назва" />
+            <TextField control={form.control} name={`translations.${translationTab}.title`} label="Назва" />
             <TextField control={form.control} name="slug" label="Slug" description="Латиниця, цифри, дефіси" />
-            <TextField control={form.control} name="description" label="Опис" textarea rows={5} />
+            <TextField control={form.control} name="description" label="Опис" textarea rows={5} description="Короткий опис — єдиний, без мовних варіантів (немає окремих RU/EN колонок у БД)." />
+            <TextField
+              control={form.control}
+              name={`translations.${translationTab}.fullDescription`}
+              label="Повний опис"
+              textarea
+              rows={6}
+              description="Розширений опис товару для сторінки товару, окремо для кожної мови."
+            />
             <SelectField control={form.control} name="categoryId" label="Категорія" options={categoryOptions} />
             <SelectField control={form.control} name="linkedIconId" label="Пов'язана ікона" options={iconOptions} />
           </TabsContent>
@@ -381,14 +415,14 @@ export function ProductForm({ mode, product, onSubmit, onDelete, submitting }: P
           </TabsContent>
 
           <TabsContent value="seo" className="space-y-2">
-            <TextField control={form.control} name="seoTitle" label="SEO-заголовок" />
-            <p className={cn("text-xs", (values.seoTitle?.length ?? 0) > 70 ? "text-destructive" : "text-muted-foreground")}>
-              {values.seoTitle?.length ?? 0}/70 символів
+            <TextField control={form.control} name={`translations.${translationTab}.seoTitle`} label="SEO-заголовок" />
+            <p className={cn("text-xs", (values.translations?.[translationTab]?.seoTitle?.length ?? 0) > 70 ? "text-destructive" : "text-muted-foreground")}>
+              {values.translations?.[translationTab]?.seoTitle?.length ?? 0}/70 символів
             </p>
             <div className="pt-2">
-              <TextField control={form.control} name="seoDescription" label="SEO-опис" textarea rows={3} />
-              <p className={cn("text-xs", (values.seoDescription?.length ?? 0) > 160 ? "text-destructive" : "text-muted-foreground")}>
-                {values.seoDescription?.length ?? 0}/160 символів
+              <TextField control={form.control} name={`translations.${translationTab}.seoDescription`} label="SEO-опис" textarea rows={3} />
+              <p className={cn("text-xs", (values.translations?.[translationTab]?.seoDescription?.length ?? 0) > 160 ? "text-destructive" : "text-muted-foreground")}>
+                {values.translations?.[translationTab]?.seoDescription?.length ?? 0}/160 символів
               </p>
             </div>
           </TabsContent>
@@ -425,7 +459,7 @@ export function ProductForm({ mode, product, onSubmit, onDelete, submitting }: P
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 md:items-center" onClick={() => setPreviewOpen(false)}>
           <div className="max-h-[85svh] w-full max-w-lg overflow-y-auto rounded-t-xl bg-background p-6 md:rounded-xl" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-lg font-semibold">Попередній перегляд</h2>
-            <h3 className="mt-4 text-2xl font-semibold">{values.title || "Без назви"}</h3>
+            <h3 className="mt-4 text-2xl font-semibold">{values.translations.uk.title || "Без назви"}</h3>
             <p className="mt-1 text-lg font-medium">
               {values.price} {values.currency}
             </p>

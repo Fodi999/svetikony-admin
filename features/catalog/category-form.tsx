@@ -2,13 +2,14 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Eye, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { MediaUploadButton } from "@/components/forms/media-upload-button";
 import { NumberField } from "@/components/forms/number-field";
 import { SwitchField } from "@/components/forms/switch-field";
 import { TextField } from "@/components/forms/text-field";
+import { TranslationSwitcher, type Completeness } from "@/components/forms/translation-switcher";
 import { useUnsavedChanges } from "@/components/feedback/unsaved-changes-context";
 import { Button } from "@/components/ui/button";
 import { apiClient } from "@/lib/api";
@@ -17,15 +18,18 @@ import { applyApiFieldErrors } from "@/lib/api/errors";
 import { messages } from "@/lib/i18n";
 import { resolveMediaPreviewUrl } from "@/lib/media/resolve-preview-url";
 import { productCategorySchema, type ProductCategoryFormValues } from "@/lib/validation/category.schema";
-import type { ProductCategory } from "@/types/entities";
+import type { Language, ProductCategory } from "@/types/entities";
 
 const EMPTY_DEFAULTS: ProductCategoryFormValues = {
-  name: "",
   slug: "",
-  description: "",
   imageId: undefined,
   order: 0,
   active: true,
+  translations: {
+    uk: { name: "", description: "" },
+    ru: { name: "", description: "" },
+    en: { name: "", description: "" },
+  },
 };
 
 /** Best-effort orphan cleanup for a not-yet-saved upload. No-op in mock
@@ -51,6 +55,12 @@ interface CategoryFormProps {
 export function CategoryForm({ mode, category, onSubmit, onDelete, submitting }: CategoryFormProps) {
   const { setDirty } = useUnsavedChanges();
   const [previewOpen, setPreviewOpen] = useState(false);
+  // Which language's name/description fields are currently shown — this is
+  // ONE row (icon_product_categories is column-per-language, not
+  // row-per-language), so switching languages only ever swaps which
+  // `translations.{lang}.*` fields are visible, never navigates to a
+  // different record (unlike Icons' TranslationSwitcher usage).
+  const [translationTab, setTranslationTab] = useState<Language>("uk");
   // The most recent upload not yet confirmed saved — distinct from the
   // form's persisted `imageId` so an in-progress edit can never delete an
   // already-published image, only ever its own not-yet-saved replacement.
@@ -101,12 +111,27 @@ export function CategoryForm({ mode, category, onSubmit, onDelete, submitting }:
   const values = form.watch();
   const imagePreviewUrl = resolveMediaPreviewUrl(values.imageId);
 
+  const completeness = useMemo(() => {
+    const result = {} as Record<Language, Completeness>;
+    (["uk", "ru", "en"] as Language[]).forEach((lang) => {
+      const t = values.translations?.[lang];
+      if (!t?.name) result[lang] = "empty";
+      else if (t.description) result[lang] = "done";
+      else result[lang] = "partial";
+    });
+    return result;
+  }, [values.translations]);
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex-1 space-y-4 overflow-y-auto p-4 pb-24 md:p-6">
-        <TextField control={form.control} name="name" label="Назва" />
+        <div className="space-y-1.5">
+          <p className="text-xs font-medium text-muted-foreground">Переклади</p>
+          <TranslationSwitcher active={translationTab} onSelect={setTranslationTab} completeness={completeness} />
+        </div>
+        <TextField control={form.control} name={`translations.${translationTab}.name`} label="Назва" />
         <TextField control={form.control} name="slug" label="Slug" description="Латиниця, цифри, дефіси" />
-        <TextField control={form.control} name="description" label="Опис" textarea rows={3} />
+        <TextField control={form.control} name={`translations.${translationTab}.description`} label="Опис" textarea rows={3} />
         <div className="space-y-2">
           <TextField control={form.control} name="imageId" label="ID зображення" description="Посилання на медіатеку (заповнюється автоматично після завантаження)" />
           <div className="flex gap-2">
@@ -172,8 +197,8 @@ export function CategoryForm({ mode, category, onSubmit, onDelete, submitting }:
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 md:items-center" onClick={() => setPreviewOpen(false)}>
           <div className="max-h-[85svh] w-full max-w-sm overflow-y-auto rounded-t-xl bg-background p-6 md:rounded-xl" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-lg font-semibold">Попередній перегляд</h2>
-            <h3 className="mt-4 text-xl font-semibold">{values.name || "Без назви"}</h3>
-            <p className="mt-2 text-sm leading-relaxed">{values.description}</p>
+            <h3 className="mt-4 text-xl font-semibold">{values.translations.uk.name || "Без назви"}</h3>
+            <p className="mt-2 text-sm leading-relaxed">{values.translations.uk.description}</p>
             <Button className="mt-4 h-11 w-full" variant="outline" onClick={() => setPreviewOpen(false)}>
               Закрити
             </Button>

@@ -19,18 +19,13 @@ function safeEnum<T extends string>(schema: z.ZodType<T>, value: string, fallbac
 /**
  * BFF DTO -> admin entity mapping.
  *
- * `translationGroupId` is synthesized as the article's own id:
- * church_articles has no translation_group_id column at all (unlike
- * icons/saints/prayers/calendar, all of which do) — verified directly
- * against the migration and repository, not assumed. No Articles UI
- * anywhere reads or displays this field (grepped directly across
- * features/articles/**), so representing each article as its own
- * singleton group is an honest placeholder for "no real grouping exists"
- * rather than a claim that any two articles are actually linked as
- * translations of each other. `createTranslation` is deliberately NOT
- * implemented below for the same reason (see articlesHttpResource) — it
- * inherits the shared factory's not-implemented default instead of faking
- * a group join.
+ * PHASE MULTILINGUAL-4: `translationGroupId` now comes straight from the
+ * Worker (a real, auto-linked-by-slug value, same as Icons/Prayers/Saints)
+ * — church_articles gained a real `translation_group_id` column in
+ * migration 0017 (svet-ikony), so this is no longer a synthesized
+ * placeholder. Article extends Translatable now, so the
+ * TranslationSwitcher pattern works here too — see articlesHttpResource's
+ * new createTranslation below.
  *
  * `iconId` maps straight through as a single relation — church_articles
  * really does have this column, and the admin form now edits it as a
@@ -44,7 +39,7 @@ function safeEnum<T extends string>(schema: z.ZodType<T>, value: string, fallbac
 function toEntity(dto: BffArticleDto): Article {
   return {
     id: dto.id,
-    translationGroupId: dto.id,
+    translationGroupId: dto.translationGroupId,
     language: safeEnum<Language>(languageSchema, dto.language, "uk"),
     title: dto.title,
     slug: dto.slug,
@@ -96,11 +91,17 @@ export const articlesHttpResource: ApiClient["articles"] = {
   async remove(id: string): Promise<void> {
     await httpDelete(`${BFF_ENDPOINTS.articles}/${encodeURIComponent(id)}`);
   },
-  // createTranslation intentionally left as the shared factory's default
-  // (throws a controlled not_implemented error): church_articles has no
-  // translation_group_id and no slug-based auto-join precedent (its own
-  // repository comment notes articles require an explicit slug, unlike
-  // saints/gospel/prayers' slugify-from-title fallback), and no Articles
-  // UI anywhere calls this today (grepped directly) — failing loudly is
-  // correct if it's ever wired to a UI later, rather than faking a group.
+  /** PHASE MULTILINGUAL-4: the Worker has no explicit "join this
+   * translation group" input, same as Icons/Gospel/Prayers/Saints -- it
+   * auto-links by matching `slug` at insert time (articles.ts's COALESCE),
+   * so a new translation is just a plain create with the same slug and a
+   * different language; `groupId` isn't needed by the Worker call itself,
+   * only by the caller (articles/new/page.tsx) to know it's in "add
+   * translation" mode. Articles still require an explicit slug (no
+   * slugify-from-title fallback server-side), so the caller must carry the
+   * sibling's own slug forward — same as every other module's "new" page. */
+  async createTranslation(_groupId: string, language: string, values: ArticleFormValues): Promise<Article> {
+    const dto = await httpPost<BffArticleDto>(BFF_ENDPOINTS.articles, toPayload({ ...values, language: language as ArticleFormValues["language"] }));
+    return toEntity(dto);
+  },
 };

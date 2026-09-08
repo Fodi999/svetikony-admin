@@ -3,7 +3,8 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, Eye, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { SceneTimelineEditor } from "@/features/prayers/scene-timeline-editor";
@@ -15,6 +16,7 @@ import { QrCodePreview } from "@/components/forms/qr-code-preview";
 import { SelectField } from "@/components/forms/select-field";
 import { SwitchField } from "@/components/forms/switch-field";
 import { TextField } from "@/components/forms/text-field";
+import { TranslationSwitcher, type Completeness } from "@/components/forms/translation-switcher";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -22,11 +24,11 @@ import { apiClient } from "@/lib/api";
 import { useAuth } from "@/lib/auth/auth-context";
 import { useUnsavedChanges } from "@/components/feedback/unsaved-changes-context";
 import { useBeforeUnloadWarning } from "@/lib/utils/use-before-unload";
-import { LANGUAGE_LABELS, PARTICLE_COLOR_MODE_LABELS, PRAYER_TYPE_LABELS } from "@/lib/constants/labels";
+import { PARTICLE_COLOR_MODE_LABELS, PRAYER_TYPE_LABELS } from "@/lib/constants/labels";
 import { messages } from "@/lib/i18n";
 import { SVET_IKONY_SITE_URL } from "@/lib/site";
 import { prayerSchema, type PrayerFormValues } from "@/lib/validation/prayer.schema";
-import type { Prayer } from "@/types/entities";
+import type { Language, Prayer } from "@/types/entities";
 
 const EMPTY_DEFAULTS: PrayerFormValues = {
   title: "",
@@ -92,12 +94,16 @@ function extractMediaKey(value: string | undefined): string | undefined {
 interface PrayerFormProps {
   mode: "create" | "edit";
   prayer?: Prayer;
+  groupId?: string;
+  initialLanguage?: Language;
+  initialSlug?: string;
   onSubmit: (values: PrayerFormValues) => Promise<void>;
   onDelete?: () => void;
   submitting?: boolean;
 }
 
-export function PrayerForm({ mode, prayer, onSubmit, onDelete, submitting }: PrayerFormProps) {
+export function PrayerForm({ mode, prayer, groupId, initialLanguage, initialSlug, onSubmit, onDelete, submitting }: PrayerFormProps) {
+  const router = useRouter();
   const { user } = useAuth();
   const { setDirty } = useUnsavedChanges();
   const [tab, setTab] = useState("text");
@@ -127,7 +133,9 @@ export function PrayerForm({ mode, prayer, onSubmit, onDelete, submitting }: Pra
 
   const form = useForm<PrayerFormValues>({
     resolver: zodResolver(prayerSchema),
-    defaultValues: prayer ? toFormValues(prayer) : EMPTY_DEFAULTS,
+    defaultValues: prayer
+      ? toFormValues(prayer)
+      : { ...EMPTY_DEFAULTS, language: initialLanguage ?? "uk", slug: initialSlug ?? "" },
   });
 
   useEffect(() => {
@@ -148,6 +156,40 @@ export function PrayerForm({ mode, prayer, onSubmit, onDelete, submitting }: Pra
 
   const iconOptions = (iconsQuery.data?.items ?? []).map((i) => ({ value: i.id, label: `${i.title} (${i.language})` }));
   const calendarOptions = (calendarQuery.data?.items ?? []).map((d) => ({ value: d.id, label: `${d.title} (${d.date})` }));
+
+  const effectiveGroupId = prayer?.translationGroupId ?? groupId;
+
+  const siblingsQuery = useQuery({
+    queryKey: ["prayers", "group", effectiveGroupId],
+    queryFn: () => apiClient.prayers.list({ pageSize: 200 }),
+    enabled: !!effectiveGroupId,
+  });
+  const siblings = (siblingsQuery.data?.items ?? []).filter((p) => p.translationGroupId === effectiveGroupId);
+
+  const completeness = useMemo(() => {
+    const result = {} as Record<Language, Completeness>;
+    (["uk", "ru", "en"] as Language[]).forEach((lang) => {
+      const sibling = siblings.find((s) => s.language === lang);
+      if (!sibling) {
+        result[lang] = "empty";
+      } else if (sibling.title && sibling.text) {
+        result[lang] = "done";
+      } else {
+        result[lang] = "partial";
+      }
+    });
+    return result;
+  }, [siblings]);
+
+  function handleSwitchLanguage(lang: Language) {
+    if (lang === prayer?.language) return;
+    const sibling = siblings.find((s) => s.language === lang);
+    if (sibling) {
+      router.push(`/prayers/${sibling.id}`);
+    } else if (effectiveGroupId) {
+      router.push(`/prayers/new?groupId=${effectiveGroupId}&language=${lang}&slug=${encodeURIComponent(form.getValues("slug"))}`);
+    }
+  }
 
   const visualizerEnabled = form.watch("visualizerEnabled");
   const visualizerImageUrl = form.watch("visualizerImageUrl");
@@ -186,6 +228,13 @@ export function PrayerForm({ mode, prayer, onSubmit, onDelete, submitting }: Pra
   return (
     <div className="flex h-full flex-col">
       <form className="flex-1 space-y-4 overflow-y-auto p-4 pb-28 md:p-6 md:pb-24" onSubmit={(e) => e.preventDefault()}>
+        {effectiveGroupId ? (
+          <div className="space-y-1.5">
+            <p className="text-xs font-medium text-muted-foreground">Переклади</p>
+            <TranslationSwitcher active={language} onSelect={handleSwitchLanguage} completeness={completeness} />
+          </div>
+        ) : null}
+
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="w-full overflow-x-auto">
             <TabsTrigger value="text">Текст</TabsTrigger>
@@ -198,20 +247,12 @@ export function PrayerForm({ mode, prayer, onSubmit, onDelete, submitting }: Pra
           <TabsContent value="text" className="space-y-4">
             <TextField control={form.control} name="title" label="Назва" />
             <TextField control={form.control} name="slug" label="Slug" description="Латиниця, цифри, дефіси" />
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <SelectField
-                control={form.control}
-                name="language"
-                label="Мова"
-                options={Object.entries(LANGUAGE_LABELS).map(([value, label]) => ({ value, label }))}
-              />
-              <SelectField
-                control={form.control}
-                name="prayerType"
-                label="Тип молитви"
-                options={Object.entries(PRAYER_TYPE_LABELS).map(([value, label]) => ({ value, label }))}
-              />
-            </div>
+            <SelectField
+              control={form.control}
+              name="prayerType"
+              label="Тип молитви"
+              options={Object.entries(PRAYER_TYPE_LABELS).map(([value, label]) => ({ value, label }))}
+            />
             <TextField control={form.control} name="text" label="Текст молитви" textarea rows={10} />
           </TabsContent>
 

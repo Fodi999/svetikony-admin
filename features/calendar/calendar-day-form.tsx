@@ -3,7 +3,8 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
 import { Eye, Sparkles, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/feedback/confirm-dialog";
@@ -11,17 +12,17 @@ import { MediaUploadButton } from "@/components/forms/media-upload-button";
 import { RelationPickerField } from "@/components/forms/relation-picker-field";
 import { SelectField } from "@/components/forms/select-field";
 import { TextField } from "@/components/forms/text-field";
+import { TranslationSwitcher, type Completeness } from "@/components/forms/translation-switcher";
 import { useUnsavedChanges } from "@/components/feedback/unsaved-changes-context";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { apiClient } from "@/lib/api";
-import { LANGUAGE_LABELS } from "@/lib/constants/labels";
 import { messages } from "@/lib/i18n";
 import { useBeforeUnloadWarning } from "@/lib/utils/use-before-unload";
 import { resolveMediaPreviewUrl } from "@/lib/media/resolve-preview-url";
 import { calendarDaySchema, type CalendarDayFormValues } from "@/lib/validation/calendar.schema";
-import type { CalendarDay } from "@/types/entities";
+import type { CalendarDay, Language } from "@/types/entities";
 import { useCalendarAiActions } from "./use-calendar-ai-actions";
 
 const EVENT_TYPE_LABELS = {
@@ -71,12 +72,26 @@ interface CalendarDayFormProps {
    * an empty month-grid slot (task section 7: "виртуальный день" ->
    * create). Ignored when `day` is set. */
   initialDate?: string;
+  groupId?: string;
+  initialLanguage?: Language;
+  initialSlug?: string;
   onSubmit: (values: CalendarDayFormValues) => Promise<void>;
   onDelete?: () => void;
   submitting?: boolean;
 }
 
-export function CalendarDayForm({ mode, day, initialDate, onSubmit, onDelete, submitting }: CalendarDayFormProps) {
+export function CalendarDayForm({
+  mode,
+  day,
+  initialDate,
+  groupId,
+  initialLanguage,
+  initialSlug,
+  onSubmit,
+  onDelete,
+  submitting,
+}: CalendarDayFormProps) {
+  const router = useRouter();
   const { setDirty } = useUnsavedChanges();
   const [tab, setTab] = useState("basic");
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -102,7 +117,14 @@ export function CalendarDayForm({ mode, day, initialDate, onSubmit, onDelete, su
 
   const form = useForm<CalendarDayFormValues>({
     resolver: zodResolver(calendarDaySchema),
-    defaultValues: day ? { ...EMPTY_DEFAULTS, ...day } : initialDate ? { ...EMPTY_DEFAULTS, date: initialDate } : EMPTY_DEFAULTS,
+    defaultValues: day
+      ? { ...EMPTY_DEFAULTS, ...day }
+      : {
+          ...EMPTY_DEFAULTS,
+          language: initialLanguage ?? "uk",
+          slug: initialSlug ?? "",
+          ...(initialDate ? { date: initialDate } : {}),
+        },
   });
 
   useEffect(() => {
@@ -132,6 +154,40 @@ export function CalendarDayForm({ mode, day, initialDate, onSubmit, onDelete, su
   const saintOptions = (saintsQuery.data?.items ?? []).map((s) => ({ value: s.id, label: s.name }));
   const gospelOptions = (gospelQuery.data?.items ?? []).map((g) => ({ value: g.id, label: g.title }));
 
+  const effectiveGroupId = day?.translationGroupId ?? groupId;
+
+  const siblingsQuery = useQuery({
+    queryKey: ["calendarDays", "group", effectiveGroupId],
+    queryFn: () => apiClient.calendarDays.list({ pageSize: 200 }),
+    enabled: !!effectiveGroupId,
+  });
+  const siblings = (siblingsQuery.data?.items ?? []).filter((d) => d.translationGroupId === effectiveGroupId);
+
+  const completeness = useMemo(() => {
+    const result = {} as Record<Language, Completeness>;
+    (["uk", "ru", "en"] as Language[]).forEach((lang) => {
+      const sibling = siblings.find((d) => d.language === lang);
+      if (!sibling) {
+        result[lang] = "empty";
+      } else if (sibling.title && sibling.shortDescription) {
+        result[lang] = "done";
+      } else {
+        result[lang] = "partial";
+      }
+    });
+    return result;
+  }, [siblings]);
+
+  function handleSwitchLanguage(lang: Language) {
+    if (lang === day?.language) return;
+    const sibling = siblings.find((d) => d.language === lang);
+    if (sibling) {
+      router.push(`/calendar/${sibling.id}`);
+    } else if (effectiveGroupId) {
+      router.push(`/calendar/new?groupId=${effectiveGroupId}&language=${lang}&slug=${encodeURIComponent(form.getValues("slug"))}`);
+    }
+  }
+
   async function handleSave(publish: boolean) {
     if (publish) form.setValue("status", "published", { shouldDirty: true });
     const valid = await form.trigger();
@@ -151,6 +207,13 @@ export function CalendarDayForm({ mode, day, initialDate, onSubmit, onDelete, su
   return (
     <div className="flex h-full flex-col">
       <div className="flex-1 space-y-4 overflow-y-auto p-4 pb-28 md:p-6 md:pb-24">
+        {effectiveGroupId ? (
+          <div className="space-y-1.5">
+            <p className="text-xs font-medium text-muted-foreground">Переклади</p>
+            <TranslationSwitcher active={values.language} onSelect={handleSwitchLanguage} completeness={completeness} />
+          </div>
+        ) : null}
+
         {mode === "edit" && day ? (
           <Button
             type="button"
@@ -177,20 +240,12 @@ export function CalendarDayForm({ mode, day, initialDate, onSubmit, onDelete, su
             <TextField control={form.control} name="date" label="Дата" type="date" />
             <TextField control={form.control} name="title" label="Назва" />
             <TextField control={form.control} name="slug" label="Slug" description="Латиниця, цифри, дефіси" />
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <SelectField
-                control={form.control}
-                name="language"
-                label="Мова"
-                options={Object.entries(LANGUAGE_LABELS).map(([value, label]) => ({ value, label }))}
-              />
-              <SelectField
-                control={form.control}
-                name="eventType"
-                label="Тип події"
-                options={Object.entries(EVENT_TYPE_LABELS).map(([value, label]) => ({ value, label }))}
-              />
-            </div>
+            <SelectField
+              control={form.control}
+              name="eventType"
+              label="Тип події"
+              options={Object.entries(EVENT_TYPE_LABELS).map(([value, label]) => ({ value, label }))}
+            />
           </TabsContent>
 
           <TabsContent value="content" className="space-y-4">

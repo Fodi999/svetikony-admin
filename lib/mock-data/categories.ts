@@ -2,7 +2,15 @@ import type { ProductCategory } from "@/types/entities";
 
 const now = new Date().toISOString();
 
-export const mockCategories: ProductCategory[] = [
+/**
+ * Phase MULTILINGUAL-1 (P1.2): seed data below stays UK-only, same as real
+ * production D1 today (RU/EN columns exist but are empty until real
+ * translations are populated — this phase makes the admin able to fill
+ * them in, not populates them itself). `translations` is derived from
+ * each entry's own flat `name`/`description` below rather than duplicated
+ * by hand, so the two can never drift.
+ */
+const rawCategories: Omit<ProductCategory, "translations">[] = [
   {
     id: "cat-icons",
     name: "Ікони",
@@ -56,3 +64,12 @@ export const mockCategories: ProductCategory[] = [
     updatedAt: now,
   },
 ];
+
+export const mockCategories: ProductCategory[] = rawCategories.map((category) => ({
+  ...category,
+  translations: {
+    uk: { name: category.name, description: category.description ?? "" },
+    ru: { name: "", description: "" },
+    en: { name: "", description: "" },
+  },
+}));

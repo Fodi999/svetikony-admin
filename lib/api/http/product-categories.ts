@@ -8,13 +8,12 @@ import type { ListQuery } from "@/types/api";
 import type { ProductCategory } from "@/types/entities";
 
 /**
- * BFF DTO -> admin entity mapping (Stage 2J). The Worker stores name/
- * description per-locale (nameUk/Ru/En); the admin form edits a single
- * field, same treatment as Calendar Day's single `language` — always reads/
- * writes the `Uk` column. `Ru`/`En` are left untouched (never sent), and
- * the public site already falls back to `nameUk` when they're empty (see
- * svet-ikony's ShopCatalog.tsx `productCategoryName()`), so this degrades
- * gracefully rather than showing blank text in other locales.
+ * BFF DTO -> admin entity mapping (Stage 2J; widened Phase MULTILINGUAL-1
+ * P1.2). The Worker stores name/description per-locale (nameUk/Ru/En) as
+ * columns on one row. `name`/`description` stay Uk-derived read-only
+ * convenience fields for existing list-view/breadcrumb consumers (see
+ * types/entities.ts's ProductCategoryTranslation doc comment); `translations`
+ * carries all three languages for category-form.tsx's UK/RU/EN tabs.
  */
 function toEntity(dto: BffProductCategoryDto): ProductCategory {
   return {
@@ -25,16 +24,35 @@ function toEntity(dto: BffProductCategoryDto): ProductCategory {
     imageId: dto.imageUrl || undefined,
     order: dto.sortOrder,
     active: dto.isActive,
+    translations: {
+      uk: { name: dto.nameUk, description: dto.descriptionUk },
+      ru: { name: dto.nameRu, description: dto.descriptionRu },
+      en: { name: dto.nameEn, description: dto.descriptionEn },
+    },
     createdAt: dto.createdAt,
     updatedAt: dto.updatedAt,
   };
 }
 
+/**
+ * Always sends every language's current form value (never a partial diff)
+ * — the Worker's `updateProductCategory()` treats an OMITTED nameRu/nameEn/
+ * descriptionRu/descriptionEn as "leave unchanged" (`payload.nameRu ??
+ * current.nameRu`, verified in svet-ikony's productCategories.ts), but a
+ * SENT empty string overwrites, so this must always forward the form's
+ * real current translations state for all three languages, matching
+ * Church Info's toPayload() precedent (see write-isolation test coverage
+ * in svet-ikony's productCategories.write-isolation.test.ts).
+ */
 function toPayload(values: ProductCategoryFormValues): WorkerProductCategoryWritePayload {
   return {
     slug: values.slug,
-    nameUk: values.name,
-    descriptionUk: values.description ?? "",
+    nameUk: values.translations.uk.name,
+    nameRu: values.translations.ru.name ?? "",
+    nameEn: values.translations.en.name ?? "",
+    descriptionUk: values.translations.uk.description ?? "",
+    descriptionRu: values.translations.ru.description ?? "",
+    descriptionEn: values.translations.en.description ?? "",
     imageUrl: values.imageId ?? "",
     isActive: values.active,
     sortOrder: values.order,

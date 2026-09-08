@@ -9,11 +9,12 @@
  */
 
 /** Mirrors svet-ikony's lib/d1/repositories/gospel.ts's ChurchGospelDto
- * exactly (Phase 2B-3). Do not add fields here that aren't in that type —
- * in particular, there is no translationGroupId and no image/cover column,
- * same as Articles (verified directly against the migration and
- * repository, not assumed — Gospel is NOT identical to Articles, but this
- * particular gap is). */
+ * exactly (Phase 2B-3). PHASE MULTILINGUAL-4: `translationGroupId` is now a
+ * real column here too — migration 0017_articles_gospel_translation_group.sql
+ * (svet-ikony) added `translation_group_id` to church_gospel_readings, and
+ * gospel.ts's create/update now auto-link it by slug (same COALESCE pattern
+ * icons.ts/prayers.ts/saints.ts/alphabet.ts already use). There is still no
+ * image/cover column, same as Articles (that part is unchanged). */
 export interface WorkerGospelDto {
   id: string;
   siteId: string;
@@ -25,6 +26,7 @@ export interface WorkerGospelDto {
   text: string;
   explanation: string;
   language: string;
+  translationGroupId: string;
   status: string;
   isGlobal: boolean;
   createdAt: string;
@@ -40,6 +42,12 @@ export interface WorkerGospelDto {
  * exposed by any admin field; left in the contract for forward
  * compatibility, unused today (same as Articles' calendarDayId). Dropped:
  * `siteId`, `isGlobal` (internal, no admin use).
+ *
+ * PHASE MULTILINGUAL-4: `translationGroupId` is now exposed -- the Worker
+ * has a real, auto-linked-by-slug value here (see WorkerGospelDto's doc
+ * comment). GospelReading extends Translatable (types/entities.ts) so the
+ * TranslationSwitcher pattern can work here the same way it already does
+ * for Icons/Saints/Prayers.
  */
 export interface BffGospelDto {
   id: string;
@@ -51,6 +59,7 @@ export interface BffGospelDto {
   text: string;
   explanation: string;
   language: string;
+  translationGroupId: string;
   status: string;
   createdAt: string;
   updatedAt: string;
@@ -67,6 +76,7 @@ export function toBffGospelDto(worker: WorkerGospelDto): BffGospelDto {
     text: worker.text,
     explanation: worker.explanation,
     language: worker.language,
+    translationGroupId: worker.translationGroupId,
     status: worker.status,
     createdAt: worker.createdAt,
     updatedAt: worker.updatedAt,

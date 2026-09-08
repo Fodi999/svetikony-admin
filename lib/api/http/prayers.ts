@@ -55,11 +55,15 @@ function parseSubtitleCues(raw: unknown): SubtitleCue[] {
 }
 
 /**
- * BFF DTO -> admin entity mapping. Prayer has no Translatable
- * (translationGroupId) concept and no image-id-vs-url gap (Prayer.imageUrl
- * is already a plain URL in the admin model, unlike Alphabet's
- * mainImageId) — the only real gaps are the two enum mismatches and the two
- * JSON-shape mismatches documented above.
+ * BFF DTO -> admin entity mapping. Prayer has no image-id-vs-url gap
+ * (Prayer.imageUrl is already a plain URL in the admin model, unlike
+ * Alphabet's mainImageId) — the remaining real gaps are the two enum
+ * mismatches and the two JSON-shape mismatches documented above.
+ *
+ * PHASE MULTILINGUAL-3: `translationGroupId` now comes straight from the
+ * Worker (a real, auto-linked-by-slug value, same as Icons/Saints) --
+ * Prayer extends Translatable now, so the TranslationSwitcher pattern
+ * works here too.
  */
 function toEntity(dto: BffPrayerDto): Prayer {
   return {
@@ -68,6 +72,7 @@ function toEntity(dto: BffPrayerDto): Prayer {
     slug: dto.slug,
     text: dto.text,
     language: safeEnum<Language>(languageSchema, dto.language, "uk"),
+    translationGroupId: dto.translationGroupId,
     prayerType: safeEnum<PrayerType>(prayerTypeSchema, dto.prayerType, "general"),
     status: safeEnum<ContentStatus>(contentStatusSchema, dto.status, "draft"),
     iconId: dto.iconId ?? undefined,
@@ -163,5 +168,16 @@ export const prayersHttpResource: ApiClient["prayers"] = {
   },
   async remove(id: string): Promise<void> {
     await httpDelete(`${BFF_ENDPOINTS.prayers}/${encodeURIComponent(id)}`);
+  },
+  /** PHASE MULTILINGUAL-3: the Worker has no explicit "join this
+   * translation group" input, same as Icons/Saints -- it auto-links by
+   * matching `slug` at insert time (see prayers.ts's COALESCE), so a new
+   * translation is just a plain create with the same slug and a different
+   * language; `groupId` isn't needed by the Worker call itself, only by
+   * the caller (prayers/new/page.tsx) to know it's in "add translation"
+   * mode. */
+  async createTranslation(_groupId: string, language: string, values: PrayerFormValues): Promise<Prayer> {
+    const dto = await httpPost<BffPrayerDto>(BFF_ENDPOINTS.prayers, toPayload({ ...values, language: language as PrayerFormValues["language"] }));
+    return toEntity(dto);
   },
 };

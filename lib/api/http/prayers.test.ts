@@ -16,6 +16,7 @@ function dto(overrides: Partial<Record<string, unknown>> = {}) {
     sourceUrl: "",
     note: "",
     language: "uk",
+    translationGroupId: "prayer-grp-1",
     prayerType: "general",
     status: "draft",
     visualizerEnabled: true,
@@ -53,6 +54,7 @@ describe("prayersHttpResource", () => {
         slug: "otche-nash",
         text: "Отче наш, Ти що єси на небесах",
         language: "uk",
+        translationGroupId: "prayer-grp-1",
         prayerType: "general",
         status: "draft",
         iconId: undefined,
@@ -319,13 +321,18 @@ describe("prayersHttpResource", () => {
       await expect(prayersHttpResource.create(formValues)).rejects.toMatchObject({ code: "validation_error" });
     });
 
-    it("createTranslation throws a controlled not_implemented ApiError without calling fetch (no real translation-group concept for prayers)", async () => {
-      const fetchMock = vi.fn();
+    it("createTranslation POSTs the mapped payload with the target language, to the same plain create endpoint (Worker auto-links by slug)", async () => {
+      const fetchMock = vi.fn().mockResolvedValue(jsonResponse(dto({ language: "ru", translationGroupId: "group-1" }), 201));
       vi.stubGlobal("fetch", fetchMock);
-      await expect(prayersHttpResource.createTranslation?.("group-1", "ru", formValues)).rejects.toMatchObject({
-        code: "not_implemented",
-      });
-      expect(fetchMock).not.toHaveBeenCalled();
+
+      const prayer = await prayersHttpResource.createTranslation?.("group-1", "ru", formValues);
+
+      expect(prayer?.translationGroupId).toBe("group-1");
+      expect(prayer?.language).toBe("ru");
+      expect(fetchMock).toHaveBeenCalledWith("/api/bff/prayers", expect.objectContaining({ method: "POST" }));
+      const [, init] = fetchMock.mock.calls[0];
+      const body = JSON.parse(init.body as string);
+      expect(body).toMatchObject({ language: "ru", slug: "otche-nash" });
     });
   });
 });

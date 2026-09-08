@@ -1,21 +1,23 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useQuery } from "@tanstack/react-query";
 import { Eye } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { NumberField } from "@/components/forms/number-field";
-import { SelectField } from "@/components/forms/select-field";
 import { TextField } from "@/components/forms/text-field";
+import { TranslationSwitcher, type Completeness } from "@/components/forms/translation-switcher";
 import { useUnsavedChanges } from "@/components/feedback/unsaved-changes-context";
 import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
+import { apiClient } from "@/lib/api";
 import { messages } from "@/lib/i18n";
-import { LANGUAGE_LABELS } from "@/lib/constants/labels";
 import { useBeforeUnloadWarning } from "@/lib/utils/use-before-unload";
 import { alphabetLetterSchema, type AlphabetLetterFormValues } from "@/lib/validation/alphabet.schema";
-import type { AlphabetLetter } from "@/types/entities";
+import type { AlphabetLetter, Language } from "@/types/entities";
 
 const EMPTY_DEFAULTS: AlphabetLetterFormValues = {
   slug: "",
@@ -32,18 +34,33 @@ const EMPTY_DEFAULTS: AlphabetLetterFormValues = {
 interface AlphabetLetterFormProps {
   mode: "create" | "edit";
   letter?: AlphabetLetter;
+  groupId?: string;
+  initialLanguage?: Language;
+  initialSlug?: string;
   onSubmit: (values: AlphabetLetterFormValues) => Promise<void>;
   onDelete?: () => void;
   submitting?: boolean;
 }
 
-export function AlphabetLetterFormComponent({ mode, letter, onSubmit, onDelete, submitting }: AlphabetLetterFormProps) {
+export function AlphabetLetterFormComponent({
+  mode,
+  letter,
+  groupId,
+  initialLanguage,
+  initialSlug,
+  onSubmit,
+  onDelete,
+  submitting,
+}: AlphabetLetterFormProps) {
+  const router = useRouter();
   const { setDirty } = useUnsavedChanges();
   const [previewOpen, setPreviewOpen] = useState(false);
 
   const form = useForm<AlphabetLetterFormValues>({
     resolver: zodResolver(alphabetLetterSchema),
-    defaultValues: letter ? { ...EMPTY_DEFAULTS, ...letter } : EMPTY_DEFAULTS,
+    defaultValues: letter
+      ? { ...EMPTY_DEFAULTS, ...letter }
+      : { ...EMPTY_DEFAULTS, language: initialLanguage ?? "uk", slug: initialSlug ?? "" },
   });
 
   useEffect(() => {
@@ -52,6 +69,40 @@ export function AlphabetLetterFormComponent({ mode, letter, onSubmit, onDelete, 
   }, [form, setDirty]);
 
   useBeforeUnloadWarning(form.formState.isDirty);
+
+  const effectiveGroupId = letter?.translationGroupId ?? groupId;
+
+  const siblingsQuery = useQuery({
+    queryKey: ["alphabetLetters", "group", effectiveGroupId],
+    queryFn: () => apiClient.alphabetLetters.list({ pageSize: 200 }),
+    enabled: !!effectiveGroupId,
+  });
+  const siblings = (siblingsQuery.data?.items ?? []).filter((l) => l.translationGroupId === effectiveGroupId);
+
+  const completeness = useMemo(() => {
+    const result = {} as Record<Language, Completeness>;
+    (["uk", "ru", "en"] as Language[]).forEach((lang) => {
+      const sibling = siblings.find((l) => l.language === lang);
+      if (!sibling) {
+        result[lang] = "empty";
+      } else if (sibling.name && sibling.historicalNote) {
+        result[lang] = "done";
+      } else {
+        result[lang] = "partial";
+      }
+    });
+    return result;
+  }, [siblings]);
+
+  function handleSwitchLanguage(lang: Language) {
+    if (lang === letter?.language) return;
+    const sibling = siblings.find((l) => l.language === lang);
+    if (sibling) {
+      router.push(`/alphabet/${sibling.id}`);
+    } else if (effectiveGroupId) {
+      router.push(`/alphabet/new?groupId=${effectiveGroupId}&language=${lang}&slug=${encodeURIComponent(form.getValues("slug"))}`);
+    }
+  }
 
   async function handleSave() {
     const valid = await form.trigger();
@@ -68,6 +119,13 @@ export function AlphabetLetterFormComponent({ mode, letter, onSubmit, onDelete, 
   return (
     <div className="flex h-full flex-col">
       <div className="flex-1 space-y-4 overflow-y-auto p-4 pb-24 md:p-6">
+        {effectiveGroupId ? (
+          <div className="space-y-1.5">
+            <p className="text-xs font-medium text-muted-foreground">Переклади</p>
+            <TranslationSwitcher active={values.language} onSelect={handleSwitchLanguage} completeness={completeness} />
+          </div>
+        ) : null}
+
         {letter ? (
           <Field>
             <FieldLabel>Translation Group ID</FieldLabel>
@@ -78,15 +136,7 @@ export function AlphabetLetterFormComponent({ mode, letter, onSubmit, onDelete, 
 
         <TextField control={form.control} name="name" label="Назва букви" />
         <TextField control={form.control} name="slug" label="Slug" description="Латиниця, цифри, дефіси" />
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <SelectField
-            control={form.control}
-            name="language"
-            label="Мова"
-            options={Object.entries(LANGUAGE_LABELS).map(([value, label]) => ({ value, label }))}
-          />
-          <NumberField control={form.control} name="numericValue" label="Числове значення" min={0} max={999} />
-        </div>
+        <NumberField control={form.control} name="numericValue" label="Числове значення" min={0} max={999} />
         <TextField control={form.control} name="pronunciation" label="Вимова" />
         <TextField control={form.control} name="description" label="Опис" textarea rows={3} />
         <TextField control={form.control} name="historicalNote" label="Історична довідка" textarea rows={4} />

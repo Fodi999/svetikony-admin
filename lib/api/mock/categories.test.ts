@@ -9,11 +9,14 @@ describe("categoriesResource (mock adapter)", () => {
 
   it("creates, retrieves, updates and deletes a category", async () => {
     const created = await categoriesResource.create({
-      name: "Тестова категорія",
       slug: "testova-katehoriya",
-      description: "",
       order: 99,
       active: true,
+      translations: {
+        uk: { name: "Тестова категорія", description: "" },
+        ru: { name: "", description: "" },
+        en: { name: "", description: "" },
+      },
     });
     expect(created.id).toBeTruthy();
 
@@ -21,11 +24,14 @@ describe("categoriesResource (mock adapter)", () => {
     expect(fetched.name).toBe("Тестова категорія");
 
     const updated = await categoriesResource.update(created.id, {
-      name: "Оновлена назва",
       slug: "testova-katehoriya",
-      description: "",
       order: 99,
       active: false,
+      translations: {
+        uk: { name: "Оновлена назва", description: "" },
+        ru: { name: "", description: "" },
+        en: { name: "", description: "" },
+      },
     });
     expect(updated.name).toBe("Оновлена назва");
     expect(updated.active).toBe(false);
@@ -36,20 +42,26 @@ describe("categoriesResource (mock adapter)", () => {
 
   it("rejects creating a category with a slug that already exists (409 conflict)", async () => {
     await categoriesResource.create({
-      name: "Ікони",
       slug: "unique-slug-conflict-test",
-      description: "",
       order: 0,
       active: true,
+      translations: {
+        uk: { name: "Ікони", description: "" },
+        ru: { name: "", description: "" },
+        en: { name: "", description: "" },
+      },
     });
 
     await expect(
       categoriesResource.create({
-        name: "Інша категорія",
         slug: "unique-slug-conflict-test",
-        description: "",
         order: 1,
         active: true,
+        translations: {
+          uk: { name: "Інша категорія", description: "" },
+          ru: { name: "", description: "" },
+          en: { name: "", description: "" },
+        },
       }),
     ).rejects.toMatchObject({ code: "conflict", status: 409 });
   });

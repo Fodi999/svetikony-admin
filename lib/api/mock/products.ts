@@ -2,11 +2,40 @@ import type { CrudResource, ProductQuery } from "@/lib/api/client";
 import { ensureUniqueSlug, loadStore, matchesSearch, mockDelay, notFound, nextId, nowIso, paginate, saveStore } from "@/lib/api/mock-utils";
 import { mockProducts } from "@/lib/mock-data/products";
 import type { ProductFormValues } from "@/lib/validation/product.schema";
-import type { Product } from "@/types/entities";
+import type { Language, Product, ProductTranslation } from "@/types/entities";
 
 const STORE_KEY = "products";
 const store: Product[] = loadStore(STORE_KEY, mockProducts);
 const persist = () => saveStore(STORE_KEY, store);
+
+/** Form values allow optional RU/EN title/fullDescription/seoTitle/
+ * seoDescription (react-hook-form fields the admin hasn't touched yet);
+ * the entity's own `translations` always holds real strings (mirrors the
+ * real backend's *_ru/*_en columns, which are NOT NULL DEFAULT ''), same
+ * normalization toEntity() in lib/api/http/products.ts does for the real
+ * BFF DTO. */
+function normalizeTranslations(values: ProductFormValues): Record<Language, ProductTranslation> {
+  return {
+    uk: {
+      title: values.translations.uk.title,
+      fullDescription: values.translations.uk.fullDescription ?? "",
+      seoTitle: values.translations.uk.seoTitle ?? "",
+      seoDescription: values.translations.uk.seoDescription ?? "",
+    },
+    ru: {
+      title: values.translations.ru.title ?? "",
+      fullDescription: values.translations.ru.fullDescription ?? "",
+      seoTitle: values.translations.ru.seoTitle ?? "",
+      seoDescription: values.translations.ru.seoDescription ?? "",
+    },
+    en: {
+      title: values.translations.en.title ?? "",
+      fullDescription: values.translations.en.fullDescription ?? "",
+      seoTitle: values.translations.en.seoTitle ?? "",
+      seoDescription: values.translations.en.seoDescription ?? "",
+    },
+  };
+}
 
 export const productsResource: CrudResource<Product, ProductFormValues, ProductQuery> = {
   async list(query) {
@@ -35,6 +64,15 @@ export const productsResource: CrudResource<Product, ProductFormValues, ProductQ
       createdAt: nowIso(),
       updatedAt: nowIso(),
       ...values,
+      translations: normalizeTranslations(values),
+      // Read-only convenience fields mirror translations.uk, same as the
+      // real backend's nameUk/seoTitleUk/seoDescriptionUk columns (see
+      // toEntity() in lib/api/http/products.ts) — kept in sync here so
+      // list views/breadcrumbs/delete dialogs see the freshly-saved UK
+      // value.
+      title: values.translations.uk.title,
+      seoTitle: values.translations.uk.seoTitle || undefined,
+      seoDescription: values.translations.uk.seoDescription || undefined,
     };
     store.push(entity);
     persist();
@@ -46,7 +84,15 @@ export const productsResource: CrudResource<Product, ProductFormValues, ProductQ
     const index = store.findIndex((p) => p.id === id);
     if (index === -1) notFound("Товар");
     ensureUniqueSlug({ items: store, slug: values.slug, excludeId: id });
-    const updated: Product = { ...store[index], ...values, updatedAt: nowIso() };
+    const updated: Product = {
+      ...store[index],
+      ...values,
+      translations: normalizeTranslations(values),
+      title: values.translations.uk.title,
+      seoTitle: values.translations.uk.seoTitle || undefined,
+      seoDescription: values.translations.uk.seoDescription || undefined,
+      updatedAt: nowIso(),
+    };
     store[index] = updated;
     persist();
     return updated;

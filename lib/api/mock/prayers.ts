@@ -1,5 +1,5 @@
 import type { CrudResource, TranslatableQuery } from "@/lib/api/client";
-import { loadStore, matchesSearch, mockDelay, notFound, nextId, nowIso, paginate, saveStore } from "@/lib/api/mock-utils";
+import { ensureUniqueSlug, loadStore, matchesSearch, mockDelay, notFound, nextId, nowIso, paginate, saveStore } from "@/lib/api/mock-utils";
 import { mockPrayers } from "@/lib/mock-data/prayers";
 import type { PrayerFormValues } from "@/lib/validation/prayer.schema";
 import type { Prayer } from "@/types/entities";
@@ -28,8 +28,11 @@ export const prayersResource: CrudResource<Prayer, PrayerFormValues, Translatabl
 
   async create(values) {
     await mockDelay();
+    ensureUniqueSlug({ items: store, slug: values.slug, language: values.language });
+    const groupId = nextId("prayer-grp");
     const entity: Prayer = {
-      id: nextId("prayer"),
+      id: `${groupId}-${values.language}`,
+      translationGroupId: groupId,
       createdAt: nowIso(),
       updatedAt: nowIso(),
       ...values,
@@ -43,6 +46,7 @@ export const prayersResource: CrudResource<Prayer, PrayerFormValues, Translatabl
     await mockDelay();
     const index = store.findIndex((p) => p.id === id);
     if (index === -1) notFound("Молитва");
+    ensureUniqueSlug({ items: store, slug: values.slug, language: values.language, excludeId: id });
     const updated: Prayer = { ...store[index], ...values, updatedAt: nowIso() };
     store[index] = updated;
     persist();
@@ -55,5 +59,20 @@ export const prayersResource: CrudResource<Prayer, PrayerFormValues, Translatabl
     if (index === -1) notFound("Молитва");
     store.splice(index, 1);
     persist();
+  },
+
+  async createTranslation(groupId, language, values) {
+    await mockDelay();
+    ensureUniqueSlug({ items: store, slug: values.slug, language: values.language });
+    const entity: Prayer = {
+      id: `${groupId}-${language}`,
+      translationGroupId: groupId,
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+      ...values,
+    };
+    store.push(entity);
+    persist();
+    return entity;
   },
 };

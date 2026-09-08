@@ -61,4 +61,17 @@ export const alphabetLettersHttpResource: ApiClient["alphabetLetters"] = {
   async reorderGroups() {
     notImplementedError();
   },
+  /**
+   * Same READ-only Stage 2 scope as the inherited create/update/remove
+   * above: app/api/bff/alphabet/route.ts and its [id] route only export
+   * GET so far, so there is no write endpoint yet for a new translation to
+   * POST to. Declared explicitly (rather than left to the factory's
+   * inherited default) so the gap reads clearly next to the write methods
+   * it matches. Once Alphabet gets a real write path, this should mirror
+   * saints.ts's createTranslation (a plain create call with `language`
+   * overridden — the Worker auto-joins by slug).
+   */
+  async createTranslation() {
+    notImplementedError();
+  },
 };

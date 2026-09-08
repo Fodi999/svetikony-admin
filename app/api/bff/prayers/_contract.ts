@@ -53,10 +53,15 @@ export interface WorkerPrayerDto {
 
 /**
  * Fields deliberately dropped here and never sent to the browser: `siteId`,
- * `translationGroupId` (admin's Prayer entity isn't Translatable — no
- * per-language grouping concept exists for prayers), `isGlobal`, `status`
- * is kept (admin's Prayer.status is a real, used field, unlike Alphabet
- * which has no status at all).
+ * `isGlobal`. `status` is kept (admin's Prayer.status is a real, used
+ * field, unlike Alphabet which has no status at all).
+ *
+ * PHASE MULTILINGUAL-3: `translationGroupId` is now exposed -- the Worker
+ * always had a real, correctly-auto-linked-by-slug value here (same
+ * COALESCE pattern icons.ts uses), it was just never sent to the browser
+ * because nothing in the admin UI used it yet. Prayer now extends
+ * Translatable (types/entities.ts) so the TranslationSwitcher pattern can
+ * work here the same way it already does for Icons/Saints.
  */
 export interface BffPrayerDto {
   id: string;
@@ -72,6 +77,7 @@ export interface BffPrayerDto {
   sourceUrl: string;
   note: string;
   language: string;
+  translationGroupId: string;
   prayerType: string;
   status: string;
   visualizerEnabled: boolean;
@@ -103,6 +109,7 @@ export function toBffPrayerDto(worker: WorkerPrayerDto): BffPrayerDto {
     sourceUrl: worker.sourceUrl,
     note: worker.note,
     language: worker.language,
+    translationGroupId: worker.translationGroupId,
     prayerType: worker.prayerType,
     status: worker.status,
     visualizerEnabled: worker.visualizerEnabled,

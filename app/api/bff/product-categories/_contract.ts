@@ -72,16 +72,22 @@ export function toBffProductCategoryDtoList(workers: WorkerProductCategoryDto[])
 
 /** Admin -> Worker payload for create/update. Same whitelist in reverse:
  * only fields the Worker's ChurchProductCategoryPayload actually accepts.
- * `nameRu`/`nameEn`/`descriptionRu`/`descriptionEn` are deliberately never
- * sent — the admin form only edits one language (matching Calendar Day's
- * single `language` field); the public site already falls back to the
- * `Uk` field when `Ru`/`En` are empty (see ShopCatalog.tsx's
- * `productCategoryName()`), so leaving them blank degrades gracefully
- * instead of needing a bigger multi-locale form now. */
+ *
+ * Phase MULTILINGUAL-1 (P1.2): `nameRu`/`nameEn`/`descriptionRu`/
+ * `descriptionEn` are now included — category-form.tsx has UK/RU/EN tabs
+ * and always sends the form's full current translations state on every
+ * save (never a partial diff), matching Church Info's toPayload()
+ * precedent. The public site still falls back to the `Uk` field when
+ * `Ru`/`En` are empty (see ShopCatalog.tsx's `productCategoryName()`), so
+ * an admin who hasn't filled in RU/EN yet still degrades gracefully. */
 export interface WorkerProductCategoryWritePayload {
   slug?: string;
   nameUk?: string;
+  nameRu?: string;
+  nameEn?: string;
   descriptionUk?: string;
+  descriptionRu?: string;
+  descriptionEn?: string;
   imageUrl?: string;
   isActive?: boolean;
   sortOrder?: number;

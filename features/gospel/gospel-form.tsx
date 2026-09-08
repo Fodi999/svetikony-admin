@@ -3,20 +3,21 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
 import { Eye } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { SelectField } from "@/components/forms/select-field";
 import { TextField } from "@/components/forms/text-field";
+import { TranslationSwitcher, type Completeness } from "@/components/forms/translation-switcher";
 import { useUnsavedChanges } from "@/components/feedback/unsaved-changes-context";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { apiClient } from "@/lib/api";
-import { LANGUAGE_LABELS } from "@/lib/constants/labels";
 import { messages } from "@/lib/i18n";
 import { useBeforeUnloadWarning } from "@/lib/utils/use-before-unload";
 import { gospelReadingSchema, type GospelReadingFormValues } from "@/lib/validation/gospel.schema";
-import type { GospelReading } from "@/types/entities";
+import type { GospelReading, Language } from "@/types/entities";
 
 const EMPTY_DEFAULTS: GospelReadingFormValues = {
   title: "",
@@ -32,19 +33,25 @@ const EMPTY_DEFAULTS: GospelReadingFormValues = {
 interface GospelFormProps {
   mode: "create" | "edit";
   reading?: GospelReading;
+  groupId?: string;
+  initialLanguage?: Language;
+  initialSlug?: string;
   onSubmit: (values: GospelReadingFormValues) => Promise<void>;
   onDelete?: () => void;
   submitting?: boolean;
 }
 
-export function GospelForm({ mode, reading, onSubmit, onDelete, submitting }: GospelFormProps) {
+export function GospelForm({ mode, reading, groupId, initialLanguage, initialSlug, onSubmit, onDelete, submitting }: GospelFormProps) {
+  const router = useRouter();
   const { setDirty } = useUnsavedChanges();
   const [tab, setTab] = useState("main");
   const [previewOpen, setPreviewOpen] = useState(false);
 
   const form = useForm<GospelReadingFormValues>({
     resolver: zodResolver(gospelReadingSchema),
-    defaultValues: reading ? { ...EMPTY_DEFAULTS, ...reading } : EMPTY_DEFAULTS,
+    defaultValues: reading
+      ? { ...EMPTY_DEFAULTS, ...reading }
+      : { ...EMPTY_DEFAULTS, language: initialLanguage ?? "uk", slug: initialSlug ?? "" },
   });
 
   useEffect(() => {
@@ -59,6 +66,40 @@ export function GospelForm({ mode, reading, onSubmit, onDelete, submitting }: Go
     { value: "", label: "Без зв'язку" },
     ...(calendarQuery.data?.items ?? []).map((d) => ({ value: d.id, label: `${d.title} (${d.date})` })),
   ];
+
+  const effectiveGroupId = reading?.translationGroupId ?? groupId;
+
+  const siblingsQuery = useQuery({
+    queryKey: ["gospelReadings", "group", effectiveGroupId],
+    queryFn: () => apiClient.gospelReadings.list({ pageSize: 200 }),
+    enabled: !!effectiveGroupId,
+  });
+  const siblings = (siblingsQuery.data?.items ?? []).filter((g) => g.translationGroupId === effectiveGroupId);
+
+  const completeness = useMemo(() => {
+    const result = {} as Record<Language, Completeness>;
+    (["uk", "ru", "en"] as Language[]).forEach((lang) => {
+      const sibling = siblings.find((s) => s.language === lang);
+      if (!sibling) {
+        result[lang] = "empty";
+      } else if (sibling.title && sibling.text) {
+        result[lang] = "done";
+      } else {
+        result[lang] = "partial";
+      }
+    });
+    return result;
+  }, [siblings]);
+
+  function handleSwitchLanguage(lang: Language) {
+    if (lang === reading?.language) return;
+    const sibling = siblings.find((s) => s.language === lang);
+    if (sibling) {
+      router.push(`/gospel/${sibling.id}`);
+    } else if (effectiveGroupId) {
+      router.push(`/gospel/new?groupId=${effectiveGroupId}&language=${lang}&slug=${encodeURIComponent(form.getValues("slug"))}`);
+    }
+  }
 
   async function handleSave(publish: boolean) {
     if (publish) form.setValue("status", "published", { shouldDirty: true });
@@ -77,6 +118,13 @@ export function GospelForm({ mode, reading, onSubmit, onDelete, submitting }: Go
   return (
     <div className="flex h-full flex-col">
       <div className="flex-1 space-y-4 overflow-y-auto p-4 pb-28 md:p-6 md:pb-24">
+        {effectiveGroupId ? (
+          <div className="space-y-1.5">
+            <p className="text-xs font-medium text-muted-foreground">Переклади</p>
+            <TranslationSwitcher active={form.watch("language")} onSelect={handleSwitchLanguage} completeness={completeness} />
+          </div>
+        ) : null}
+
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="w-full overflow-x-auto">
             <TabsTrigger value="main">Основне</TabsTrigger>
@@ -87,15 +135,7 @@ export function GospelForm({ mode, reading, onSubmit, onDelete, submitting }: Go
           <TabsContent value="main" className="space-y-4">
             <TextField control={form.control} name="title" label="Назва" />
             <TextField control={form.control} name="slug" label="Slug" description="Латиниця, цифри, дефіси" />
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <SelectField
-                control={form.control}
-                name="language"
-                label="Мова"
-                options={Object.entries(LANGUAGE_LABELS).map(([value, label]) => ({ value, label }))}
-              />
-              <TextField control={form.control} name="reference" label="Посилання (напр. Ів. 1:1-17)" />
-            </div>
+            <TextField control={form.control} name="reference" label="Посилання (напр. Ів. 1:1-17)" />
             <TextField control={form.control} name="text" label="Текст читання" textarea rows={8} />
             <TextField control={form.control} name="explanation" label="Пояснення" textarea rows={4} />
           </TabsContent>

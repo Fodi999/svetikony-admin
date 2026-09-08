@@ -171,5 +171,19 @@ describe("alphabetLettersHttpResource", () => {
         code: "not_implemented",
       });
     });
+
+    it("createTranslation throws a controlled not_implemented ApiError without calling fetch", async () => {
+      const fetchMock = vi.fn();
+      vi.stubGlobal("fetch", fetchMock);
+      await expect(
+        alphabetLettersHttpResource.createTranslation?.("group-1", "ru", {
+          slug: "az",
+          language: "ru",
+          order: 1,
+          name: "Азъ",
+        }),
+      ).rejects.toMatchObject({ code: "not_implemented" });
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
   });
 });
