@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
-import { Eye } from "lucide-react";
+import { AlertTriangle, Eye } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
@@ -11,6 +11,7 @@ import { NumberField } from "@/components/forms/number-field";
 import { TextField } from "@/components/forms/text-field";
 import { TranslationSwitcher, type Completeness } from "@/components/forms/translation-switcher";
 import { useUnsavedChanges } from "@/components/feedback/unsaved-changes-context";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { apiClient } from "@/lib/api";
@@ -18,6 +19,17 @@ import { messages } from "@/lib/i18n";
 import { useBeforeUnloadWarning } from "@/lib/utils/use-before-unload";
 import { alphabetLetterSchema, type AlphabetLetterFormValues } from "@/lib/validation/alphabet.schema";
 import type { AlphabetLetter, Language } from "@/types/entities";
+
+/** Same real-vs-mock-adapter detection every MediaUploadButton caller in
+ * this codebase already uses (`apiClient.media.uploadObject` only exists
+ * on the real HTTP adapter). Alphabet's real backend has no write route at
+ * all yet (`app/api/bff/alphabet/route.ts` and its `[id]` route export
+ * GET only) -- `create`/`update`/`remove`/`createTranslation` all throw a
+ * controlled not_implemented error against the real adapter, matching
+ * the mock adapter's own full read/write support. This banner makes that
+ * limitation visible up front instead of only surfacing as an error toast
+ * after the admin has already filled in a form and hit Save. */
+const isRealApiAdapter = Boolean(apiClient.media.uploadObject);
 
 const EMPTY_DEFAULTS: AlphabetLetterFormValues = {
   slug: "",
@@ -119,6 +131,17 @@ export function AlphabetLetterFormComponent({
   return (
     <div className="flex h-full flex-col">
       <div className="flex-1 space-y-4 overflow-y-auto p-4 pb-24 md:p-6">
+        {isRealApiAdapter ? (
+          <Alert variant="destructive">
+            <AlertTriangle className="size-4" />
+            <AlertTitle>Азбука поки доступна лише для перегляду</AlertTitle>
+            <AlertDescription>
+              Збереження, публікація і додавання нового перекладу для цього розділу ще не підключені на бекенді —
+              спроба зберегти завершиться помилкою.
+            </AlertDescription>
+          </Alert>
+        ) : null}
+
         {effectiveGroupId ? (
           <div className="space-y-1.5">
             <p className="text-xs font-medium text-muted-foreground">Переклади</p>
