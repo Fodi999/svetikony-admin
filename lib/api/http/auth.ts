@@ -27,6 +27,10 @@ export const authHttpResource: AuthApi = {
     await httpPost<void>(BFF_ENDPOINTS.auth.logout, undefined);
   },
 
+  async exchangeTelegramTicket(ticket) {
+    return httpPost<AuthSession>(BFF_ENDPOINTS.auth.telegramExchange, { ticket });
+  },
+
   async getSession() {
     try {
       return await httpGet<AuthSession>(BFF_ENDPOINTS.auth.session);

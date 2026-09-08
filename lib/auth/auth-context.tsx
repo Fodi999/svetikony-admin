@@ -13,6 +13,12 @@ interface AuthContextValue {
   user: AuthUser | null;
   status: AuthStatus;
   login: (values: LoginFormValues) => Promise<AuthUser>;
+  /** Phase 3 (Telegram passwordless login): same shape/behavior as login(),
+   * just exchanging a one-time ticket instead of email+password -- keeps
+   * this context's own user/status state (and everything derived from it,
+   * e.g. the sidebar's nav) in sync immediately, rather than leaving it
+   * stale until the next full session check. */
+  loginWithTelegramTicket: (ticket: string) => Promise<AuthUser>;
   logout: () => Promise<void>;
   canView: (area: PermissionArea) => boolean;
   canEdit: (area: PermissionArea) => boolean;
@@ -67,6 +73,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const loginWithTelegramTicket = useCallback(async (ticket: string) => {
+    try {
+      const session = await apiClient.auth.exchangeTelegramTicket(ticket);
+      setUser(session.user);
+      setStatus("authenticated");
+      return session.user;
+    } catch (error) {
+      throw new Error(toApiError(error).message);
+    }
+  }, []);
+
   const logout = useCallback(async () => {
     await apiClient.auth.logout();
     setUser(null);
@@ -78,12 +95,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user,
       status,
       login,
+      loginWithTelegramTicket,
       logout,
       canView: (area) => (user ? canView(user.role, area) : false),
       canEdit: (area) => (user ? canEdit(user.role, area) : false),
       accessLevel: (area) => (user ? accessLevel(user.role, area) : "none"),
     }),
-    [user, status, login, logout],
+    [user, status, login, loginWithTelegramTicket, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

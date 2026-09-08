@@ -121,6 +121,15 @@ export interface AuthApi {
   login(values: LoginFormValues): Promise<AuthSession>;
   logout(): Promise<void>;
   getSession(): Promise<AuthSession | null>;
+  /**
+   * Phase 3 (Telegram passwordless admin login): exchanges a one-time raw
+   * ticket (read from /telegram-login's URL fragment) for a real session,
+   * via the BFF -> svet-ikony's service-protected exchange endpoint. Same
+   * AuthSession shape as login() -- the BFF sets the identical HttpOnly
+   * cookie either way, so callers never special-case the Telegram path
+   * past this one call.
+   */
+  exchangeTelegramTicket(ticket: string): Promise<AuthSession>;
 }
 
 export interface MediaApi {

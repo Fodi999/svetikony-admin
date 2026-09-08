@@ -48,6 +48,11 @@ const AUTH_EXCEPTION_FILES = new Set([
   path.join(BFF_ROOT, "auth/login/route.ts"),
   path.join(BFF_ROOT, "auth/session/route.ts"),
   path.join(BFF_ROOT, "auth/logout/route.ts"),
+  // Phase 3: same pre-auth exception as auth/login/route.ts -- the browser
+  // has no session cookie yet when this route is called (it's what creates
+  // one), so it can't be gated by withAuth() either. Has its own CSRF check
+  // (isCrossSiteMutation) and its own dedicated route test.
+  path.join(BFF_ROOT, "auth/telegram/exchange/route.ts"),
 ]);
 
 type ManifestEntry =

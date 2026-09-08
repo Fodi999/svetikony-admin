@@ -75,5 +75,11 @@ describe("middleware", () => {
         expect(response.headers.get("location")).toBeNull();
       }
     });
+
+    it("/telegram-login (Phase 3) stays reachable with no cookie -- the Telegram button opens it before any session exists; its own JS is what creates one", () => {
+      const response = middleware(request("/telegram-login"));
+      expect(response.status).toBe(200);
+      expect(response.headers.get("location")).toBeNull();
+    });
   });
 });

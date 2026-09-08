@@ -191,4 +191,40 @@ describe("LoginPage", () => {
     expect(screen.getByLabelText("Email")).toHaveAttribute("autocomplete", "username");
     expect(screen.getByLabelText("Пароль")).toHaveAttribute("autocomplete", "current-password");
   });
+
+  /**
+   * PHASE 3 -- Telegram passwordless login is now the primary path shown
+   * on the page; the password form is kept only as a de-emphasized
+   * rollback, not deleted.
+   */
+  describe("Telegram passwordless login (Phase 3, primary)", () => {
+    it("shows the Telegram instructions and a link to @svit_ikony_admin_bot", async () => {
+      vi.stubEnv("NODE_ENV", "test");
+      const { default: LoginPage } = await import("./page");
+      render(<LoginPage />);
+
+      expect(screen.getByText("Безпечний вхід через Telegram")).toBeInTheDocument();
+      expect(screen.getByText("@svit_ikony_admin_bot")).toBeInTheDocument();
+      expect(screen.getByText("Надішліть /login")).toBeInTheDocument();
+      expect(screen.getByText("Натисніть «Відкрити адмінку»")).toBeInTheDocument();
+
+      const link = screen.getByText("Відкрити Telegram").closest("a");
+      expect(link).not.toBeNull();
+      expect(link).toHaveAttribute("href", "https://t.me/svit_ikony_admin_bot");
+      expect(link).toHaveAttribute("target", "_blank");
+      expect(link).toHaveAttribute("rel", expect.stringContaining("noopener"));
+    });
+
+    it("the password form is present but de-emphasized behind a collapsed disclosure, not deleted", async () => {
+      vi.stubEnv("NODE_ENV", "test");
+      const { default: LoginPage } = await import("./page");
+      render(<LoginPage />);
+
+      expect(screen.getByText("Увійти паролем (резервний спосіб)")).toBeInTheDocument();
+      // The fields still exist in the DOM (accessible via label), proving
+      // the rollback path is real, not removed -- only visually secondary.
+      expect(screen.getByLabelText("Email")).toBeInTheDocument();
+      expect(screen.getByLabelText("Пароль")).toBeInTheDocument();
+    });
+  });
 });

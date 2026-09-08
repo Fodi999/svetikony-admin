@@ -53,6 +53,7 @@ export const UPSTREAM_ENDPOINTS = {
     login: "/api/admin/auth/login", // ✅ verified (Phase 1A)
     logout: "/api/admin/auth/logout", // ✅ verified (Phase 1A)
     session: "/api/admin/auth/session", // ✅ verified (Phase 1A)
+    telegramExchange: "/api/admin/auth/telegram/exchange", // ✅ verified (Phase 3)
   },
 
   // Not yet verified/wired for this admin — placeholders only:
@@ -65,6 +66,7 @@ export const BFF_ENDPOINTS = {
     login: "/api/bff/auth/login", // ✅ implemented (Phase 1B)
     logout: "/api/bff/auth/logout", // ✅ implemented (Phase 1B)
     session: "/api/bff/auth/session", // ✅ implemented (Phase 1B)
+    telegramExchange: "/api/bff/auth/telegram/exchange", // ✅ implemented (Phase 3)
   },
   alphabetLetters: "/api/bff/alphabet", // ✅ implemented (list + get only)
   prayers: "/api/bff/prayers", // ✅ implemented (Stage 2I, full CRUD)

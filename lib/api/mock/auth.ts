@@ -32,4 +32,13 @@ export const authResource: AuthApi = {
     await mockDelay(80);
     return readMockSession();
   },
+
+  // Phase 3: Telegram login has no meaningful mock simulation -- there is
+  // no real Telegram bot to talk to in dev/test mock mode, and the
+  // existing DevTestAccountsPanel + password path already covers dev
+  // login. Throws rather than fabricating a fake success.
+  async exchangeTelegramTicket() {
+    await mockDelay(150);
+    throw new ApiError("unknown", "Telegram login is not available in mock mode");
+  },
 };

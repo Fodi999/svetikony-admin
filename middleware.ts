@@ -34,10 +34,13 @@ function parseBasicAuth(header: string | null): { user: string; password: string
 }
 
 /** Route-group pages that must stay reachable without a session cookie —
- * you need to be able to reach /login before you have one, and /no-access
+ * you need to be able to reach /login before you have one, /no-access
  * is the (currently unlinked, reserved for future use) landing for an
- * authenticated-but-insufficiently-permissioned visitor. */
-const PUBLIC_PAGE_PATHS = new Set(["/login", "/no-access"]);
+ * authenticated-but-insufficiently-permissioned visitor, and /telegram-login
+ * (Phase 3) is the pre-auth landing a Telegram button opens: the browser
+ * has no session cookie yet at that point either -- that page's own JS is
+ * what exchanges the ticket for one. */
+const PUBLIC_PAGE_PATHS = new Set(["/login", "/no-access", "/telegram-login"]);
 
 export function middleware(request: NextRequest): NextResponse {
   const expectedUser = process.env.GATE_USERNAME;

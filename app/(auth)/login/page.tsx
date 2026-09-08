@@ -146,36 +146,65 @@ function LoginPageInner() {
         Світ Ікони — Адмінка
       </div>
 
+      {expired ? (
+        <Alert variant="destructive" className="w-full max-w-sm">
+          <AlertTitle>{messages.states.unauthorizedTitle}</AlertTitle>
+          <AlertDescription>Увійдіть, будь ласка, ще раз.</AlertDescription>
+        </Alert>
+      ) : null}
+
+      {/* Phase 3: Telegram passwordless login is now the primary path --
+          no password, no PBKDF2. The password form below is kept only as
+          rollback/bootstrap, de-emphasized behind a native <details>. */}
       <Card className="w-full max-w-sm">
         <CardHeader>
-          <CardTitle>Вхід у систему</CardTitle>
-          <CardDescription>Введіть email та пароль вашого облікового запису.</CardDescription>
+          <CardTitle>Безпечний вхід через Telegram</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {expired ? (
-            <Alert variant="destructive">
-              <AlertTitle>{messages.states.unauthorizedTitle}</AlertTitle>
-              <AlertDescription>Увійдіть, будь ласка, ще раз.</AlertDescription>
-            </Alert>
-          ) : null}
-          {submitError ? (
-            <Alert variant="destructive">
-              <AlertTitle>Помилка входу</AlertTitle>
-              <AlertDescription>{submitError}</AlertDescription>
-            </Alert>
-          ) : null}
-
-          <form onSubmit={handleFormSubmit} noValidate className="space-y-4">
-            <LoginField form={form} name="email" label="Email" type="email" placeholder="admin@svetikony.com" autoComplete="username" />
-            <LoginField form={form} name="password" label="Пароль" type="password" placeholder="••••••••" autoComplete="current-password" />
-            <Button type="submit" className="h-11 w-full" disabled={form.formState.isSubmitting}>
-              {form.formState.isSubmitting ? "Вхід…" : messages.actions.login}
-            </Button>
-          </form>
-
-          {DevTestAccountsPanel ? <DevTestAccountsPanel onFill={fillAccount} /> : null}
+          <ol className="list-inside list-decimal space-y-1 text-sm text-muted-foreground">
+            <li>
+              Відкрийте <span className="font-medium text-foreground">@svit_ikony_admin_bot</span>
+            </li>
+            <li>Надішліть /login</li>
+            <li>Натисніть «Відкрити адмінку»</li>
+          </ol>
+          <Button
+            render={<a href="https://t.me/svit_ikony_admin_bot" target="_blank" rel="noopener noreferrer" />}
+            nativeButton={false}
+            className="h-11 w-full"
+          >
+            Відкрити Telegram
+          </Button>
         </CardContent>
       </Card>
+
+      <details className="w-full max-w-sm">
+        <summary className="cursor-pointer text-center text-sm text-muted-foreground">Увійти паролем (резервний спосіб)</summary>
+        <Card className="mt-3">
+          <CardHeader>
+            <CardTitle>Вхід у систему</CardTitle>
+            <CardDescription>Введіть email та пароль вашого облікового запису.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {submitError ? (
+              <Alert variant="destructive">
+                <AlertTitle>Помилка входу</AlertTitle>
+                <AlertDescription>{submitError}</AlertDescription>
+              </Alert>
+            ) : null}
+
+            <form onSubmit={handleFormSubmit} noValidate className="space-y-4">
+              <LoginField form={form} name="email" label="Email" type="email" placeholder="admin@svetikony.com" autoComplete="username" />
+              <LoginField form={form} name="password" label="Пароль" type="password" placeholder="••••••••" autoComplete="current-password" />
+              <Button type="submit" className="h-11 w-full" disabled={form.formState.isSubmitting}>
+                {form.formState.isSubmitting ? "Вхід…" : messages.actions.login}
+              </Button>
+            </form>
+
+            {DevTestAccountsPanel ? <DevTestAccountsPanel onFill={fillAccount} /> : null}
+          </CardContent>
+        </Card>
+      </details>
     </div>
   );
 }
