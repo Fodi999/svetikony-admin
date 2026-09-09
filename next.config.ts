@@ -51,7 +51,7 @@ import withSerwistInit from "@serwist/next";
  * HTML-injection vulnerability elsewhere could still execute inline
  * script. What this baseline DOES meaningfully stop: loading any
  * externally-hosted script (script-src has no origin but 'self'), and
- * framing this app at all. `connect-src 'self'` is also a real, checked
+ * framing this app at all. `connect-src 'self' blob:` also enforces the
  * guarantee: every fetch in this codebase targets a relative /api/bff/*
  * path (lib/api/http/transport.ts, lib/api/http/media.ts) -- the browser
  * never calls svet-ikony directly -- so this CSP directive enforces that
@@ -71,7 +71,8 @@ const SECURITY_HEADERS = [
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' https: data: blob:",
       "font-src 'self'",
-      "connect-src 'self'",
+      // Embedded GLB textures are fetched as local blob URLs by ImageBitmapLoader.
+      "connect-src 'self' blob:",
       "worker-src 'self'",
       "manifest-src 'self'",
       "object-src 'none'",
