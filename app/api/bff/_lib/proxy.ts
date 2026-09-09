@@ -224,7 +224,7 @@ export async function proxyMultipartUpload(upstreamPath: string, formData: FormD
   }
 
   const url = new URL(upstreamPath, baseUrl);
-  const { signal, clear } = createAbortTimeout(REQUEST_TIMEOUT_MS);
+  const { signal, clear } = createAbortTimeout(formData.get("purpose") === "model" ? 120_000 : REQUEST_TIMEOUT_MS);
 
   let upstreamResponse: Response;
   try {
@@ -252,5 +252,16 @@ export async function proxyMultipartUpload(upstreamPath: string, formData: FormD
       "content-type": upstreamResponse.headers.get("content-type") ?? "application/json",
       ...NO_STORE_HEADERS,
     },
+  });
+}
+
+/** Stream a trusted upstream media path through the authenticated BFF. */
+export async function proxyBinary(upstreamPath: string): Promise<Response> {
+  const result = await fetchUpstream(upstreamPath);
+  if ('error' in result) return result.error;
+  const response = result.response;
+  if (!response.ok) return new Response(null, { status: response.status, headers: NO_STORE_HEADERS });
+  return new Response(response.body, {
+    headers: { 'content-type': 'model/gltf-binary', 'x-content-type-options': 'nosniff', ...NO_STORE_HEADERS },
   });
 }

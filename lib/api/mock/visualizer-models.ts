@@ -35,6 +35,13 @@ export const visualizerModelsResource: ApiClient["visualizerModels"] = {
     return entity;
   },
 
+  async update(id, payload) {
+    const model = store.find((item) => item.id === id);
+    if (!model) throw new ApiError("not_found", "Модель не знайдено");
+    Object.assign(model, payload, { updatedAt: nowIso() });
+    persist();
+    return model;
+  },
   async remove(id, options) {
     await mockDelay();
     const index = store.findIndex((m) => m.id === id);

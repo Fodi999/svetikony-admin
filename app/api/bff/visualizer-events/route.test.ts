@@ -59,7 +59,7 @@ describe("GET/POST /api/bff/visualizer-events", () => {
   });
 
   describe("GET", () => {
-    it("never returns internal Worker fields (siteId, isGlobal, sortYear)", async () => {
+    it("never returns internal Worker fields (siteId, isGlobal)", async () => {
       vi.stubGlobal(
         "fetch",
         mockAuthenticatedFetch("viewer", () =>
@@ -68,7 +68,7 @@ describe("GET/POST /api/bff/visualizer-events", () => {
       );
       const response = await GET(new NextRequest("http://localhost/api/bff/visualizer-events", withSessionCookie()));
       const bodyText = await response.text();
-      for (const field of ["siteId", "isGlobal", "sortYear"]) expect(bodyText).not.toContain(field);
+      for (const field of ["siteId", "isGlobal"]) expect(bodyText).not.toContain(field);
       const body = JSON.parse(bodyText);
       expect(body).toHaveLength(1);
       expect(body[0].id).toBe("event-1");

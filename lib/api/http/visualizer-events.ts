@@ -31,6 +31,7 @@ function toEntity(dto: BffVisualizerEventDto): VisualizerEvent {
     yearStart: dto.yearStart ?? undefined,
     yearEnd: dto.yearEnd ?? undefined,
     century: dto.century ?? undefined,
+    sortYear: dto.sortYear,
     displayDate: dto.displayDate || undefined,
     locationName: dto.locationName || undefined,
     latitude: dto.latitude ?? undefined,
@@ -58,6 +59,8 @@ function toPayload(values: VisualizerEventFormValues): WorkerVisualizerEventWrit
     yearStart: values.yearStart ?? null,
     yearEnd: values.yearEnd ?? null,
     century: values.century ?? null,
+    sortYear: values.sortYear,
+    calendarDayId: values.calendarDayId || null,
     displayDate: values.displayDate ?? "",
     locationName: values.locationName ?? "",
     latitude: values.latitude ?? null,
@@ -78,7 +81,7 @@ const baseResource = createHttpListResource<BffVisualizerEventDto, VisualizerEve
     return params;
   },
   searchFields: (event) => [event.title, event.slug, event.locationName],
-  sort: (a, b) => (a.yearStart ?? 0) - (b.yearStart ?? 0),
+  sort: (a, b) => (a.sortYear ?? (a.calendarEra === "BC" ? -1 : 1) * (a.yearStart ?? 0)) - (b.sortYear ?? (b.calendarEra === "BC" ? -1 : 1) * (b.yearStart ?? 0)),
 });
 
 export const visualizerEventsHttpResource: ApiClient["visualizerEvents"] = {

@@ -42,9 +42,11 @@ type ModelViewerEl = HTMLElement & {
   play: (options?: { repetitions?: number }) => void;
   pause: () => void;
   paused: boolean;
+  loaded: boolean;
   availableAnimations: string[];
   currentTime: number;
   cameraOrbit: string;
+  animationName: string;
 };
 
 /**
@@ -60,6 +62,8 @@ type ModelViewerEl = HTMLElement & {
  */
 export function ModelViewerPreview({ src, alt }: { src: string; alt?: string }) {
   const elementRef = useRef<ModelViewerEl | null>(null);
+  const [error, setError] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   const [ready, setReady] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [animationNames, setAnimationNames] = useState<string[]>([]);
@@ -73,12 +77,13 @@ export function ModelViewerPreview({ src, alt }: { src: string; alt?: string }) 
   if (src !== previousSrc) {
     setPreviousSrc(src);
     setReady(false);
+    setError(false);
     setPlaying(false);
     setAnimationNames([]);
   }
 
   useEffect(() => {
-    void import("@google/model-viewer");
+    void import("@google/model-viewer").catch(() => setError(true));
   }, []);
 
   // `<model-viewer>` is a custom element -- its `load` event is a plain
@@ -94,14 +99,28 @@ export function ModelViewerPreview({ src, alt }: { src: string; alt?: string }) 
     function handleLoad() {
       if (!element) return;
       setReady(true);
+      setError(false);
       setAnimationNames(element.availableAnimations ?? []);
       setPlaying(!element.paused);
-      if (defaultCameraOrbitRef.current === null) defaultCameraOrbitRef.current = element.cameraOrbit;
+      if (defaultCameraOrbitRef.current === null)
+        defaultCameraOrbitRef.current = element.cameraOrbit;
     }
 
+    const handleError = () => {
+      setError(true);
+      setReady(false);
+    };
+    const timeout = window.setTimeout(() => {
+      if (!element.loaded) handleError();
+    }, 30_000);
     element.addEventListener("load", handleLoad);
-    return () => element.removeEventListener("load", handleLoad);
-  }, [src]);
+    element.addEventListener("error", handleError);
+    return () => {
+      clearTimeout(timeout);
+      element.removeEventListener("load", handleLoad);
+      element.removeEventListener("error", handleError);
+    };
+  }, [src, attempt]);
 
   function togglePlayback() {
     const element = elementRef.current;
@@ -123,9 +142,10 @@ export function ModelViewerPreview({ src, alt }: { src: string; alt?: string }) 
 
   return (
     <div className="space-y-2">
-      <div className="relative h-64 w-full overflow-hidden rounded-md border bg-muted">
+      <div className="bg-muted relative h-64 w-full overflow-hidden rounded-md border">
         <model-viewer
           ref={elementRef as unknown as React.RefObject<HTMLElement>}
+          key={`${src}-${attempt}`}
           src={src}
           alt={alt ?? "3D модель"}
           camera-controls
@@ -134,9 +154,27 @@ export function ModelViewerPreview({ src, alt }: { src: string; alt?: string }) 
           exposure="1"
           style={{ width: "100%", height: "100%" }}
         />
-        {!ready ? (
-          <div className="absolute inset-0 grid place-items-center bg-muted/80">
-            <Loader2 className="size-6 animate-spin text-muted-foreground" />
+        {error ? (
+          <div
+            role="alert"
+            className="bg-muted absolute inset-0 grid place-content-center gap-3 p-4 text-center text-sm"
+          >
+            <p>Не вдалося відкрити 3D-модель. Перевірте файл GLB та підтримку WebGL.</p>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setError(false);
+                setReady(false);
+                setAttempt((value) => value + 1);
+              }}
+            >
+              Спробувати ще раз
+            </Button>
+          </div>
+        ) : !ready ? (
+          <div className="bg-muted/80 absolute inset-0 grid place-items-center">
+            <Loader2 className="text-muted-foreground size-6 animate-spin" />
           </div>
         ) : null}
       </div>
@@ -148,12 +186,26 @@ export function ModelViewerPreview({ src, alt }: { src: string; alt?: string }) 
                 {playing ? <Pause className="size-4" /> : <Play className="size-4" />}
                 {playing ? "Пауза" : "Відтворити"}
               </Button>
-              <span className="text-xs text-muted-foreground">
+              <select
+                aria-label="Анімація"
+                className="bg-background rounded border p-1 text-xs"
+                onChange={(event) => {
+                  if (elementRef.current) {
+                    elementRef.current.animationName = event.target.value;
+                    elementRef.current.currentTime = 0;
+                  }
+                }}
+              >
+                {animationNames.map((name) => (
+                  <option key={name}>{name}</option>
+                ))}
+              </select>
+              <span className="text-muted-foreground text-xs">
                 Анімація виявлена: {animationNames.join(", ")}
               </span>
             </>
           ) : (
-            <span className="text-xs text-muted-foreground">Анімація не знайдена</span>
+            <span className="text-muted-foreground text-xs">Анімація не знайдена</span>
           )}
           <Button type="button" variant="ghost" size="sm" onClick={resetCamera}>
             <RotateCcw className="size-4" />

@@ -9,7 +9,10 @@ import type { ProductCategoryFormValues } from "@/lib/validation/category.schema
 import type { PrayerFormValues } from "@/lib/validation/prayer.schema";
 import type { ProductFormValues } from "@/lib/validation/product.schema";
 import type { SaintFormValues } from "@/lib/validation/saint.schema";
-import type { AutopostSettingsFormValues, TelegramPostFormValues } from "@/lib/validation/telegram.schema";
+import type {
+  AutopostSettingsFormValues,
+  TelegramPostFormValues,
+} from "@/lib/validation/telegram.schema";
 import type { VisualizerEventFormValues } from "@/lib/validation/visualizer-event.schema";
 import type { ListQuery, MediaObjectDto, PaginatedResult } from "@/types/api";
 import type {
@@ -147,14 +150,22 @@ export interface MediaApi {
    * whether this method exists or not. Optional because MockApiAdapter does
    * not implement it — only HttpApiAdapter does.
    */
-  uploadObject?(input: { file: File; module: string; entityId: string; purpose: string }): Promise<MediaObjectDto>;
+  uploadObject?(input: {
+    file: File;
+    module: string;
+    entityId: string;
+    purpose: string;
+  }): Promise<MediaObjectDto>;
   /**
    * Real R2 listing (the Telegram composer's "Обрати з медіатеки" picker is
    * its first caller) — separate from `list()` above, which stays the
    * Stage 1 mock media-library shape untouched. `module` narrows to one
    * upload module (e.g. `"telegram"`); omitted, lists everything.
    */
-  listObjects?(input?: { module?: string; cursor?: string }): Promise<{ items: MediaObjectDto[]; cursor: string | null }>;
+  listObjects?(input?: {
+    module?: string;
+    cursor?: string;
+  }): Promise<{ items: MediaObjectDto[]; cursor: string | null }>;
 }
 
 export interface ChurchInfoApi {
@@ -218,13 +229,21 @@ export interface TelegramApi {
      * generation fails (never left blank). */
     regenerateImage(date: string, contentType: AutopostContentType): Promise<TelegramPost>;
     /** "Обрати з медіатеки" -- persists an already-uploaded R2 URL directly. */
-    assignImage(date: string, contentType: AutopostContentType, mediaUrl: string): Promise<TelegramPost>;
+    assignImage(
+      date: string,
+      contentType: AutopostContentType,
+      mediaUrl: string,
+    ): Promise<TelegramPost>;
     /** "Видалити фото" -- clears the slot's photo without touching text/status. */
     removeImage(date: string, contentType: AutopostContentType): Promise<TelegramPost>;
     /** Audio counterpart of assignImage -- never AI-generated, manual
      * "Обрати з медіатеки"/upload only. Validated server-side against
      * Telegram's own by-URL send limits (20 MB, MP3/M4A only). */
-    assignAudio(date: string, contentType: AutopostContentType, audioUrl: string): Promise<TelegramPost>;
+    assignAudio(
+      date: string,
+      contentType: AutopostContentType,
+      audioUrl: string,
+    ): Promise<TelegramPost>;
     /** Audio counterpart of removeImage. */
     removeAudio(date: string, contentType: AutopostContentType): Promise<TelegramPost>;
     /** draft -> ready, only if the slot passes the same validation the
@@ -297,14 +316,30 @@ export interface ApiClient {
   /**
    * Not a CrudResource — GLB metadata has no per-language translations, no
    * pagination (always fetched in the context of one event's group, or the
-   * pinned Base Earth Model card), and no update (only replace-by-delete-
-   * then-recreate). `list` with no `eventGroupId` returns every model,
+   * pinned Base Earth Model card), and replacement updates metadata only after the new upload succeeds. `list` with no `eventGroupId` returns every model,
    * used by the Base Earth Model card to find whichever one currently has
    * `isBaseEarth: true`.
    */
   visualizerModels: {
     list(query?: { eventGroupId?: string }): Promise<VisualizerModel[]>;
-    create(payload: { eventGroupId?: string; title?: string; r2Key: string; filename?: string; mimeType?: string; fileSize?: number }): Promise<VisualizerModel>;
+    create(payload: {
+      eventGroupId?: string;
+      title?: string;
+      r2Key: string;
+      filename?: string;
+      mimeType?: string;
+      fileSize?: number;
+    }): Promise<VisualizerModel>;
+    update(
+      id: string,
+      payload: {
+        r2Key: string;
+        filename?: string;
+        mimeType?: string;
+        fileSize?: number;
+        title?: string;
+      },
+    ): Promise<VisualizerModel>;
     /** `force: true` is required to delete the current Base Earth Model
      * (mirrors svet-ikony's own DELETE route's ?force=1 guard). */
     remove(id: string, options?: { force?: boolean }): Promise<void>;

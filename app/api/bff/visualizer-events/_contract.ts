@@ -42,13 +42,10 @@ export interface WorkerVisualizerEventDto {
   publishedAt: string | null;
 }
 
-/** Fields deliberately dropped here and never sent to the browser: `siteId`,
- * `isGlobal` — internal Worker/content-model fields with no admin use.
- * `sortYear` is also dropped — it's a machine-computed ordering key the
- * Worker derives automatically from yearStart/century/calendarEra (see
- * that repository's computeSortYearFromParts), never something an admin
- * edits directly. */
+/** Public admin fields include sortYear so traditional dates can be ordered
+ * without inventing a display date. Only siteId/isGlobal stay Worker-internal. */
 export interface BffVisualizerEventDto {
+  sortYear?: number;
   id: string;
   slug: string;
   language: string;
@@ -92,6 +89,7 @@ export function toBffVisualizerEventDto(worker: WorkerVisualizerEventDto): BffVi
     yearEnd: worker.yearEnd,
     century: worker.century,
     displayDate: worker.displayDate,
+    sortYear: worker.sortYear,
     locationName: worker.locationName,
     latitude: worker.latitude,
     longitude: worker.longitude,
@@ -104,14 +102,15 @@ export function toBffVisualizerEventDto(worker: WorkerVisualizerEventDto): BffVi
   };
 }
 
-export function toBffVisualizerEventDtoList(workers: WorkerVisualizerEventDto[]): BffVisualizerEventDto[] {
+export function toBffVisualizerEventDtoList(
+  workers: WorkerVisualizerEventDto[],
+): BffVisualizerEventDto[] {
   return workers.map(toBffVisualizerEventDto);
 }
 
-/** Admin -> Worker payload for create/update. Same whitelist in reverse —
- * see BffVisualizerEventDto's doc comment for what's deliberately not
- * sent (sortYear is always Worker-computed). */
+/** Admin -> Worker payload; omitted sortYear requests automatic ordering. */
 export interface WorkerVisualizerEventWritePayload {
+  sortYear?: number;
   slug?: string;
   language?: string;
   title?: string;

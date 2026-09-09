@@ -1,14 +1,14 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Eye, Trash2 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Eye } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
-import { ModelViewerPreview } from "@/components/forms/model-viewer-preview";
-import { MediaUploadButton } from "@/components/forms/media-upload-button";
+import { VisualizerModelsPanel } from "./visualizer-models-panel";
+import { useAuth } from "@/lib/auth/auth-context";
 import { NumberField } from "@/components/forms/number-field";
 import { SelectField } from "@/components/forms/select-field";
 import { SwitchField } from "@/components/forms/switch-field";
@@ -19,7 +19,6 @@ import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { apiClient } from "@/lib/api";
-import { errorMessageFor } from "@/lib/api/errors";
 import {
   VISUALIZER_CALENDAR_ERA_LABELS,
   VISUALIZER_CHRONOLOGY_TYPE_LABELS,
@@ -27,9 +26,11 @@ import {
   VISUALIZER_EVENT_TYPE_LABELS,
 } from "@/lib/constants/visualizer-labels";
 import { messages } from "@/lib/i18n";
-import { resolveMediaPreviewUrl } from "@/lib/media/resolve-preview-url";
 import { useBeforeUnloadWarning } from "@/lib/utils/use-before-unload";
-import { visualizerEventSchema, type VisualizerEventFormValues } from "@/lib/validation/visualizer-event.schema";
+import {
+  visualizerEventSchema,
+  type VisualizerEventFormValues,
+} from "@/lib/validation/visualizer-event.schema";
 import type { Language, VisualizerEvent } from "@/types/entities";
 
 const EMPTY_DEFAULTS: VisualizerEventFormValues = {
@@ -75,7 +76,8 @@ export function VisualizerEventForm({
   submitting,
 }: VisualizerEventFormProps) {
   const router = useRouter();
-  const queryClient = useQueryClient();
+  const { canEdit } = useAuth();
+  const editable = canEdit("content");
   const { setDirty } = useUnsavedChanges();
   const [tab, setTab] = useState("main");
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -96,12 +98,18 @@ export function VisualizerEventForm({
 
   const effectiveGroupId = event?.translationGroupId ?? groupId;
 
+  const calendarQuery = useQuery({
+    queryKey: ["calendarDays", "visualizer-picker"],
+    queryFn: () => apiClient.calendarDays.list({ pageSize: 1000 }),
+  });
   const siblingsQuery = useQuery({
     queryKey: ["visualizerEvents", "group", effectiveGroupId],
     queryFn: () => apiClient.visualizerEvents.list({ pageSize: 200 }),
     enabled: !!effectiveGroupId,
   });
-  const siblings = (siblingsQuery.data?.items ?? []).filter((e) => e.translationGroupId === effectiveGroupId);
+  const siblings = (siblingsQuery.data?.items ?? []).filter(
+    (e) => e.translationGroupId === effectiveGroupId,
+  );
 
   const completeness = useMemo(() => {
     const result = {} as Record<Language, Completeness>;
@@ -124,40 +132,14 @@ export function VisualizerEventForm({
     if (sibling) {
       router.push(`/visualizer/${sibling.id}`);
     } else if (effectiveGroupId) {
-      router.push(`/visualizer/new?groupId=${effectiveGroupId}&language=${lang}&slug=${encodeURIComponent(form.getValues("slug"))}`);
+      router.push(
+        `/visualizer/new?groupId=${effectiveGroupId}&language=${lang}&slug=${encodeURIComponent(form.getValues("slug"))}`,
+      );
     }
   }
 
-  // GLB models attach to the event's translation GROUP (shared across its
-  // uk/ru/en rows), not one language row — the backend also rejects a
-  // model whose eventGroupId doesn't match a real existing group, so
-  // uploading is only possible once the event has been saved at least once.
-  const modelsQuery = useQuery({
-    queryKey: ["visualizerModels", "group", effectiveGroupId],
-    queryFn: () => apiClient.visualizerModels.list({ eventGroupId: effectiveGroupId }),
-    enabled: !!effectiveGroupId,
-  });
-
-  const removeModelMutation = useMutation({
-    mutationFn: (id: string) => apiClient.visualizerModels.remove(id),
-    onSuccess: () => {
-      toast.success("3D-модель видалено");
-      queryClient.invalidateQueries({ queryKey: ["visualizerModels", "group", effectiveGroupId] });
-    },
-    onError: (error) => toast.error(errorMessageFor(error)),
-  });
-
-  const createModelMutation = useMutation({
-    mutationFn: (input: { r2Key: string; filename?: string; mimeType?: string; fileSize?: number }) =>
-      apiClient.visualizerModels.create({ eventGroupId: effectiveGroupId, ...input }),
-    onSuccess: () => {
-      toast.success("3D-модель додано");
-      queryClient.invalidateQueries({ queryKey: ["visualizerModels", "group", effectiveGroupId] });
-    },
-    onError: (error) => toast.error(errorMessageFor(error)),
-  });
-
   async function handleSave(publish: boolean) {
+    if (!editable) return;
     if (publish) form.setValue("status", "published", { shouldDirty: true });
     const valid = await form.trigger();
     if (!valid) {
@@ -176,15 +158,21 @@ export function VisualizerEventForm({
       <div className="flex-1 space-y-4 overflow-y-auto p-4 pb-28 md:p-6 md:pb-24">
         {effectiveGroupId ? (
           <div className="space-y-1.5">
-            <p className="text-xs font-medium text-muted-foreground">Переклади</p>
-            <TranslationSwitcher active={values.language} onSelect={handleSwitchLanguage} completeness={completeness} />
+            <p className="text-muted-foreground text-xs font-medium">Переклади</p>
+            <TranslationSwitcher
+              active={values.language}
+              onSelect={handleSwitchLanguage}
+              completeness={completeness}
+            />
           </div>
         ) : null}
 
         {event ? (
           <Field>
             <FieldLabel>Translation Group ID</FieldLabel>
-            <p className="rounded-md border bg-muted px-3 py-2 font-mono text-xs text-muted-foreground">{event.translationGroupId}</p>
+            <p className="bg-muted text-muted-foreground rounded-md border px-3 py-2 font-mono text-xs">
+              {event.translationGroupId}
+            </p>
             <FieldDescription>Лише для перегляду — керується автоматично.</FieldDescription>
           </Field>
         ) : null}
@@ -200,46 +188,82 @@ export function VisualizerEventForm({
 
           <TabsContent value="main" className="space-y-4">
             <TextField control={form.control} name="title" label="Назва події" />
-            <TextField control={form.control} name="slug" label="Slug" description="Латиниця, цифри, дефіси" />
+            <TextField
+              control={form.control}
+              name="slug"
+              label="Slug"
+              description="Латиниця, цифри, дефіси"
+            />
             <SelectField
               control={form.control}
               name="eventType"
               label="Тип події"
-              options={Object.entries(VISUALIZER_EVENT_TYPE_LABELS).map(([value, label]) => ({ value, label }))}
+              options={Object.entries(VISUALIZER_EVENT_TYPE_LABELS).map(([value, label]) => ({
+                value,
+                label,
+              }))}
             />
-            <TextField control={form.control} name="summary" label="Короткий опис" textarea rows={3} />
-            <TextField control={form.control} name="description" label="Повний опис" textarea rows={8} />
+            <TextField
+              control={form.control}
+              name="summary"
+              label="Короткий опис"
+              textarea
+              rows={3}
+            />
+            <TextField
+              control={form.control}
+              name="description"
+              label="Повний опис"
+              textarea
+              rows={8}
+            />
             <SwitchField control={form.control} name="isFeatured" label="Рекомендована подія" />
           </TabsContent>
 
           <TabsContent value="chronology" className="space-y-4">
             <FieldDescription>
-              Не вказуйте точний рік там, де датування історично невстановлене — оберіть відповідний тип хронології
-              та за потреби заповніть «Текст дати» текстом на кшталт «Традиційна біблійна хронологія».
+              Не вказуйте точний рік там, де датування історично невстановлене — оберіть відповідний
+              тип хронології та за потреби заповніть «Текст дати» текстом на кшталт «Традиційна
+              біблійна хронологія».
             </FieldDescription>
             <SelectField
               control={form.control}
               name="chronologyType"
               label="Тип хронології"
-              options={Object.entries(VISUALIZER_CHRONOLOGY_TYPE_LABELS).map(([value, label]) => ({ value, label }))}
+              options={Object.entries(VISUALIZER_CHRONOLOGY_TYPE_LABELS).map(([value, label]) => ({
+                value,
+                label,
+              }))}
             />
             <SelectField
               control={form.control}
               name="era"
               label="Епоха"
-              options={Object.entries(VISUALIZER_ERA_LABELS).map(([value, label]) => ({ value, label }))}
+              options={Object.entries(VISUALIZER_ERA_LABELS).map(([value, label]) => ({
+                value,
+                label,
+              }))}
             />
             <SelectField
               control={form.control}
               name="calendarEra"
               label="Літочислення"
-              options={Object.entries(VISUALIZER_CALENDAR_ERA_LABELS).map(([value, label]) => ({ value, label }))}
+              options={Object.entries(VISUALIZER_CALENDAR_ERA_LABELS).map(([value, label]) => ({
+                value,
+                label,
+              }))}
             />
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <NumberField control={form.control} name="yearStart" label="Рік (початок)" />
               <NumberField control={form.control} name="yearEnd" label="Рік (кінець)" />
               <NumberField control={form.control} name="century" label="Століття" />
             </div>
+            <NumberField
+              control={form.control}
+              name="sortYear"
+              label="Порядок у хронології"
+              description="Необов’язковий ключ сортування. Від’ємні числа — до н. е. Залиште порожнім для автоматичного порядку; відвідувачі цього числа не бачать."
+            />
             <TextField
               control={form.control}
               name="displayDate"
@@ -249,49 +273,52 @@ export function VisualizerEventForm({
           </TabsContent>
 
           <TabsContent value="geo" className="space-y-4">
+            <SelectField
+              control={form.control}
+              name="calendarDayId"
+              label="Подія церковного календаря"
+              options={[
+                { value: "", label: "Без зв’язку з календарем" },
+                ...(calendarQuery.data?.items ?? []).map((day) => ({
+                  value: day.id,
+                  label: day.title,
+                })),
+              ]}
+            />
             <TextField control={form.control} name="locationName" label="Назва місця" />
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <NumberField control={form.control} name="latitude" label="Широта" min={-90} max={90} step={0.0001} />
-              <NumberField control={form.control} name="longitude" label="Довгота" min={-180} max={180} step={0.0001} />
+              <NumberField
+                control={form.control}
+                name="latitude"
+                label="Широта"
+                min={-90}
+                max={90}
+                step={0.0001}
+              />
+              <NumberField
+                control={form.control}
+                name="longitude"
+                label="Довгота"
+                min={-180}
+                max={180}
+                step={0.0001}
+              />
             </div>
             <FieldDescription>
-              Якщо координати вказано, публічний 3D-візуалізатор автоматично направить Землю на цю точку.
+              Якщо координати вказано, публічний 3D-візуалізатор автоматично направить Землю на цю
+              точку.
             </FieldDescription>
           </TabsContent>
 
           <TabsContent value="model" className="space-y-4">
-            {!effectiveGroupId ? (
-              <FieldDescription>Спочатку збережіть подію — після цього можна буде додати 3D-модель.</FieldDescription>
+            {effectiveGroupId ? (
+              <VisualizerModelsPanel
+                mode="event"
+                eventGroupId={effectiveGroupId}
+                editable={editable}
+              />
             ) : (
-              <>
-                <MediaUploadButton
-                  kind="model"
-                  module="visualizer"
-                  entityId={effectiveGroupId}
-                  purpose="model"
-                  onUploaded={({ id }) => {
-                    void createModelMutation.mutateAsync({ r2Key: id });
-                  }}
-                />
-                <div className="space-y-4">
-                  {(modelsQuery.data ?? []).map((model) => {
-                    const previewUrl = resolveMediaPreviewUrl(model.r2Key);
-                    return (
-                      <div key={model.id} className="space-y-2 rounded-md border p-3">
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="truncate text-sm font-medium">{model.filename || model.r2Key}</p>
-                          <Button type="button" variant="ghost" size="sm" onClick={() => removeModelMutation.mutate(model.id)}>
-                            <Trash2 className="size-4" />
-                            Видалити
-                          </Button>
-                        </div>
-                        {previewUrl ? <ModelViewerPreview src={previewUrl} alt={model.filename} /> : null}
-                      </div>
-                    );
-                  })}
-                  {modelsQuery.data?.length === 0 ? <p className="text-sm text-muted-foreground">3D-модель ще не додано.</p> : null}
-                </div>
-              </>
+              <FieldDescription>Спочатку збережіть подію, щоб додати 3D-модель.</FieldDescription>
             )}
           </TabsContent>
 
@@ -306,7 +333,7 @@ export function VisualizerEventForm({
                 { value: "archived", label: messages.status.archived },
               ]}
             />
-            {mode === "edit" && onDelete ? (
+            {editable && mode === "edit" && onDelete ? (
               <Button type="button" variant="destructive" onClick={onDelete}>
                 {messages.actions.delete}
               </Button>
@@ -316,28 +343,69 @@ export function VisualizerEventForm({
       </div>
 
       <div
-        className="fixed inset-x-0 bottom-16 z-20 flex gap-2 border-t bg-background p-3 md:sticky md:bottom-0 md:inset-x-auto"
+        className="bg-background fixed inset-x-0 bottom-16 z-20 flex gap-2 border-t p-3 md:sticky md:inset-x-auto md:bottom-0"
         style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 0.75rem)" }}
       >
-        <Button type="button" variant="outline" className="h-11 flex-1" onClick={() => setPreviewOpen(true)}>
+        <Button
+          type="button"
+          variant="outline"
+          className="h-11 flex-1"
+          onClick={() => setPreviewOpen(true)}
+        >
           <Eye className="size-4" />
           {messages.actions.preview}
         </Button>
-        <Button type="button" variant="secondary" className="h-11 flex-1" disabled={submitting} onClick={() => handleSave(false)}>
+        <Button
+          type="button"
+          variant="secondary"
+          className="h-11 flex-1"
+          disabled={submitting || !editable}
+          onClick={() => handleSave(false)}
+        >
           {messages.actions.save}
         </Button>
-        <Button type="button" className="h-11 flex-1" disabled={submitting} onClick={() => handleSave(true)}>
+        <Button
+          type="button"
+          className="h-11 flex-1"
+          disabled={submitting || !editable}
+          onClick={() => handleSave(true)}
+        >
           {messages.actions.publish}
         </Button>
       </div>
 
       {previewOpen ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 md:items-center" onClick={() => setPreviewOpen(false)}>
-          <div className="max-h-[85svh] w-full max-w-lg overflow-y-auto rounded-t-xl bg-background p-6 md:rounded-xl" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 md:items-center"
+          onClick={() => setPreviewOpen(false)}
+        >
+          <div
+            className="bg-background max-h-[85svh] w-full max-w-lg overflow-y-auto rounded-t-xl p-6 md:rounded-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
             <h2 className="text-lg font-semibold">Попередній перегляд</h2>
             <h3 className="mt-4 text-2xl font-semibold">{values.title || "Без назви"}</h3>
             <p className="mt-2 text-sm leading-relaxed">{values.summary || "Опис ще не додано."}</p>
-            <Button className="mt-4 h-11 w-full" variant="outline" onClick={() => setPreviewOpen(false)}>
+            <p>
+              {values.displayDate || [values.yearStart, values.yearEnd].filter(Boolean).join("–")} ·{" "}
+              {values.locationName}
+            </p>
+            <p className="text-muted-foreground text-sm">
+              {VISUALIZER_CHRONOLOGY_TYPE_LABELS[values.chronologyType]}
+            </p>
+            <p className="whitespace-pre-wrap">{values.description}</p>
+            {effectiveGroupId ? (
+              <VisualizerModelsPanel
+                mode="event"
+                eventGroupId={effectiveGroupId}
+                editable={false}
+              />
+            ) : null}
+            <Button
+              className="mt-4 h-11 w-full"
+              variant="outline"
+              onClick={() => setPreviewOpen(false)}
+            >
               Закрити
             </Button>
           </div>

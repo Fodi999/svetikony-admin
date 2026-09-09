@@ -16,6 +16,9 @@ import { errorMessageFor } from "@/lib/api/errors";
 export interface UploadedMedia {
   id: string;
   url: string;
+  filename: string;
+  mimeType: string;
+  fileSize: number;
 }
 
 interface MediaUploadButtonProps {
@@ -26,7 +29,8 @@ interface MediaUploadButtonProps {
   entityId: string;
   /** Matches the module's allowed purposes, e.g. "audio" / "image" for prayers. */
   purpose: string;
-  onUploaded: (result: UploadedMedia) => void;
+  onUploaded: (result: UploadedMedia) => void | Promise<void>;
+  disabled?: boolean;
   label?: string;
 }
 
@@ -38,7 +42,15 @@ interface MediaUploadButtonProps {
  * optional on MediaApi precisely so this can detect which one is
  * available instead of assuming a mode.
  */
-export function MediaUploadButton({ kind, module, entityId, purpose, onUploaded, label }: MediaUploadButtonProps) {
+export function MediaUploadButton({
+  kind,
+  module,
+  entityId,
+  purpose,
+  onUploaded,
+  label,
+  disabled,
+}: MediaUploadButtonProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
 
@@ -50,9 +62,16 @@ export function MediaUploadButton({ kind, module, entityId, purpose, onUploaded,
     setUploading(true);
     try {
       const result = apiClient.media.uploadObject
-        ? await apiClient.media.uploadObject({ file, module, entityId, purpose }).then((r) => ({ id: r.key, url: r.url }))
+        ? await apiClient.media
+            .uploadObject({ file, module, entityId, purpose })
+            .then((r) => ({ id: r.key, url: r.url }))
         : await apiClient.media.upload(file).then((asset) => ({ id: asset.id, url: asset.url }));
-      onUploaded(result);
+      await onUploaded({
+        ...result,
+        filename: file.name,
+        mimeType: kind === "model" ? "model/gltf-binary" : file.type,
+        fileSize: file.size,
+      });
       toast.success("Файл завантажено");
     } catch (error) {
       toast.error(errorMessageFor(error));
@@ -61,13 +80,31 @@ export function MediaUploadButton({ kind, module, entityId, purpose, onUploaded,
     }
   }
 
-  const accept = kind === "audio" ? "audio/*" : kind === "model" ? ".glb,model/gltf-binary" : "image/*";
-  const defaultLabel = kind === "audio" ? "Завантажити аудіо" : kind === "model" ? "Завантажити 3D-модель" : "Завантажити зображення";
+  const accept =
+    kind === "audio" ? "audio/*" : kind === "model" ? ".glb,model/gltf-binary" : "image/*";
+  const defaultLabel =
+    kind === "audio"
+      ? "Завантажити аудіо"
+      : kind === "model"
+        ? "Завантажити 3D-модель"
+        : "Завантажити зображення";
 
   return (
     <>
-      <input ref={inputRef} type="file" accept={accept} className="hidden" onChange={handleChange} />
-      <Button type="button" variant="outline" size="sm" disabled={uploading} onClick={() => inputRef.current?.click()}>
+      <input
+        ref={inputRef}
+        type="file"
+        accept={accept}
+        className="hidden"
+        onChange={handleChange}
+      />
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        disabled={uploading || disabled}
+        onClick={() => inputRef.current?.click()}
+      >
         {uploading ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
         {label ?? defaultLabel}
       </Button>

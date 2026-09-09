@@ -35,9 +35,9 @@ function workerDto(overrides: Partial<WorkerVisualizerEventDto> = {}): WorkerVis
 }
 
 describe("toBffVisualizerEventDto", () => {
-  it("drops internal Worker-only fields (siteId, isGlobal, sortYear)", () => {
+  it("drops internal Worker-only fields (siteId, isGlobal)", () => {
     const bff = toBffVisualizerEventDto(workerDto());
-    for (const field of ["siteId", "isGlobal", "sortYear"]) {
+    for (const field of ["siteId", "isGlobal"]) {
       expect(bff).not.toHaveProperty(field);
     }
   });
@@ -59,6 +59,7 @@ describe("toBffVisualizerEventDto", () => {
       yearStart: 988,
       yearEnd: null,
       century: 10,
+      sortYear: 988,
       displayDate: "988",
       locationName: "Київ",
       latitude: 50.45,

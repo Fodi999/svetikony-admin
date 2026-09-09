@@ -40,7 +40,7 @@ async function uploadObject(input: { file: File; module: string; entityId: strin
   form.append("entityId", input.entityId);
   form.append("purpose", input.purpose);
 
-  const { signal, clear } = createAbortTimeout(REQUEST_TIMEOUT_MS);
+  const { signal, clear } = createAbortTimeout(input.purpose === "model" ? 120_000 : REQUEST_TIMEOUT_MS);
   let response: Response;
   try {
     response = await fetch(BFF_ENDPOINTS.mediaUpload, { method: "POST", body: form, signal });

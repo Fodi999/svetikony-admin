@@ -102,7 +102,13 @@ export interface TelegramPost extends Identifiable, Timestamps {
   verificationError: string | null;
 }
 
-export const AUTOPOST_CONTENT_TYPES = ["morning_prayer", "saint_of_day", "gospel", "faith_story", "evening_prayer"] as const;
+export const AUTOPOST_CONTENT_TYPES = [
+  "morning_prayer",
+  "saint_of_day",
+  "gospel",
+  "faith_story",
+  "evening_prayer",
+] as const;
 export type AutopostContentType = (typeof AUTOPOST_CONTENT_TYPES)[number];
 
 export const AUTOPOST_CONTENT_TYPE_LABELS: Record<AutopostContentType, string> = {
@@ -140,7 +146,15 @@ export const AUTOPOST_CONTENT_TYPE_SHORT_LABELS: Record<AutopostContentType, str
  * occupies between the autopost tick's atomic ready->sending claim and the
  * send completing -- distinct from 'READY' so the UI never shows mutation
  * buttons for a slot that may complete sending at any moment. */
-export type ContentPlanSlotStatus = "SENT" | "SENDING" | "READY" | "DRAFT" | "SOURCE_READY" | "MISSING_SOURCE" | "REVIEW_REQUIRED" | "FAILED";
+export type ContentPlanSlotStatus =
+  | "SENT"
+  | "SENDING"
+  | "READY"
+  | "DRAFT"
+  | "SOURCE_READY"
+  | "MISSING_SOURCE"
+  | "REVIEW_REQUIRED"
+  | "FAILED";
 
 export interface ContentPlanSlot {
   contentType: AutopostContentType;
@@ -170,7 +184,12 @@ export interface ContentPlanSlot {
    * via the real planDelivery() -- see features/telegram/content-plan/
    * preview-dialog.tsx, never reimplemented client-side. */
   deliveryPreview?: {
-    kind: "text_only" | "photo_with_caption" | "photo_then_text" | "audio_then_text" | "photo_and_audio_then_text";
+    kind:
+      | "text_only"
+      | "photo_with_caption"
+      | "photo_then_text"
+      | "audio_then_text"
+      | "photo_and_audio_then_text";
     photoCaption: string | null;
     audioCaption: string | null;
   };
@@ -271,12 +290,7 @@ export interface TelegramDashboardStatus {
 // Calendar
 // ---------------------------------------------------------------------------
 
-export type CalendarEventType =
-  | "feast"
-  | "fast"
-  | "memorial"
-  | "liturgical"
-  | "civil";
+export type CalendarEventType = "feast" | "fast" | "memorial" | "liturgical" | "civil";
 
 /** Read-only provenance of `imageId` -- see CalendarAiFillResult and
  * features/calendar/calendar-day-form.tsx's Media tab display. Never part
@@ -518,13 +532,15 @@ export interface AlphabetLetter extends Identifiable, Timestamps, Translatable {
 // Visualizer ("Візуалізатор" -- 3D historical/biblical events)
 // ---------------------------------------------------------------------------
 
-export type VisualizerEventType = "biblical" | "church_history" | "historical" | "saint" | "council" | "location" | "other";
+export type VisualizerEventType =
+  "biblical" | "church_history" | "historical" | "saint" | "council" | "location" | "other";
 
 /** Not every historical/biblical event can honestly carry an exact date --
  * `chronologyType` says how much confidence `displayDate`/`yearStart`/
  * `century` actually carry, so the public visualizer can show "Traditional
  * dating" instead of presenting a fabricated precise date as fact. */
-export type VisualizerChronologyType = "exact" | "approximate" | "traditional" | "period" | "unknown";
+export type VisualizerChronologyType =
+  "exact" | "approximate" | "traditional" | "period" | "unknown";
 
 export type VisualizerEra =
   | "biblical_creation"
@@ -555,18 +571,13 @@ export interface VisualizerEvent extends Identifiable, Timestamps, Translatable 
   /** Human-authored date/period text (e.g. "Традиційна біблійна хронологія")
    * -- shown to visitors instead of/alongside the machine `sortYear`, which
    * exists purely for ordering and is never rendered directly. */
-  /** `sortYear` (the machine ordering key svet-ikony computes from
-   * yearStart/century/calendarEra) is deliberately NOT part of this entity
-   * -- it's Worker-internal, dropped at the BFF layer (see
-   * app/api/bff/visualizer-events/_contract.ts), never something the admin
-   * reads or edits directly. */
+  sortYear?: number;
   displayDate?: string;
   locationName?: string;
   latitude?: number;
   longitude?: number;
   /** Optional link to an existing church_calendar_days row -- see
-   * lib/d1/repositories/visualizerEvents.ts in svet-ikony. Not yet
-   * surfaced as a picker in this form (deferred, per the MVP scope). */
+   * lib/d1/repositories/visualizerEvents.ts in svet-ikony. Selected through the event form’s calendar picker. */
   calendarDayId?: string;
   status: ContentStatus;
   isFeatured: boolean;
@@ -730,7 +741,15 @@ export interface Product extends Identifiable, Timestamps {
  * value) is retired entirely, per your explicit decision: it had no
  * backend counterpart at all, not even as a subset of one of these 8.
  */
-export type OrderStatus = "new" | "contacted" | "confirmed" | "in_production" | "ready" | "shipped" | "completed" | "cancelled";
+export type OrderStatus =
+  | "new"
+  | "contacted"
+  | "confirmed"
+  | "in_production"
+  | "ready"
+  | "shipped"
+  | "completed"
+  | "cancelled";
 
 /** Mirrors svet-ikony's IconOrderItemDto field-for-field (Phase 2B-5B) —
  * `optionNameSnapshot`/`priceCentsSnapshot` are real snapshots taken at
