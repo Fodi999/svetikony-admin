@@ -10,6 +10,7 @@ import type { PrayerFormValues } from "@/lib/validation/prayer.schema";
 import type { ProductFormValues } from "@/lib/validation/product.schema";
 import type { SaintFormValues } from "@/lib/validation/saint.schema";
 import type { AutopostSettingsFormValues, TelegramPostFormValues } from "@/lib/validation/telegram.schema";
+import type { VisualizerEventFormValues } from "@/lib/validation/visualizer-event.schema";
 import type { ListQuery, MediaObjectDto, PaginatedResult } from "@/types/api";
 import type {
   AlphabetLetter,
@@ -38,6 +39,8 @@ import type {
   TelegramDashboardStatus,
   TelegramPost,
   TelegramTodayContent,
+  VisualizerEvent,
+  VisualizerModel,
   TelegramUser,
 } from "@/types/entities";
 
@@ -290,5 +293,22 @@ export interface ApiClient {
   };
   categories: CrudResource<ProductCategory, ProductCategoryFormValues>;
   products: CrudResource<Product, ProductFormValues, ProductQuery>;
+  visualizerEvents: CrudResource<VisualizerEvent, VisualizerEventFormValues, TranslatableQuery>;
+  /**
+   * Not a CrudResource — GLB metadata has no per-language translations, no
+   * pagination (always fetched in the context of one event's group, or the
+   * pinned Base Earth Model card), and no update (only replace-by-delete-
+   * then-recreate). `list` with no `eventGroupId` returns every model,
+   * used by the Base Earth Model card to find whichever one currently has
+   * `isBaseEarth: true`.
+   */
+  visualizerModels: {
+    list(query?: { eventGroupId?: string }): Promise<VisualizerModel[]>;
+    create(payload: { eventGroupId?: string; title?: string; r2Key: string; filename?: string; mimeType?: string; fileSize?: number }): Promise<VisualizerModel>;
+    /** `force: true` is required to delete the current Base Earth Model
+     * (mirrors svet-ikony's own DELETE route's ?force=1 guard). */
+    remove(id: string, options?: { force?: boolean }): Promise<void>;
+    setBaseEarth(id: string): Promise<VisualizerModel>;
+  };
   telegram: TelegramApi;
 }

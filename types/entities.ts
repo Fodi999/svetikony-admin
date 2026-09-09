@@ -515,6 +515,81 @@ export interface AlphabetLetter extends Identifiable, Timestamps, Translatable {
 }
 
 // ---------------------------------------------------------------------------
+// Visualizer ("Візуалізатор" -- 3D historical/biblical events)
+// ---------------------------------------------------------------------------
+
+export type VisualizerEventType = "biblical" | "church_history" | "historical" | "saint" | "council" | "location" | "other";
+
+/** Not every historical/biblical event can honestly carry an exact date --
+ * `chronologyType` says how much confidence `displayDate`/`yearStart`/
+ * `century` actually carry, so the public visualizer can show "Traditional
+ * dating" instead of presenting a fabricated precise date as fact. */
+export type VisualizerChronologyType = "exact" | "approximate" | "traditional" | "period" | "unknown";
+
+export type VisualizerEra =
+  | "biblical_creation"
+  | "biblical_old_testament"
+  | "biblical_new_testament"
+  | "apostolic"
+  | "early_church"
+  | "byzantine"
+  | "medieval"
+  | "modern"
+  | "contemporary"
+  | "custom";
+
+export type VisualizerCalendarEra = "BC" | "AD" | "unknown";
+
+export interface VisualizerEvent extends Identifiable, Timestamps, Translatable {
+  slug: string;
+  title: string;
+  summary?: string;
+  description?: string;
+  eventType: VisualizerEventType;
+  chronologyType: VisualizerChronologyType;
+  era: VisualizerEra;
+  calendarEra: VisualizerCalendarEra;
+  yearStart?: number;
+  yearEnd?: number;
+  century?: number;
+  /** Human-authored date/period text (e.g. "Традиційна біблійна хронологія")
+   * -- shown to visitors instead of/alongside the machine `sortYear`, which
+   * exists purely for ordering and is never rendered directly. */
+  /** `sortYear` (the machine ordering key svet-ikony computes from
+   * yearStart/century/calendarEra) is deliberately NOT part of this entity
+   * -- it's Worker-internal, dropped at the BFF layer (see
+   * app/api/bff/visualizer-events/_contract.ts), never something the admin
+   * reads or edits directly. */
+  displayDate?: string;
+  locationName?: string;
+  latitude?: number;
+  longitude?: number;
+  /** Optional link to an existing church_calendar_days row -- see
+   * lib/d1/repositories/visualizerEvents.ts in svet-ikony. Not yet
+   * surfaced as a picker in this form (deferred, per the MVP scope). */
+  calendarDayId?: string;
+  status: ContentStatus;
+  isFeatured: boolean;
+  publishedAt?: string;
+}
+
+export interface VisualizerModel extends Identifiable, Timestamps {
+  /** The event TRANSLATION GROUP this model belongs to (shared across its
+   * uk/ru/en rows, not one specific language row) -- undefined for a
+   * standalone model, in practice always the Base Earth Model. */
+  eventGroupId?: string;
+  title?: string;
+  /** Bare R2 key (Saints/Alphabet-photo convention) -- resolved to a
+   * displayable/loadable URL via resolveMediaPreviewUrl(). */
+  r2Key: string;
+  filename?: string;
+  mimeType?: string;
+  fileSize?: number;
+  isBaseEarth: boolean;
+  sortOrder: number;
+}
+
+// ---------------------------------------------------------------------------
 // Church info (singleton)
 // ---------------------------------------------------------------------------
 

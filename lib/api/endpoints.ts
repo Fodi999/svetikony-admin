@@ -31,6 +31,8 @@ export const UPSTREAM_ENDPOINTS = {
   churchInfo: "/api/admin/church-content/info", // ✅ verified (Phase 2B-4, singleton GET/PUT)
   orders: "/api/admin/church-content/icon-orders", // ✅ verified (Phase 2B-5B, list/get/update/mark-read -- no create/delete admin-side)
   dashboard: "/api/admin/dashboard", // ✅ verified (Phase 2B-6, read-only aggregate)
+  visualizerEvents: "/api/admin/church-content/visualizer-events", // ✅ verified, full CRUD
+  visualizerModels: "/api/admin/church-content/visualizer-models", // ✅ verified, full CRUD + [id]/set-base-earth
   media: {
     upload: "/api/admin/media/upload", // ✅ verified (Stage 2D)
     delete: "/api/admin/media", // ✅ verified (Stage 2D)
@@ -80,6 +82,8 @@ export const BFF_ENDPOINTS = {
   churchInfo: "/api/bff/church-info", // ✅ implemented (Phase 2B-4, singleton GET/PUT)
   orders: "/api/bff/orders", // ✅ implemented (Phase 2B-5B, list/get/update; `${orders}/:id`, `${orders}/:id/read` and `${orders}/unread-count` built at call sites)
   dashboard: "/api/bff/dashboard", // ✅ implemented (Phase 2B-6, GET only)
+  visualizerEvents: "/api/bff/visualizer-events", // ✅ implemented, full CRUD
+  visualizerModels: "/api/bff/visualizer-models", // ✅ implemented, full CRUD; `${visualizerModels}/:id/set-base-earth` built at call sites
   mediaUpload: "/api/bff/media/upload", // ✅ implemented (Stage 2D)
   media: "/api/bff/media", // ✅ implemented — GET (list) + DELETE
   telegram: {

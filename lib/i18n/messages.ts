@@ -9,6 +9,7 @@ export interface Messages {
     gospel: string;
     articles: string;
     alphabet: string;
+    visualizer: string;
     churchInfo: string;
     catalog: string;
     categories: string;
@@ -73,6 +74,7 @@ export const uk: Messages = {
     gospel: "Євангеліє",
     articles: "Статті",
     alphabet: "Азбука",
+    visualizer: "Візуалізатор",
     churchInfo: "Про храм",
     catalog: "Каталог",
     categories: "Категорії",

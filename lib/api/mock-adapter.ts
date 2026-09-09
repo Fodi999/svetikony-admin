@@ -14,6 +14,8 @@ import { prayersResource } from "@/lib/api/mock/prayers";
 import { productsResource } from "@/lib/api/mock/products";
 import { saintsResource } from "@/lib/api/mock/saints";
 import { telegramResource } from "@/lib/api/mock/telegram";
+import { visualizerEventsResource } from "@/lib/api/mock/visualizer-events";
+import { visualizerModelsResource } from "@/lib/api/mock/visualizer-models";
 
 /**
  * Stage-1 implementation of ApiClient: everything is in-memory, seeded from
@@ -36,5 +38,7 @@ export const mockApiAdapter: ApiClient = {
   alphabetLetters: alphabetLettersResource,
   categories: categoriesResource,
   products: productsResource,
+  visualizerEvents: visualizerEventsResource,
+  visualizerModels: visualizerModelsResource,
   telegram: telegramResource,
 };

@@ -14,6 +14,8 @@ import { categoriesHttpResource } from "@/lib/api/http/product-categories";
 import { productsHttpResource } from "@/lib/api/http/products";
 import { saintsHttpResource } from "@/lib/api/http/saints";
 import { telegramHttpResource } from "@/lib/api/http/telegram";
+import { visualizerEventsHttpResource } from "@/lib/api/http/visualizer-events";
+import { visualizerModelsHttpResource } from "@/lib/api/http/visualizer-models";
 
 /**
  * This is what `getApiClient()` returns by default now (see lib/api/index.ts) —
@@ -100,5 +102,7 @@ export function createHttpApiAdapter(): ApiClient {
     media: mediaHttpResource,
     telegram: telegramHttpResource,
     dashboard: dashboardHttpResource,
+    visualizerEvents: visualizerEventsHttpResource,
+    visualizerModels: visualizerModelsHttpResource,
   };
 }

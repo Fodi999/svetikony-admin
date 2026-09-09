@@ -19,7 +19,7 @@ export interface UploadedMedia {
 }
 
 interface MediaUploadButtonProps {
-  kind: "image" | "audio";
+  kind: "image" | "audio" | "model";
   /** Matches svet-ikony's lib/media/constants.ts ALLOWED_MODULE_PURPOSES — e.g. "prayers". */
   module: string;
   /** The record this file belongs to; "draft" for a not-yet-saved new record. */
@@ -61,12 +61,15 @@ export function MediaUploadButton({ kind, module, entityId, purpose, onUploaded,
     }
   }
 
+  const accept = kind === "audio" ? "audio/*" : kind === "model" ? ".glb,model/gltf-binary" : "image/*";
+  const defaultLabel = kind === "audio" ? "Завантажити аудіо" : kind === "model" ? "Завантажити 3D-модель" : "Завантажити зображення";
+
   return (
     <>
-      <input ref={inputRef} type="file" accept={kind === "audio" ? "audio/*" : "image/*"} className="hidden" onChange={handleChange} />
+      <input ref={inputRef} type="file" accept={accept} className="hidden" onChange={handleChange} />
       <Button type="button" variant="outline" size="sm" disabled={uploading} onClick={() => inputRef.current?.click()}>
         {uploading ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
-        {label ?? (kind === "audio" ? "Завантажити аудіо" : "Завантажити зображення")}
+        {label ?? defaultLabel}
       </Button>
     </>
   );
