@@ -12,8 +12,9 @@
  */
 
 /** Mirrors lib/d1/repositories/alphabet.ts's ChurchAlphabetLetterDto in
- * svet-ikony exactly (confirmed via curl, Stage 2). Do not add fields here
- * that aren't in that type. */
+ * svet-ikony exactly (confirmed via source read, real-writes phase). Do
+ * not add fields here that aren't in that type. `audioUrl` was added by
+ * svet-ikony migration 0018_alphabet_audio.sql. */
 export interface WorkerAlphabetLetterDto {
   id: string;
   siteId: string;
@@ -30,6 +31,7 @@ export interface WorkerAlphabetLetterDto {
   mainImageUrl: string;
   seoTitle: string;
   seoDescription: string;
+  audioUrl: string;
   language: string;
   translationGroupId: string;
   status: string;
@@ -40,22 +42,29 @@ export interface WorkerAlphabetLetterDto {
 
 /**
  * Fields deliberately dropped here and never sent to the browser: `siteId`,
- * `letter` (single-glyph display form, unused by admin), `modernEquivalent`,
- * `color`, `cardImageUrl`, `seoTitle`, `seoDescription`, `status`,
- * `isGlobal` — all internal Worker/content-model fields with no admin use.
- * `mainImageUrl` is also dropped: lib/api/http/alphabet.ts's toEntity()
- * intentionally never reads it (admin's mainImageId expects a media-library
- * id, which the Worker doesn't have — see that file's doc comment), so
- * there is nothing here for it to be used for.
+ * `modernEquivalent`, `color`, `cardImageUrl`, `seoTitle`, `seoDescription`,
+ * `status`, `isGlobal` — internal Worker/content-model fields with no admin
+ * use (Alphabet's admin model has no publish lifecycle at all yet — see
+ * lib/api/http/alphabet.ts's toEntity() doc comment).
+ *
+ * `letter` (the single-glyph display form, e.g. "Б") and `mainImageUrl` are
+ * now included — real-writes phase: `letter` is a required backend field
+ * (createAlphabetLetter throws validation error without it) so the admin
+ * form must be able to send it; `mainImageUrl` backs the new real photo
+ * upload button (lib/api/http/alphabet.ts's toEntity() maps it to
+ * `mainImageId`, matching Saints' `imageUrl` -> `imageId` convention).
  */
 export interface BffAlphabetLetterDto {
   id: string;
   slug: string;
+  letter: string;
   sortOrder: number;
   name: string;
   shortDescription: string;
   fullText: string;
   numericValue: number | null;
+  mainImageUrl: string;
+  audioUrl: string;
   language: string;
   translationGroupId: string;
   createdAt: string;
@@ -66,11 +75,14 @@ export function toBffAlphabetLetterDto(worker: WorkerAlphabetLetterDto): BffAlph
   return {
     id: worker.id,
     slug: worker.slug,
+    letter: worker.letter,
     sortOrder: worker.sortOrder,
     name: worker.name,
     shortDescription: worker.shortDescription,
     fullText: worker.fullText,
     numericValue: worker.numericValue,
+    mainImageUrl: worker.mainImageUrl,
+    audioUrl: worker.audioUrl,
     language: worker.language,
     translationGroupId: worker.translationGroupId,
     createdAt: worker.createdAt,
@@ -80,4 +92,21 @@ export function toBffAlphabetLetterDto(worker: WorkerAlphabetLetterDto): BffAlph
 
 export function toBffAlphabetLetterDtoList(workers: WorkerAlphabetLetterDto[]): BffAlphabetLetterDto[] {
   return workers.map(toBffAlphabetLetterDto);
+}
+
+/** Admin -> Worker payload for create/update. Same whitelist in reverse —
+ * see BffAlphabetLetterDto's doc comment for what's deliberately not sent.
+ * `pronunciation` has no backend equivalent (see toEntity()'s doc comment
+ * in lib/api/http/alphabet.ts) and is never part of this payload. */
+export interface WorkerAlphabetLetterWritePayload {
+  slug?: string;
+  letter?: string;
+  sortOrder?: number;
+  name?: string;
+  shortDescription?: string;
+  fullText?: string;
+  numericValue?: number | null;
+  mainImageUrl?: string;
+  audioUrl?: string;
+  language?: string;
 }

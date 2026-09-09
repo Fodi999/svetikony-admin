@@ -19,7 +19,7 @@
  * (read the real route.ts, curl it locally).
  */
 export const UPSTREAM_ENDPOINTS = {
-  alphabetLetters: "/api/admin/church-content/alphabet", // ✅ verified
+  alphabetLetters: "/api/admin/church-content/alphabet", // ✅ verified, full CRUD
   prayers: "/api/admin/church-content/prayers", // ✅ verified (Stage 2I, full CRUD)
   calendarDays: "/api/admin/church-content/calendar-days", // ✅ verified (Stage 2H, full CRUD)
   categories: "/api/admin/church-content/product-categories", // ✅ verified (Stage 2J, full CRUD)
@@ -68,7 +68,7 @@ export const BFF_ENDPOINTS = {
     session: "/api/bff/auth/session", // ✅ implemented (Phase 1B)
     telegramExchange: "/api/bff/auth/telegram/exchange", // ✅ implemented (Phase 3)
   },
-  alphabetLetters: "/api/bff/alphabet", // ✅ implemented (list + get only)
+  alphabetLetters: "/api/bff/alphabet", // ✅ implemented, full CRUD
   prayers: "/api/bff/prayers", // ✅ implemented (Stage 2I, full CRUD)
   calendarDays: "/api/bff/calendar-days", // ✅ implemented (Stage 2H, full CRUD)
   categories: "/api/bff/product-categories", // ✅ implemented (Stage 2J, full CRUD)

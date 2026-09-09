@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/types/api";
+import type { AlphabetLetterFormValues } from "@/lib/validation/alphabet.schema";
 import { alphabetLettersHttpResource } from "./alphabet";
 
 function dto(overrides: Partial<Record<string, unknown>> = {}) {
@@ -19,6 +20,7 @@ function dto(overrides: Partial<Record<string, unknown>> = {}) {
     mainImageUrl: "",
     seoTitle: "",
     seoDescription: "",
+    audioUrl: "",
     language: "en",
     translationGroupId: "group-1",
     status: "published",
@@ -48,12 +50,14 @@ describe("alphabetLettersHttpResource", () => {
         language: "en",
         slug: "az",
         order: 1,
+        letter: "А",
         name: "Азъ",
         pronunciation: undefined,
         description: "I, beginning, person",
         historicalNote: "Full historical note text.",
         numericValue: 1,
         mainImageId: undefined,
+        audioUrl: undefined,
         createdAt: "2026-01-01T00:00:00.000Z",
         updatedAt: "2026-01-02T00:00:00.000Z",
       });
@@ -68,6 +72,18 @@ describe("alphabetLettersHttpResource", () => {
       expect(letter.numericValue).toBeUndefined();
       expect(letter.description).toBeUndefined();
       expect(letter.historicalNote).toBeUndefined();
+    });
+
+    it("maps a non-empty mainImageUrl/audioUrl through to mainImageId/audioUrl", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(
+          jsonResponse(dto({ mainImageUrl: "media/alphabet/x/main/uuid.jpg", audioUrl: "https://svetikony.com/media/alphabet/x/audio/uuid.mp3" })),
+        ),
+      );
+      const letter = await alphabetLettersHttpResource.get("letter-1");
+      expect(letter.mainImageId).toBe("media/alphabet/x/main/uuid.jpg");
+      expect(letter.audioUrl).toBe("https://svetikony.com/media/alphabet/x/audio/uuid.mp3");
     });
 
     it("requests the BFF single-letter route with the encoded id", async () => {
@@ -141,49 +157,75 @@ describe("alphabetLettersHttpResource", () => {
     });
   });
 
-  describe("write operations (READ-only Stage 2)", () => {
-    it("create throws a controlled not_implemented ApiError without calling fetch", async () => {
-      const fetchMock = vi.fn();
+  describe("write operations (real backend, unblocked from the Stage 2 READ-only stub)", () => {
+    const formValues: AlphabetLetterFormValues = {
+      slug: "az",
+      language: "en",
+      order: 1,
+      letter: "А",
+      name: "Az",
+      mainImageId: "media/alphabet/draft/main/uuid.jpg",
+      audioUrl: "https://svetikony.com/media/alphabet/draft/audio/uuid.mp3",
+    };
+
+    it("create POSTs the mapped payload to the BFF and returns the created AlphabetLetter", async () => {
+      const fetchMock = vi.fn().mockResolvedValue(jsonResponse(dto({ name: "Az" }), 201));
       vi.stubGlobal("fetch", fetchMock);
-      await expect(
-        alphabetLettersHttpResource.create({
-          slug: "az",
-          language: "en",
-          order: 1,
-          name: "Az",
-        }),
-      ).rejects.toMatchObject({ code: "not_implemented" });
-      expect(fetchMock).not.toHaveBeenCalled();
-    });
 
-    it("update throws a controlled not_implemented ApiError", async () => {
-      await expect(
-        alphabetLettersHttpResource.update("letter-1", { slug: "az", language: "en", order: 1, name: "Az" }),
-      ).rejects.toBeInstanceOf(ApiError);
-    });
+      const letter = await alphabetLettersHttpResource.create(formValues);
 
-    it("remove throws a controlled not_implemented ApiError", async () => {
-      await expect(alphabetLettersHttpResource.remove("letter-1")).rejects.toMatchObject({ code: "not_implemented" });
-    });
-
-    it("reorderGroups throws a controlled not_implemented ApiError", async () => {
-      await expect(alphabetLettersHttpResource.reorderGroups(["group-1"])).rejects.toMatchObject({
-        code: "not_implemented",
+      expect(letter.name).toBe("Az");
+      expect(fetchMock).toHaveBeenCalledWith("/api/bff/alphabet", expect.objectContaining({ method: "POST" }));
+      const [, init] = fetchMock.mock.calls[0];
+      const body = JSON.parse(init.body as string);
+      expect(body).toMatchObject({
+        slug: "az",
+        letter: "А",
+        name: "Az",
+        mainImageUrl: "media/alphabet/draft/main/uuid.jpg",
+        audioUrl: "https://svetikony.com/media/alphabet/draft/audio/uuid.mp3",
       });
     });
 
-    it("createTranslation throws a controlled not_implemented ApiError without calling fetch", async () => {
-      const fetchMock = vi.fn();
+    it("update PUTs the mapped payload to the BFF single-letter route", async () => {
+      const fetchMock = vi.fn().mockResolvedValue(jsonResponse(dto()));
       vi.stubGlobal("fetch", fetchMock);
-      await expect(
-        alphabetLettersHttpResource.createTranslation?.("group-1", "ru", {
-          slug: "az",
-          language: "ru",
-          order: 1,
-          name: "Азъ",
-        }),
-      ).rejects.toMatchObject({ code: "not_implemented" });
-      expect(fetchMock).not.toHaveBeenCalled();
+
+      await alphabetLettersHttpResource.update("letter-1", formValues);
+
+      expect(fetchMock).toHaveBeenCalledWith("/api/bff/alphabet/letter-1", expect.objectContaining({ method: "PUT" }));
+    });
+
+    it("remove DELETEs the BFF single-letter route", async () => {
+      const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+      vi.stubGlobal("fetch", fetchMock);
+
+      await alphabetLettersHttpResource.remove("letter-1");
+
+      expect(fetchMock).toHaveBeenCalledWith("/api/bff/alphabet/letter-1", expect.objectContaining({ method: "DELETE" }));
+    });
+
+    it("propagates a validation_error ApiError from create on a 400 (e.g. missing letter)", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ code: "VALIDATION_ERROR" }, 400)));
+      await expect(alphabetLettersHttpResource.create(formValues)).rejects.toMatchObject({ code: "validation_error" });
+    });
+
+    it("createTranslation POSTs the mapped payload with the target language, to the same plain create endpoint (Worker auto-links by slug)", async () => {
+      const fetchMock = vi.fn().mockResolvedValue(jsonResponse(dto({ language: "ru", translationGroupId: "group-1" }), 201));
+      vi.stubGlobal("fetch", fetchMock);
+
+      const letter = await alphabetLettersHttpResource.createTranslation?.("group-1", "ru", formValues);
+
+      expect(letter?.translationGroupId).toBe("group-1");
+      expect(letter?.language).toBe("ru");
+      expect(fetchMock).toHaveBeenCalledWith("/api/bff/alphabet", expect.objectContaining({ method: "POST" }));
+      const [, init] = fetchMock.mock.calls[0];
+      const body = JSON.parse(init.body as string);
+      expect(body).toMatchObject({ language: "ru" });
+    });
+
+    it("reorderGroups still throws a controlled not_implemented ApiError (no drag-and-drop UI wired up yet)", async () => {
+      await expect(alphabetLettersHttpResource.reorderGroups(["group-1"])).rejects.toBeInstanceOf(ApiError);
     });
   });
 });

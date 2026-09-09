@@ -18,6 +18,7 @@ function workerDto(overrides: Partial<WorkerAlphabetLetterDto> = {}): WorkerAlph
     mainImageUrl: "https://example.com/main.png",
     seoTitle: "seo title",
     seoDescription: "seo description",
+    audioUrl: "https://example.com/audio.mp3",
     language: "en",
     translationGroupId: "group-1",
     status: "published",
@@ -33,11 +34,9 @@ describe("toBffAlphabetLetterDto", () => {
     const bff = toBffAlphabetLetterDto(workerDto());
     for (const field of [
       "siteId",
-      "letter",
       "modernEquivalent",
       "color",
       "cardImageUrl",
-      "mainImageUrl",
       "seoTitle",
       "seoDescription",
       "status",
@@ -47,16 +46,19 @@ describe("toBffAlphabetLetterDto", () => {
     }
   });
 
-  it("keeps every field the admin entity mapper needs", () => {
+  it("keeps every field the admin entity mapper needs, including letter/mainImageUrl/audioUrl (real-writes phase)", () => {
     const bff = toBffAlphabetLetterDto(workerDto());
     expect(bff).toEqual({
       id: "letter-1",
       slug: "az",
+      letter: "А",
       sortOrder: 1,
       name: "Азъ",
       shortDescription: "desc",
       fullText: "full text",
       numericValue: 1,
+      mainImageUrl: "https://example.com/main.png",
+      audioUrl: "https://example.com/audio.mp3",
       language: "en",
       translationGroupId: "group-1",
       createdAt: "2026-01-01T00:00:00.000Z",

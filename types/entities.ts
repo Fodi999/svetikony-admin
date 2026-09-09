@@ -498,12 +498,20 @@ export interface Article extends Identifiable, Timestamps, Translatable {
 export interface AlphabetLetter extends Identifiable, Timestamps, Translatable {
   slug: string;
   order: number;
+  /** The single-glyph display form (e.g. "Б"), distinct from `name` (e.g.
+   * "Буки") -- required by the backend's createAlphabetLetter (rejects an
+   * empty value). Rendered large on the public letter page when no
+   * mainImageId is set. */
+  letter: string;
   name: string;
   pronunciation?: string;
   description?: string;
   historicalNote?: string;
   numericValue?: number;
   mainImageId?: string;
+  /** Per-letter narration audio for this language row -- narrates
+   * `historicalNote`, not a separate script (see alphabet-letter-form.tsx). */
+  audioUrl?: string;
 }
 
 // ---------------------------------------------------------------------------

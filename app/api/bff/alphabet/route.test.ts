@@ -22,6 +22,7 @@ const workerLetter = {
   mainImageUrl: "https://example.com/main.png",
   seoTitle: "seo title",
   seoDescription: "seo description",
+  audioUrl: "https://example.com/audio.mp3",
   language: "en",
   translationGroupId: "group-1",
   status: "published",
@@ -45,7 +46,7 @@ describe("GET /api/bff/alphabet", () => {
     vi.unstubAllGlobals();
   });
 
-  it("never returns internal Worker fields after the Stage 2C retrofit", async () => {
+  it("never returns internal Worker-only fields, but does return letter/mainImageUrl/audioUrl (real-writes phase)", async () => {
     vi.stubGlobal(
       "fetch",
       mockAuthenticatedFetch("viewer", () =>
@@ -54,12 +55,14 @@ describe("GET /api/bff/alphabet", () => {
     );
     const response = await GET(new NextRequest("http://localhost/api/bff/alphabet", withSessionCookie()));
     const bodyText = await response.text();
-    for (const field of ["siteId", "letter\"", "modernEquivalent", "color\"", "cardImageUrl", "mainImageUrl", "seoTitle", "seoDescription", "isGlobal"]) {
+    for (const field of ["siteId", "modernEquivalent", "color\"", "cardImageUrl", "seoTitle", "seoDescription", "isGlobal", "\"status\""]) {
       expect(bodyText).not.toContain(field);
     }
     const body = JSON.parse(bodyText);
     expect(body).toHaveLength(1);
     expect(body[0].id).toBe("letter-1");
     expect(body[0].name).toBe("Азъ");
+    expect(body[0].letter).toBe("А");
+    expect(body[0].mainImageUrl).toBe("https://example.com/main.png");
   });
 });

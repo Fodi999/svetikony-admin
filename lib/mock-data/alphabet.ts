@@ -76,6 +76,7 @@ function buildLetter(
     language,
     slug: letter.slug,
     order,
+    letter: letter.glyph,
     name: `${letter.glyph} — ${letter.name}`,
     pronunciation: isPartial ? undefined : `[${letter.name.toLowerCase()}]`,
     description: isPartial
