@@ -1,5 +1,10 @@
 # Подключение Svetikony к Codex — результат
 
+Обновление 2026-09-10: установлена версия `0.1.0+codex.20260910210318`,
+29 инструментов, включая LOCAL Visualizer/GLB. Проверено через установленную MCP-копию.
+См. [отчёт расширения](integrations/svetikony/VISUALIZER_PLUGIN_REPORT.md).
+Ниже сохранены результаты первоначальной настройки (18 инструментов).
+
 10 сентября 2026.
 
 Плагин `svetikony@personal` создан, установлен и включён в Codex. Проверена именно установленная конфигурация MCP: 18 инструментов доступны, административный API подключён.
@@ -38,3 +43,8 @@
 Для production нужен действующий административный доступ, настроенный локально вне переписки и кода плагина. Не присылайте токены в чат. Переключение среды должно быть явным; предложения разных API-origin изолированы.
 
 Ограничения и инструкция: [README плагина](integrations/svetikony/README.md).
+
+
+## LOCAL Terrain bundle extension
+
+Plugin now exposes 33 tools, including validate/upload/reconcile/resume terrain bundle. Actual 9-tile L1 validation passed; real upload awaits explicit confirmation. Details: [TERRAIN_BUNDLE_REPORT](integrations/svetikony/TERRAIN_BUNDLE_REPORT.md). No Base Earth or production changes.
