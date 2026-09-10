@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "svetikony": {
+      "command": "/opt/homebrew/bin/node",
+      "args": ["/Users/dmitrijfomin/plugins/svetikony/dist/server.mjs"],
+      "env": {
+        "SVETIKONY_ENV_FILE": "/Users/dmitrijfomin/Desktop/svetikony-admin/.env.local",
+        "SVETIKONY_STATE_DIR": "/Users/dmitrijfomin/.local/state/svetikony"
+      }
+    }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "name": "svetikony",
+  "version": "0.1.0",
+  "description": "Editorial control, calendar audits, relationships and reviewable changes for Svetikony through Codex.",
+  "author": {
+    "name": "Dmitrij Fomin"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Світ Ікони · Codex",
+    "shortDescription": "Календарь, связи, SEO и управление контентом.",
+    "longDescription": "Анализ административных данных, подготовка редакций, проверка сохранения и отдельная публикация. Без изменения дизайна, 3D и инфраструктуры.",
+    "developerName": "Dmitrij Fomin",
+    "category": "Productivity",
+    "capabilities": ["Read", "Write"],
+    "defaultPrompt": [
+      "Проверь заполненность календаря на год и составь список проблем.",
+      "Проверь связи святых, молитв и икон.",
+      "Подготовь изменения SEO в черновиках и сообщай о ходе работы."
+    ]
+  },
+  "mcpServers": "./.mcp.json"
+}
