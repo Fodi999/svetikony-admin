@@ -29,9 +29,17 @@ async function handle(
       },
       body: request.method === "POST" ? await request.text() : undefined,
       cache: "no-store",
-      redirect: "error",
+      // workerd supports follow/manual only; never forward credentials on redirects.
+      redirect: "manual",
       signal: AbortSignal.timeout(15000),
     });
+    if (r.status >= 300 && r.status < 400) {
+      await r.body?.cancel();
+      return Response.json(
+        { error: "Upstream redirect rejected" },
+        { status: 502, headers: { "cache-control": "no-store" } },
+      );
+    }
     return new Response(await r.text(), {
       status: r.status,
       headers: { "content-type": "application/json", "cache-control": "no-store" },
