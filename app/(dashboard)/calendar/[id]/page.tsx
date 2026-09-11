@@ -8,6 +8,7 @@ import { ConfirmDialog } from "@/components/feedback/confirm-dialog";
 import { StateMessage } from "@/components/feedback/state-message";
 import { RequireAccess } from "@/components/layout/require-access";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ProposalPanel } from "@/features/ai-proposals/proposal-panel";
 import { CalendarDayForm } from "@/features/calendar/calendar-day-form";
 import { apiClient } from "@/lib/api";
 import { errorMessageFor } from "@/lib/api/errors";
@@ -21,6 +22,7 @@ export default function EditCalendarDayPage() {
   const queryClient = useQueryClient();
   const { canEdit } = useAuth();
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [proposalRevision, setProposalRevision] = useState(0);
 
   const query = useQuery({
     queryKey: ["calendarDays", params.id],
@@ -64,7 +66,17 @@ export default function EditCalendarDayPage() {
         </div>
       ) : query.data ? (
         <>
+          {canEdit("settings") ? (
+            <ProposalPanel
+              targetId={params.id}
+              onApplied={async () => {
+                await query.refetch({ throwOnError: true });
+                setProposalRevision((x) => x + 1);
+              }}
+            />
+          ) : null}
           <CalendarDayForm
+            key={proposalRevision}
             mode="edit"
             day={query.data}
             submitting={updateMutation.isPending}

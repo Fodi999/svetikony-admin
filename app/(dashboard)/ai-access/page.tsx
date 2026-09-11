@@ -18,6 +18,8 @@ type Activity = {
   created_at: string;
   module: string;
   operation: string;
+  grant_id?: string;
+  admin_user_id?: string;
   target_id: string | null;
   target_type?: string;
   status: string;
@@ -301,13 +303,27 @@ export default function AiAccess() {
                     ? t[e.module as (typeof modules)[number]]
                     : e.module}{" "}
                   ·{" "}
-                  {t[e.operation as "read" | "create" | "update" | "upload" | "denied"] ??
-                    e.operation}
+                  {t[
+                    e.operation as
+                      | "read"
+                      | "create"
+                      | "update"
+                      | "upload"
+                      | "denied"
+                      | "proposal.create"
+                      | "proposal.apply"
+                      | "proposal.reject"
+                  ] ?? e.operation}
                 </p>
                 <p className="text-muted-foreground break-all">
                   {e.target_type ?? e.module}: {e.target_id ?? t.collection} ·{" "}
                   {e.status === "success" ? t.success : t.failed}
                 </p>
+                {e.grant_id || e.admin_user_id ? (
+                  <p className="text-muted-foreground break-all">
+                    {t.grant}: {e.grant_id ?? "—"} · {t.actor}: {e.admin_user_id ?? "—"}
+                  </p>
+                ) : null}
               </div>
             ))
           )}

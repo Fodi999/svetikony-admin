@@ -1,5 +1,10 @@
 export const aiAccessMessages = {
   uk: {
+    "proposal.create": "Створено пропозицію",
+    "proposal.apply": "Застосовано пропозицію",
+    "proposal.reject": "Відхилено пропозицію",
+    grant: "Доступ",
+    actor: "Адміністратор",
     title: "AI доступ",
     description: "Дозвольте Codex працювати з адмінкою протягом обраного часу.",
     mode: "Режим",
@@ -52,6 +57,11 @@ export const aiAccessMessages = {
     denied: "Доступ відхилено",
   },
   ru: {
+    "proposal.create": "Предложение создано",
+    "proposal.apply": "Предложение применено",
+    "proposal.reject": "Предложение отклонено",
+    grant: "Доступ",
+    actor: "Администратор",
     title: "AI доступ",
     description: "Разрешите Codex работать с админкой в течение выбранного времени.",
     mode: "Режим",
@@ -104,6 +114,11 @@ export const aiAccessMessages = {
     denied: "Доступ отклонён",
   },
   en: {
+    "proposal.create": "Proposal created",
+    "proposal.apply": "Proposal applied",
+    "proposal.reject": "Proposal rejected",
+    grant: "Grant",
+    actor: "Administrator",
     title: "AI access",
     description: "Allow Codex to work with your admin for a limited time.",
     mode: "Mode",
