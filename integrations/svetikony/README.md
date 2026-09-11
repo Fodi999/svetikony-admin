@@ -1,12 +1,22 @@
 # Світ Ікони · Codex
 
-Личный плагин для управления редакционным содержимым через Codex. Поддерживает календарь, святых, иконы, молитвы, статьи, Евангелие и азбуку. Также поддерживает LOCAL Visualizer: черновики событий, переводы, GLB и подтверждаемую замену Base Earth. Код публичного сайта, дизайн, инфраструктура, заказы и цены не входят в инструменты.
+Личный плагин для управления редакционным содержимым через Codex. Поддерживает календарь, святых, иконы, молитвы, статьи, Евангелие и азбуку. Также поддерживает Visualizer согласно разрешениям: черновики событий, переводы, GLB и чтение Base Earth (замена доступна только в legacy LOCAL). Код публичного сайта, дизайн, инфраструктура, заказы и цены не входят в инструменты.
 
 ## Подключение на этом Mac
 
-Плагин использует Node 24+ и два существующих серверных параметра из `/Users/dmitrijfomin/Desktop/svetikony-admin/.env.local`: `SVET_IKONY_API_BASE_URL` и `SVET_IKONY_ADMIN_TOKEN`. Файл не копируется в плагин. В MCP-конфигурации находится только путь, секрет не передаётся модели. Доступ осуществляется к `/api/admin/church-content/...`, тем же административным операциям backend, которыми пользуется BFF админки. BFF и человеческая cookie-сессия при этом не используются; административный сервисный ключ имеет широкие права, область плагина ограничивается его серверным кодом.
+Актуальный production-профиль использует **34 инструмента** и только AI pairing. Service JWT и cookie администратора в Codex не передаются. Временный opaque token хранится только в памяти MCP-процесса; перезапуск, expiry или revoke требуют нового кода. Production-конфигурация задаёт origin, но не читает старый credential env-файл.
 
-На момент настройки проверено подключение к **локальному** `http://localhost:3000`. Этот же ключ получил HTTP 401 на `https://svetikony.com`. Production не подключён. Для локальной работы должен быть запущен `npm run dev` в `svet-ikony`. Сервер MCP не запускает, не останавливает и не развёртывает сайт.
+1. Войти в web-admin через Telegram.
+2. Открыть «AI доступ», выбрать DRAFT_EDIT и нужные разделы.
+3. Выдать доступ и скопировать короткий pairing code.
+4. Открыть новый Codex chat, включить «Світ Ікони · Codex».
+5. Передать код для `connect_ai_access`, проверить `connection_status` и среду.
+6. Начать с чтения. Для изменений показать предложение и применять только разрешённые черновики.
+7. По окончании нажать «Отозвать доступ» в web-admin.
+
+Publish, delete, deploy, migrations, secrets и замена Base Earth через delegated access отключены. Visualizer/Media/Terrain доступны только согласно grant scopes; terrain upload требует отдельного подтверждения точного плана. READ_ONLY не разрешает загрузки.
+
+Для разработки LOCAL сохраняется существующая service-auth конфигурация из локального env. Она не является запасным способом входа в production. MCP не запускает и не развёртывает сайт.
 
 Установленная копия: `~/plugins/svetikony`. Личный marketplace: `~/.agents/plugins/marketplace.json`. Плагин появляется в новом чате Codex после установки; уже открытый чат не получает новые инструменты автоматически.
 
@@ -23,7 +33,7 @@
 
 ## Состояния и границы
 
-`prepare_change` сохраняет **локальное предложение**, ещё не видимое в CMS. `apply_draft` записывает новый/существующий черновик и перечитывает его. `publish_change` — отдельное публичное действие с подтверждением конкретного ID. Изменения опубликованной записи нельзя применить как черновик.
+`prepare_change` сохраняет **локальное предложение**, ещё не видимое в CMS. `apply_draft` записывает новый/существующий черновик и перечитывает его. `publish_change` отключён в production/delegated access; legacy LOCAL требует отдельного подтверждения конкретного ID. Изменения опубликованной записи нельзя применить как черновик.
 
 Перед записью календарного или связанного с календарём черновика плагин проверяет, выключен ли автономный Telegram-autopost: существующий cron может использовать черновики. При включённом автопостинге предложение остаётся локальным. Плагин не меняет настройки Telegram и не отправляет сообщений.
 
@@ -55,9 +65,9 @@ SVETIKONY_ENV_FILE=/Users/dmitrijfomin/Desktop/svetikony-admin/.env.local node s
 
 Установку выполняет личный marketplace Codex. Для обновления следуйте skill `plugin-creator`: проверка имён, cachebuster и `codex plugin add svetikony@personal`. Не меняйте конфигурацию других плагинов или выбранную модель пользователя.
 
-## LOCAL Visualizer extension (2026-09-10)
+## История: LOCAL Visualizer extension (2026-09-10)
 
-Now **29 tools**: the original 18 editorial tools plus:
+На этом историческом этапе было **29 tools**: the original 18 editorial tools plus:
 
 - `list_visualizer_events`, `get_visualizer_event`
 - `create_visualizer_event`, `update_visualizer_event` (unpublished drafts only)
@@ -109,9 +119,9 @@ node scripts/visualizer-smoke.mjs --write-local-smoke
 
 Do not repeat an interrupted smoke with a new directory to bypass uncertainty.
 Its started/results files and SQLite state keep IDs and receipts for inspection.
-Use a new Codex thread after plugin reinstall to load the 29-tool version.
+This describes the historical 29-tool release; the current release has 34 tools.
 
-## LOCAL terrain bundles
+## История: LOCAL terrain bundles
 
 **33 tools** after this extension: the previous 29 plus
 `validate_terrain_bundle`, `upload_terrain_bundle`, `reconcile_terrain_bundle`,
@@ -139,4 +149,4 @@ real data validation for this release uses the existing nine L1 files.
 
 Добавлен 34-й инструмент `connect_ai_access`. Super admin создаёт временный доступ в `/ai-access`, выбирает режим и модули и передаёт одноразовый pairing code инструменту. Код действует две минуты; токен хранится только в памяти процесса. После перезапуска нужно новое подключение. Отзыв в админке блокирует следующий запрос. Публикация и замена Base Earth через делегированный доступ недоступны в этом MVP.
 
-Новые endpoints требуют миграцию `0020_ai_delegated_access.sql` и согласованное обновление backend/admin. Сейчас цепочка проверена локально; production-активация не выполнялась. Подробности и ограничения: [AI_DELEGATED_ACCESS_REPORT.md](AI_DELEGATED_ACCESS_REPORT.md).
+Новые endpoints требуют миграцию `0020_ai_delegated_access.sql` и согласованное обновление backend/admin. Production pairing и READ были подтверждены до текущего этапа. Текущие исправления backend/admin пока только LOCAL и не развёрнуты. Подробности и ограничения: [AI_DELEGATED_ACCESS_REPORT.md](AI_DELEGATED_ACCESS_REPORT.md).

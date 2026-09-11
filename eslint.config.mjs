@@ -15,6 +15,8 @@ const eslintConfig = defineConfig([
     // Generated Serwist service worker bundle:
     "public/sw.js",
     "public/sw.js.map",
+    // Generated MCP bundle includes third-party SDK code; lint src instead.
+    "integrations/svetikony/dist/**",
   ]),
 ]);
 

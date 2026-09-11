@@ -47,6 +47,9 @@ export const aiAccessMessages = {
     create: "Створено чернетку",
     update: "Оновлено чернетку",
     refresh: "Оновити",
+    collection: "Увесь розділ",
+    upload: "Завантаження медіа",
+    denied: "Доступ відхилено",
   },
   ru: {
     title: "AI доступ",
@@ -96,6 +99,9 @@ export const aiAccessMessages = {
     create: "Создан черновик",
     update: "Обновлён черновик",
     refresh: "Обновить",
+    collection: "Весь раздел",
+    upload: "Загрузка медиа",
+    denied: "Доступ отклонён",
   },
   en: {
     title: "AI access",
@@ -145,5 +151,8 @@ export const aiAccessMessages = {
     create: "Draft created",
     update: "Draft updated",
     refresh: "Refresh",
+    collection: "Entire collection",
+    upload: "Media upload",
+    denied: "Access denied",
   },
 } as const;

@@ -19,6 +19,7 @@ type Activity = {
   module: string;
   operation: string;
   target_id: string | null;
+  target_type?: string;
   status: string;
 };
 const modules = [
@@ -50,12 +51,13 @@ export default function AiAccess() {
     ]),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(false),
+    [loadError, setLoadError] = useState(false),
     [loaded, setLoaded] = useState(false),
     [codes, setCodes] = useState<Record<string, { pairingCode: string; codeExpiresAt: string }>>(
       {},
     ),
     [copied, setCopied] = useState(false),
-    [clock, setClock] = useState(Date.now());
+    [clock, setClock] = useState(0);
   const lock = useRef(false);
   const t = aiAccessMessages[locale];
   const api = async (path: string, body?: unknown) => {
@@ -74,17 +76,24 @@ export default function AiAccess() {
       setGrants(g);
       setEvents(e);
       setLoaded(true);
+      setLoadError(false);
     } catch {
-      setError(true);
+      setLoadError(true);
     }
   }, []);
   useEffect(() => {
-    void refresh();
+    const initial = setTimeout(() => {
+      setClock(Date.now());
+      void refresh();
+    }, 0);
     const timer = setInterval(() => {
       setClock(Date.now());
       void refresh();
     }, 5000);
-    return () => clearInterval(timer);
+    return () => {
+      clearTimeout(initial);
+      clearInterval(timer);
+    };
   }, [refresh]);
   async function action(path: string, body: unknown = {}) {
     if (lock.current) return;
@@ -125,7 +134,7 @@ export default function AiAccess() {
             <option value="en">EN</option>
           </select>
         </div>
-        {error && (
+        {(error || loadError) && (
           <p role="alert" className="border-destructive rounded border p-3">
             {t.error}
           </p>
@@ -252,7 +261,7 @@ export default function AiAccess() {
                 )}
                 {active && (
                   <div className="flex flex-wrap gap-3">
-                    {!g.connected && (
+                    {active && (
                       <Button
                         variant="outline"
                         disabled={busy}
@@ -291,10 +300,13 @@ export default function AiAccess() {
                   {modules.includes(e.module as (typeof modules)[number])
                     ? t[e.module as (typeof modules)[number]]
                     : e.module}{" "}
-                  · {t[e.operation as "read" | "create" | "update"] ?? e.operation}
+                  ·{" "}
+                  {t[e.operation as "read" | "create" | "update" | "upload" | "denied"] ??
+                    e.operation}
                 </p>
                 <p className="text-muted-foreground break-all">
-                  {e.target_id} · {e.status === "success" ? t.success : t.failed}
+                  {e.target_type ?? e.module}: {e.target_id ?? t.collection} ·{" "}
+                  {e.status === "success" ? t.success : t.failed}
                 </p>
               </div>
             ))

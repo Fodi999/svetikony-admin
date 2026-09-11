@@ -49,9 +49,15 @@ export function createServer(op, config) {
         };
         await progress(0);
         try {
-          if (write && name !== "connect_ai_access" && !op.api?.delegated && (config.readOnly || config.environment === "production"))
+          if (
+            write &&
+            name !== "connect_ai_access" &&
+            !op.api?.delegated &&
+            (config.readOnly || config.environment === "production")
+          )
             throw new Error("WRITE ACCESS DISABLED: read-only connection");
-          if (name === "publish_change" && op.api?.delegated) throw new Error("Publication unavailable in delegated MVP");
+          if (name === "publish_change" && op.api?.delegated)
+            throw new Error("Publication unavailable in delegated MVP");
           const result = await fn(args);
           await progress(1);
           return {
@@ -81,26 +87,50 @@ export function createServer(op, config) {
       },
     );
   };
-  register("connect_ai_access", "Exchange a user-provided one-time pairing code for in-memory delegated access. Never logs or persists the access token. Restart requires new pairing.", {pairingCode:z.string().regex(/^[A-HJ-NP-Z2-9]{4}(-[A-HJ-NP-Z2-9]{4}){2}$/)}, a=>op.api.connectAiAccess(a.pairingCode),true);
+  register(
+    "connect_ai_access",
+    "Exchange a user-provided one-time pairing code for in-memory delegated access. Never logs or persists the access token. Restart requires new pairing.",
+    { pairingCode: z.string().regex(/^[A-HJ-NP-Z2-9]{4}(-[A-HJ-NP-Z2-9]{4}){2}$/) },
+    (a) => op.api.connectAiAccess(a.pairingCode),
+    true,
+  );
   register(
     "connection_status",
     "Check administrative API connectivity and show the current environment. No credentials are returned.",
     {},
     async () => {
       try {
-        if(op.api?.delegated)return await op.api.aiStatus();
+        if (op.api?.delegated) return await op.api.aiStatus();
+        if (config.environment === "production")
+          return {
+            connected: false,
+            writeAccess: "DISABLED",
+            publication: "DISABLED",
+            auth: "AI_PAIRING_REQUIRED",
+            serviceIdentity: false,
+            nextStep: "Create a temporary AI access code in web-admin, then call connect_ai_access",
+          };
         await op.list("calendar");
         return {
           connected: true,
-          writeAccess: config.readOnly || config.environment === "production" ? "DISABLED" : "LOCAL_ONLY",
-          PRODUCTION_KEY_CONFIGURED: config.environment === "production" ? Boolean(config.token) : undefined,
+          writeAccess:
+            config.readOnly || config.environment === "production" ? "DISABLED" : "LOCAL_ONLY",
+          PRODUCTION_KEY_CONFIGURED:
+            config.environment === "production" ? Boolean(config.token) : undefined,
           scope: entityNames,
           model: "Selected in the Codex client; GPT-6 Astra can use these tools",
           publication: "Separate explicit publish_change only",
           serviceIdentity: true,
         };
       } catch (e) {
-        return { connected: false, error: e.message, writeAccess: config.readOnly || config.environment === "production" ? "DISABLED" : "LOCAL_ONLY", PRODUCTION_KEY_CONFIGURED: config.environment === "production" ? Boolean(config.token) : undefined };
+        return {
+          connected: false,
+          error: e.message,
+          writeAccess:
+            config.readOnly || config.environment === "production" ? "DISABLED" : "LOCAL_ONLY",
+          PRODUCTION_KEY_CONFIGURED:
+            config.environment === "production" ? Boolean(config.token) : undefined,
+        };
       }
     },
   );
@@ -267,7 +297,7 @@ export function createServer(op, config) {
   );
   register(
     "list_visualizer_events",
-    "LOCAL: list real events, including drafts, with language/status filters.",
+    "Scoped read: list real events, including drafts, with language/status filters.",
     {
       language: language.optional(),
       status: z.enum(["draft", "published", "archived"]).optional(),
@@ -287,7 +317,7 @@ export function createServer(op, config) {
   );
   register(
     "get_visualizer_event",
-    "LOCAL: read an event, its actual translation group and attached model metadata. Draft public rendering is not implied.",
+    "Scoped read: read an event, its actual translation group and attached model metadata. Draft public rendering is not implied.",
     { id },
     (a) => visualizer.detail(a.id),
   );
@@ -299,7 +329,7 @@ export function createServer(op, config) {
     );
   register(
     "create_visualizer_event",
-    "LOCAL WRITE: create and read back an unpublished draft. For translations provide translationOf and the SAME slug; only create missing languages.",
+    "Scoped draft write: create and read back an unpublished draft. For translations provide translationOf and the SAME slug; only create missing languages.",
     {
       requestId,
       event: eventCreate,
@@ -310,14 +340,14 @@ export function createServer(op, config) {
   );
   register(
     "update_visualizer_event",
-    "LOCAL WRITE: update and verify an unpublished draft only. Published records and slug/language identity changes are refused.",
+    "Scoped draft write: update and verify an unpublished draft only. Published records and slug/language identity changes are refused.",
     { requestId, id, patch: eventPatch },
     (a) => visualizer.update(a),
     true,
   );
   register(
     "list_visualizer_models",
-    "LOCAL: list registered GLB metadata, optionally for a real translation group.",
+    "Scoped read: list registered GLB metadata, optionally for a real translation group.",
     { eventGroupId: id.optional() },
     async (a) => {
       if (a.eventGroupId) await visualizer.group(a.eventGroupId);
@@ -328,7 +358,7 @@ export function createServer(op, config) {
   );
   register(
     "upload_visualizer_glb",
-    "LOCAL WRITE: validate a user-authorized GLB (50 MiB maximum, embedded resources), upload via existing media pipeline, verify bytes and register standalone metadata. Does not set Base Earth or publish. Bytes become accessible by LOCAL media URL. Returns key/URL/filename/size/MIME/model ID. Uncertain uploads must never be replayed.",
+    "Scoped upload: validate a user-authorized GLB (50 MiB maximum, embedded resources), upload via existing media pipeline, verify bytes and register standalone metadata. Does not set Base Earth or publish. Bytes become accessible by configured-origin media URL. Returns key/URL/filename/size/MIME/model ID. Uncertain uploads must never be replayed.",
     {
       requestId,
       path: z.string().min(1),
@@ -340,14 +370,14 @@ export function createServer(op, config) {
   );
   register(
     "attach_model_to_visualizer_event",
-    "LOCAL WRITE: attach a standalone model to the event translation group; all siblings must be drafts. Does not move another group's model or modify Base Earth.",
+    "Scoped draft write: attach a standalone model to the event translation group; all siblings must be drafts. Does not move another group's model or modify Base Earth.",
     { requestId, modelId: id, eventId: id },
     (a) => visualizer.attach(a),
     true,
   );
   register(
     "get_base_earth",
-    "LOCAL READ: compare active Base Earth in admin/public APIs and check its media metadata.",
+    "Scoped read: compare active Base Earth in admin/public APIs and check its media metadata.",
     {},
     () => visualizer.base(),
   );
@@ -375,7 +405,7 @@ export function createServer(op, config) {
   );
   register(
     "reconcile_visualizer_operation",
-    "LOCAL: verify an interrupted operation by reads only and record the result. Never repeats a remote write/upload. Use operationId from the error.",
+    "Verify an interrupted operation by reads only and record the result. Never repeats a remote write/upload. Use operationId from the error.",
     { operationId: changeId },
     (a) => visualizer.reconcile(a),
     true,
@@ -389,20 +419,21 @@ export function createServer(op, config) {
   );
   register(
     "upload_terrain_bundle",
-    "LOCAL upload only after explicit user approval of the exact validation plan. Confirmation string returned by validation is not consent. Revalidate ALL files before writes, upload manifest/tiles without overwrite, reconcile before marking complete. Does not publish, deploy or change Base Earth.",
+    "Scoped upload only after explicit user approval of the exact validation plan. Confirmation string returned by validation is not consent. Revalidate ALL files before writes, upload manifest/tiles without overwrite, reconcile before marking complete. Does not publish, deploy or change Base Earth.",
     { validationId: changeId, confirmation: z.string() },
     (a) => terrain.upload(a),
     true,
   );
   register(
     "reconcile_terrain_bundle",
-    "LOCAL read-only R2 reconciliation: re-read manifest/objects and recompute hashes, inspect complete/incomplete status. Never retries upload.",
+    "Scoped R2 reconciliation: re-read manifest/objects and recompute hashes; may finalize completion metadata. Requires upload permission. Never retries upload.",
     { validationId: changeId },
     (a) => terrain.reconcile(a),
+    true,
   );
   register(
     "resume_terrain_bundle",
-    "LOCAL: resume only a previously user-approved upload. Revalidate local files, reconcile remote objects first, skip verified objects and upload only missing ones. Stop on any conflict. No delete or overwrite.",
+    "Scoped resume: only a previously user-approved upload. Revalidate local files, reconcile remote objects first, skip verified objects and upload only missing ones. Stop on any conflict. No delete or overwrite.",
     { validationId: changeId },
     (a) => terrain.resume(a),
     true,

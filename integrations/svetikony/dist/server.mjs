@@ -31558,12 +31558,13 @@ function readGlb(path, roots2, mimeType = GLB_MIME) {
 
 // src/transport.mjs
 function loadConfig() {
-  const file2 = process.env.SVETIKONY_ENV_FILE;
-  if (!file2)
-    throw new Error("Set SVETIKONY_ENV_FILE to the existing admin server environment file");
-  const vars = parseEnv(readFileSync2(file2, "utf8"));
-  const base = process.env.SVETIKONY_API_ORIGIN || vars.SVET_IKONY_API_BASE_URL;
-  const token = vars.SVET_IKONY_ADMIN_TOKEN;
+  let base = process.env.SVETIKONY_API_ORIGIN;
+  let vars = {};
+  if (!base || ["localhost", "127.0.0.1", "[::1]"].includes(new URL(base).hostname)) {
+    const file2 = process.env.SVETIKONY_ENV_FILE;
+    if (file2) vars = parseEnv(readFileSync2(file2, "utf8"));
+    base ||= vars.SVET_IKONY_API_BASE_URL;
+  }
   if (!base) throw new Error("Administrative API origin is not configured");
   const url2 = new URL(base);
   if (url2.username || url2.password || url2.search || url2.hash || url2.pathname !== "/")
@@ -31571,7 +31572,12 @@ function loadConfig() {
   const local = ["localhost", "127.0.0.1", "[::1]"].includes(url2.hostname);
   if (url2.protocol !== "https:" && !(local && url2.protocol === "http:"))
     throw new Error("Remote API requires HTTPS");
-  return { origin: url2.origin, token, environment: local ? "local" : "production", readOnly: !local || process.env.SVETIKONY_READ_ONLY === "true" || vars.SVETIKONY_READ_ONLY === "true" };
+  return {
+    origin: url2.origin,
+    token: local ? vars.SVET_IKONY_ADMIN_TOKEN : void 0,
+    environment: local ? "local" : "production",
+    readOnly: !local || process.env.SVETIKONY_READ_ONLY === "true" || vars.SVETIKONY_READ_ONLY === "true"
+  };
 }
 var roots = entityNames.map((e) => spec(e).path).join("|");
 var allowedPath = new RegExp(`^/api/admin/church-content/(${roots})(/[a-zA-Z0-9_-]{1,120})?$`);
@@ -31595,12 +31601,23 @@ var AdminApi = class {
     return { mode: this.#ai.mode, scopes: [...this.#ai.scopes], expiresAt: this.#ai.expiresAt };
   }
   async connectAiAccess(pairingCode) {
-    if (!/^[A-HJ-NP-Z2-9]{4}(-[A-HJ-NP-Z2-9]{4}){2}$/.test(pairingCode)) throw new Error("Invalid pairing code");
+    if (!/^[A-HJ-NP-Z2-9]{4}(-[A-HJ-NP-Z2-9]{4}){2}$/.test(pairingCode))
+      throw new Error("Invalid pairing code");
     const origin = new URL(this.config.origin);
-    if (origin.protocol !== "https:" && !["localhost", "127.0.0.1", "[::1]"].includes(origin.hostname)) throw new Error("HTTPS required");
+    if (origin.protocol !== "https:" && !["localhost", "127.0.0.1", "[::1]"].includes(origin.hostname))
+      throw new Error("HTTPS required");
+    this.#ai = null;
+    this.#paired = true;
     let response;
     try {
-      response = await this.fetcher(origin.origin + "/api/ai-access/exchange", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pairingCode }), redirect: "error", cache: "no-store", signal: AbortSignal.timeout(15e3) });
+      response = await this.fetcher(origin.origin + "/api/ai-access/exchange", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pairingCode }),
+        redirect: "error",
+        cache: "no-store",
+        signal: AbortSignal.timeout(15e3)
+      });
     } catch {
       throw new Error("Pairing outcome unknown; create a new code in admin before retrying");
     }
@@ -31611,7 +31628,8 @@ var AdminApi = class {
     } catch {
       throw new Error("Invalid pairing response");
     }
-    if (!/^ai_[a-f0-9]{64}$/.test(data.accessToken) || !["READ_ONLY", "DRAFT_EDIT"].includes(data.mode) || !Array.isArray(data.scopes) || data.scopes.some((s) => typeof s !== "string") || !Number.isFinite(Date.parse(data.expiresAt)) || Date.parse(data.expiresAt) <= Date.now() || Date.parse(data.expiresAt) > Date.now() + 72e5) throw new Error("Invalid pairing response");
+    if (!/^ai_[a-f0-9]{64}$/.test(data.accessToken) || !["READ_ONLY", "DRAFT_EDIT"].includes(data.mode) || !Array.isArray(data.scopes) || data.scopes.some((s) => typeof s !== "string") || !Number.isFinite(Date.parse(data.expiresAt)) || Date.parse(data.expiresAt) <= Date.now() || Date.parse(data.expiresAt) > Date.now() + 72e5)
+      throw new Error("Invalid pairing response");
     this.#ai = data;
     this.#paired = true;
     return { connected: true, ...this.delegatedInfo() };
@@ -31624,9 +31642,22 @@ var AdminApi = class {
     this.delegatedInfo();
     let response;
     try {
-      response = await this.fetcher(this.config.origin + path, { method, headers: { Authorization: "Bearer " + this.#ai.accessToken, ...!(body instanceof FormData) ? { "Content-Type": "application/json" } : {}, ...headers }, body: body === void 0 ? void 0 : body instanceof FormData || body instanceof ArrayBuffer || ArrayBuffer.isView(body) ? body : JSON.stringify(body), cache: "no-store", redirect: "error", signal: AbortSignal.timeout(45e3) });
+      response = await this.fetcher(this.config.origin + path, {
+        method,
+        headers: {
+          Authorization: "Bearer " + this.#ai.accessToken,
+          ...!(body instanceof FormData) ? { "Content-Type": "application/json" } : {},
+          ...headers
+        },
+        body: body === void 0 ? void 0 : body instanceof FormData || body instanceof ArrayBuffer || ArrayBuffer.isView(body) ? body : JSON.stringify(body),
+        cache: "no-store",
+        redirect: "error",
+        signal: AbortSignal.timeout(45e3)
+      });
     } catch {
-      throw new Error(method === "GET" ? "AI API unavailable" : "AI write outcome unknown; reconcile before retry");
+      throw new Error(
+        method === "GET" ? "AI API unavailable" : "AI write outcome unknown; reconcile before retry"
+      );
     }
     if (response.status === 401) {
       this.#ai = null;
@@ -31646,7 +31677,8 @@ var AdminApi = class {
     const info = this.delegatedInfo();
     if (!["GET", "POST", "PUT"].includes(method)) throw new Error("AI operation unavailable");
     if (method !== "GET" && info.mode !== "DRAFT_EDIT") throw new Error("WRITE ACCESS DISABLED");
-    if (path === "/api/admin/telegram/autopost/settings" && method === "GET") return this.aiRequest("/api/ai-access/autopost");
+    if (path === "/api/admin/telegram/autopost/settings" && method === "GET")
+      return this.aiRequest("/api/ai-access/autopost");
     if (path === "/api/admin/media/upload" && method === "POST") {
       this.assertAiScope("media.upload");
       this.assertAiScope("r2.upload");
@@ -31657,17 +31689,25 @@ var AdminApi = class {
       this.assertAiScope("r2.read");
       return this.aiRequest("/api/ai-access/media");
     }
-    const match = path.match(/^\/api\/admin\/church-content\/([a-z-]+)(?:\/([a-zA-Z0-9_-]{1,120}))?$/);
+    const match = path.match(
+      /^\/api\/admin\/church-content\/([a-z-]+)(?:\/([a-zA-Z0-9_-]{1,120}))?$/
+    );
     if (!match) throw new Error("AI route outside allowlist");
     if (["visualizer-events", "visualizer-models"].includes(match[1])) {
       this.assertAiScope("visualizer." + (method === "GET" ? "read" : "write"));
-      return this.aiRequest("/api/ai-access/visualizer/" + (match[1] === "visualizer-events" ? "events" : "models") + (match[2] ? "/" + match[2] : ""), { method, body });
+      return this.aiRequest(
+        "/api/ai-access/visualizer/" + (match[1] === "visualizer-events" ? "events" : "models") + (match[2] ? "/" + match[2] : ""),
+        { method, body }
+      );
     }
     const entity = entityNames.find((e) => spec(e).path === match[1]);
     if (!entity) throw new Error("AI module unavailable");
     this.assertAiScope(entity + (method === "GET" ? ".read" : ".write"));
     if (body?.status && body.status !== "draft") throw new Error("Publication unavailable");
-    return this.aiRequest("/api/ai-access/content/" + entity + (match[2] ? "/" + match[2] : ""), { method, body });
+    return this.aiRequest("/api/ai-access/content/" + entity + (match[2] ? "/" + match[2] : ""), {
+      method,
+      body
+    });
   }
   constructor(config2, fetcher = fetch) {
     this.config = config2;
@@ -31675,11 +31715,22 @@ var AdminApi = class {
   }
   async terrainRequest(path, { method = "GET", body, mimeType, bundleId } = {}) {
     if (this.delegated) {
-      if (!/^\/api\/admin\/terrain-bundles\/[a-zA-Z0-9_-]{1,80}\/L[123](?:\/tiles\/\d+_\d+|\/reconcile)?$/.test(path) || !["GET", "POST", "PUT"].includes(method)) throw new Error("AI terrain route unavailable");
+      if (!/^\/api\/admin\/terrain-bundles\/[a-zA-Z0-9_-]{1,80}\/L[123](?:\/tiles\/\d+_\d+|\/reconcile)?$/.test(
+        path
+      ) || !["GET", "POST", "PUT"].includes(method))
+        throw new Error("AI terrain route unavailable");
       this.assertAiScope(method === "GET" ? "terrain.read" : "terrain.upload");
       this.assertAiScope(method === "GET" ? "r2.read" : "r2.upload");
-      if (method !== "GET" && this.delegatedInfo().mode !== "DRAFT_EDIT") throw new Error("WRITE ACCESS DISABLED");
-      return this.aiRequest(path.replace("/api/admin/terrain-bundles", "/api/ai-access/terrain"), { method, body, headers: { ...mimeType ? { "Content-Type": mimeType } : {}, ...bundleId ? { "X-Terrain-Bundle-ID": bundleId } : {} } });
+      if (method !== "GET" && this.delegatedInfo().mode !== "DRAFT_EDIT")
+        throw new Error("WRITE ACCESS DISABLED");
+      return this.aiRequest(path.replace("/api/admin/terrain-bundles", "/api/ai-access/terrain"), {
+        method,
+        body,
+        headers: {
+          ...mimeType ? { "Content-Type": mimeType } : {},
+          ...bundleId ? { "X-Terrain-Bundle-ID": bundleId } : {}
+        }
+      });
     }
     requireLocal(this.config);
     const root = /^\/api\/admin\/terrain-bundles\/[a-zA-Z0-9_-]{1,80}\/L[123]$/;
@@ -31711,7 +31762,9 @@ var AdminApi = class {
     if (this.delegated) return this.delegatedRequest(path, { method, body });
     if ((this.config.readOnly || this.config.environment === "production") && method !== "GET")
       throw new Error("WRITE ACCESS DISABLED: read-only connection");
-    if (!this.config.token) throw new Error("Production credential is not configured");
+    if (this.config.environment === "production")
+      throw new Error("AI pairing required; create a code in web-admin");
+    if (!this.config.token) throw new Error("LOCAL service credential is not configured");
     const visual = visualPath.test(path) || /^\/api\/admin\/church-content\/visualizer-models\/[a-zA-Z0-9_-]{1,120}\/set-base-earth$/.test(
       path
     );
@@ -31759,8 +31812,12 @@ var AdminApi = class {
   async publicJson(path) {
     if (this.delegated) {
       this.assertAiScope("visualizer.read");
-      if (path === "/api/church/visualizer-models/base-earth") return this.aiRequest("/api/ai-access/visualizer/base-earth");
-      if (path === "/api/church/visualizer-events") return (await this.aiRequest("/api/ai-access/visualizer/events")).filter((e) => e.status === "published");
+      if (path === "/api/church/visualizer-models/base-earth")
+        return this.aiRequest("/api/ai-access/visualizer/base-earth");
+      if (path === "/api/church/visualizer-events")
+        return (await this.aiRequest("/api/ai-access/visualizer/events")).filter(
+          (e) => e.status === "published"
+        );
       throw new Error("AI public route unavailable");
     }
     requireLocal(this.config);
@@ -31788,6 +31845,11 @@ var AdminApi = class {
       signal: AbortSignal.timeout(45e3),
       cache: "no-store"
     });
+    if (this.delegated && response.status === 401) {
+      this.#ai = null;
+      await response.body?.cancel();
+      throw new Error("AI access expired or revoked; pair again");
+    }
     const size = Number(response.headers.get("content-length"));
     if (!response.ok || response.headers.get("content-type")?.split(";")[0] !== GLB_MIME || !Number.isSafeInteger(size) || size < 20 || size > MAX_GLB_BYTES) {
       await response.body?.cancel();
@@ -33254,7 +33316,8 @@ function createServer(op, config2) {
         try {
           if (write && name !== "connect_ai_access" && !op.api?.delegated && (config2.readOnly || config2.environment === "production"))
             throw new Error("WRITE ACCESS DISABLED: read-only connection");
-          if (name === "publish_change" && op.api?.delegated) throw new Error("Publication unavailable in delegated MVP");
+          if (name === "publish_change" && op.api?.delegated)
+            throw new Error("Publication unavailable in delegated MVP");
           const result = await fn(args);
           await progress(1);
           return {
@@ -33284,7 +33347,13 @@ function createServer(op, config2) {
       }
     );
   };
-  register("connect_ai_access", "Exchange a user-provided one-time pairing code for in-memory delegated access. Never logs or persists the access token. Restart requires new pairing.", { pairingCode: external_exports.string().regex(/^[A-HJ-NP-Z2-9]{4}(-[A-HJ-NP-Z2-9]{4}){2}$/) }, (a) => op.api.connectAiAccess(a.pairingCode), true);
+  register(
+    "connect_ai_access",
+    "Exchange a user-provided one-time pairing code for in-memory delegated access. Never logs or persists the access token. Restart requires new pairing.",
+    { pairingCode: external_exports.string().regex(/^[A-HJ-NP-Z2-9]{4}(-[A-HJ-NP-Z2-9]{4}){2}$/) },
+    (a) => op.api.connectAiAccess(a.pairingCode),
+    true
+  );
   register(
     "connection_status",
     "Check administrative API connectivity and show the current environment. No credentials are returned.",
@@ -33292,6 +33361,15 @@ function createServer(op, config2) {
     async () => {
       try {
         if (op.api?.delegated) return await op.api.aiStatus();
+        if (config2.environment === "production")
+          return {
+            connected: false,
+            writeAccess: "DISABLED",
+            publication: "DISABLED",
+            auth: "AI_PAIRING_REQUIRED",
+            serviceIdentity: false,
+            nextStep: "Create a temporary AI access code in web-admin, then call connect_ai_access"
+          };
         await op.list("calendar");
         return {
           connected: true,
@@ -33303,7 +33381,12 @@ function createServer(op, config2) {
           serviceIdentity: true
         };
       } catch (e) {
-        return { connected: false, error: e.message, writeAccess: config2.readOnly || config2.environment === "production" ? "DISABLED" : "LOCAL_ONLY", PRODUCTION_KEY_CONFIGURED: config2.environment === "production" ? Boolean(config2.token) : void 0 };
+        return {
+          connected: false,
+          error: e.message,
+          writeAccess: config2.readOnly || config2.environment === "production" ? "DISABLED" : "LOCAL_ONLY",
+          PRODUCTION_KEY_CONFIGURED: config2.environment === "production" ? Boolean(config2.token) : void 0
+        };
       }
     }
   );
@@ -33468,7 +33551,7 @@ function createServer(op, config2) {
   );
   register(
     "list_visualizer_events",
-    "LOCAL: list real events, including drafts, with language/status filters.",
+    "Scoped read: list real events, including drafts, with language/status filters.",
     {
       language: language.optional(),
       status: external_exports.enum(["draft", "published", "archived"]).optional(),
@@ -33488,7 +33571,7 @@ function createServer(op, config2) {
   );
   register(
     "get_visualizer_event",
-    "LOCAL: read an event, its actual translation group and attached model metadata. Draft public rendering is not implied.",
+    "Scoped read: read an event, its actual translation group and attached model metadata. Draft public rendering is not implied.",
     { id },
     (a) => visualizer.detail(a.id)
   );
@@ -33497,7 +33580,7 @@ function createServer(op, config2) {
   );
   register(
     "create_visualizer_event",
-    "LOCAL WRITE: create and read back an unpublished draft. For translations provide translationOf and the SAME slug; only create missing languages.",
+    "Scoped draft write: create and read back an unpublished draft. For translations provide translationOf and the SAME slug; only create missing languages.",
     {
       requestId,
       event: eventCreate,
@@ -33508,14 +33591,14 @@ function createServer(op, config2) {
   );
   register(
     "update_visualizer_event",
-    "LOCAL WRITE: update and verify an unpublished draft only. Published records and slug/language identity changes are refused.",
+    "Scoped draft write: update and verify an unpublished draft only. Published records and slug/language identity changes are refused.",
     { requestId, id, patch: eventPatch },
     (a) => visualizer.update(a),
     true
   );
   register(
     "list_visualizer_models",
-    "LOCAL: list registered GLB metadata, optionally for a real translation group.",
+    "Scoped read: list registered GLB metadata, optionally for a real translation group.",
     { eventGroupId: id.optional() },
     async (a) => {
       if (a.eventGroupId) await visualizer.group(a.eventGroupId);
@@ -33526,7 +33609,7 @@ function createServer(op, config2) {
   );
   register(
     "upload_visualizer_glb",
-    "LOCAL WRITE: validate a user-authorized GLB (50 MiB maximum, embedded resources), upload via existing media pipeline, verify bytes and register standalone metadata. Does not set Base Earth or publish. Bytes become accessible by LOCAL media URL. Returns key/URL/filename/size/MIME/model ID. Uncertain uploads must never be replayed.",
+    "Scoped upload: validate a user-authorized GLB (50 MiB maximum, embedded resources), upload via existing media pipeline, verify bytes and register standalone metadata. Does not set Base Earth or publish. Bytes become accessible by configured-origin media URL. Returns key/URL/filename/size/MIME/model ID. Uncertain uploads must never be replayed.",
     {
       requestId,
       path: external_exports.string().min(1),
@@ -33538,14 +33621,14 @@ function createServer(op, config2) {
   );
   register(
     "attach_model_to_visualizer_event",
-    "LOCAL WRITE: attach a standalone model to the event translation group; all siblings must be drafts. Does not move another group's model or modify Base Earth.",
+    "Scoped draft write: attach a standalone model to the event translation group; all siblings must be drafts. Does not move another group's model or modify Base Earth.",
     { requestId, modelId: id, eventId: id },
     (a) => visualizer.attach(a),
     true
   );
   register(
     "get_base_earth",
-    "LOCAL READ: compare active Base Earth in admin/public APIs and check its media metadata.",
+    "Scoped read: compare active Base Earth in admin/public APIs and check its media metadata.",
     {},
     () => visualizer.base()
   );
@@ -33571,7 +33654,7 @@ function createServer(op, config2) {
   );
   register(
     "reconcile_visualizer_operation",
-    "LOCAL: verify an interrupted operation by reads only and record the result. Never repeats a remote write/upload. Use operationId from the error.",
+    "Verify an interrupted operation by reads only and record the result. Never repeats a remote write/upload. Use operationId from the error.",
     { operationId: changeId },
     (a) => visualizer.reconcile(a),
     true
@@ -33585,20 +33668,21 @@ function createServer(op, config2) {
   );
   register(
     "upload_terrain_bundle",
-    "LOCAL upload only after explicit user approval of the exact validation plan. Confirmation string returned by validation is not consent. Revalidate ALL files before writes, upload manifest/tiles without overwrite, reconcile before marking complete. Does not publish, deploy or change Base Earth.",
+    "Scoped upload only after explicit user approval of the exact validation plan. Confirmation string returned by validation is not consent. Revalidate ALL files before writes, upload manifest/tiles without overwrite, reconcile before marking complete. Does not publish, deploy or change Base Earth.",
     { validationId: changeId, confirmation: external_exports.string() },
     (a) => terrain.upload(a),
     true
   );
   register(
     "reconcile_terrain_bundle",
-    "LOCAL read-only R2 reconciliation: re-read manifest/objects and recompute hashes, inspect complete/incomplete status. Never retries upload.",
+    "Scoped R2 reconciliation: re-read manifest/objects and recompute hashes; may finalize completion metadata. Requires upload permission. Never retries upload.",
     { validationId: changeId },
-    (a) => terrain.reconcile(a)
+    (a) => terrain.reconcile(a),
+    true
   );
   register(
     "resume_terrain_bundle",
-    "LOCAL: resume only a previously user-approved upload. Revalidate local files, reconcile remote objects first, skip verified objects and upload only missing ones. Stop on any conflict. No delete or overwrite.",
+    "Scoped resume: only a previously user-approved upload. Revalidate local files, reconcile remote objects first, skip verified objects and upload only missing ones. Stop on any conflict. No delete or overwrite.",
     { validationId: changeId },
     (a) => terrain.resume(a),
     true

@@ -8,10 +8,10 @@ const config={origin:'https://svetikony.com',environment:'production',token:'tes
 test('production rejects every write before fetch, even with readOnly false',async()=>{
  let calls=0;const api=new AdminApi(config,async()=>{calls++;return new Response('{}');});
  for(const method of ['POST','PUT','DELETE','PATCH'])await assert.rejects(api.request('/api/admin/church-content/saints',{method}),/WRITE ACCESS DISABLED/);
- assert.equal(calls,0);await api.request('/api/admin/church-content/saints');assert.equal(calls,1);
+ assert.equal(calls,0);await assert.rejects(api.request('/api/admin/church-content/saints'),/pairing required/);assert.equal(calls,0);
  assert.throws(()=>requireLocal(config),/LOCAL only/);
- await assert.rejects(api.request('/api/admin/church-content/visualizer-models'),/LOCAL only/);
- await assert.rejects(api.terrainRequest('/api/admin/terrain-bundles/test/L1'),/LOCAL only/);assert.equal(calls,1);
+ await assert.rejects(api.request('/api/admin/church-content/visualizer-models'),/pairing required/);
+ await assert.rejects(api.terrainRequest('/api/admin/terrain-bundles/test/L1'),/LOCAL only/);assert.equal(calls,0);
 });
 test('all 34 MCP tools remain discoverable, but write handlers cannot execute',async()=>{
  let called=false;const server=createServer({store:{},async apply(){called=true;}},config);

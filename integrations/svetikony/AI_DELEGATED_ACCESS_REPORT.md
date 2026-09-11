@@ -1,5 +1,7 @@
 # AI delegated access — implementation and local validation
 
+> Historical initial-phase report. Production was activated in a later approved phase. Current status and remaining gates: [AI_ACCESS_STABILITY_REPORT.md](AI_ACCESS_STABILITY_REPORT.md).
+
 ## ARCHITECTURE
 The existing human admin session authorizes grants through the BFF. The backend issues a separate opaque, scoped AI credential through a one-time pairing code. Telegram login, admin_session and ADMIN_JWT_SECRET remain unchanged. There is no cookie extraction or session-to-JWT exchange.
 

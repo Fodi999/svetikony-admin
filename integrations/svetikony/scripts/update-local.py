@@ -26,7 +26,7 @@ shutil.copytree(destination, backup, ignore=shutil.ignore_patterns('node_modules
 # Manifest has been updated with the official cachebuster helper before this call.
 if '+codex.' not in manifest['version']:
     raise SystemExit('Run update_plugin_cachebuster.py on the reviewed source first')
-for name in ['.codex-plugin', '.mcp.json', 'skills', 'src', 'scripts', 'dist', 'tests', 'README.md', 'VISUALIZER_PLUGIN_REPORT.md', 'TERRAIN_BUNDLE_REPORT.md', 'package.json', 'package-lock.json', '.gitignore']:
+for name in ['.codex-plugin', '.mcp.json', 'skills', 'src', 'scripts', 'dist', 'tests', 'README.md', 'AI_ACCESS_STABILITY_REPORT.md', 'AI_DELEGATED_ACCESS_REPORT.md', 'VISUALIZER_PLUGIN_REPORT.md', 'TERRAIN_BUNDLE_REPORT.md', 'package.json', 'package-lock.json', '.gitignore']:
     src, dst = source/name, destination/name
     if src.is_dir():
         shutil.copytree(src, dst, dirs_exist_ok=True)
