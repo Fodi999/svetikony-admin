@@ -26,7 +26,7 @@ test("MCP handshake exposes scoped tools with publication annotations and valida
   await client.connect(b);
   try {
     const { tools } = await client.listTools();
-    assert.equal(tools.length, 33);
+    assert.equal(tools.length, 34);
     assert.equal(tools.find((t) => t.name === "publish_change").annotations.destructiveHint, true);
     assert.equal(tools.find((t) => t.name === "connection_status").annotations.readOnlyHint, true);
     assert.equal(tools.find((t) => t.name === "apply_draft").annotations.readOnlyHint, false);

@@ -42,6 +42,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/catalog/products", label: messages.nav.products, icon: Package, area: "catalog" },
   { href: "/media", label: messages.nav.media, icon: Images, area: "media" },
   { href: "/telegram", label: messages.nav.telegram, icon: Send, area: "telegram" },
+  { href: "/ai-access", label: messages.nav.aiAccess, icon: Settings, area: "settings" },
   { href: "/settings", label: messages.nav.settings, icon: Settings, area: "settings" },
 ];
 

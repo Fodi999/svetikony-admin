@@ -18,7 +18,7 @@ export class Visualizer {
     this.uploadRoots = uploadRoots;
   }
   local() {
-    requireLocal(this.api.config);
+    if(this.api.delegated)this.api.assertAiScope("visualizer.read");else requireLocal(this.api.config);
   }
   async rows(path) {
     this.local();

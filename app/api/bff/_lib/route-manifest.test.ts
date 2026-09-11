@@ -287,11 +287,12 @@ describe("BFF route manifest — exhaustive server-side authorization check (Pha
   // current counts, computed from this same manifest, not maintained by
   // hand in this file.
 
-  it("no resource route uses the settings area — confirmed no BFF route exists for it yet; orders DOES now (Phase 2B-5B), the opposite of the Phase 1C baseline this test used to assert for both", () => {
+  it("orders and AI access have protected resource routes", () => {
     const areas: Set<string> = new Set(
       manifest.filter((e) => e.status === "protected").map((e) => POLICY[e.policyKey as keyof typeof POLICY].area),
     );
     expect(areas.has("orders")).toBe(true);
-    expect(areas.has("settings")).toBe(false);
+    expect(areas.has("settings")).toBe(true);
+    expect(POLICY.aiAccess).toEqual({ area: "settings", level: "edit" });
   });
 });

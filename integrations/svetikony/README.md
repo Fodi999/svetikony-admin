@@ -134,3 +134,9 @@ renderer or LOD manager on the public page; those are outside this task.
 The full upload plan, current L1 validation and recovery behavior are documented in
 [TERRAIN_BUNDLE_REPORT.md](TERRAIN_BUNDLE_REPORT.md). L2/L3 use the same contract;
 real data validation for this release uses the existing nine L1 files.
+
+## Делегированный AI-доступ
+
+Добавлен 34-й инструмент `connect_ai_access`. Super admin создаёт временный доступ в `/ai-access`, выбирает режим и модули и передаёт одноразовый pairing code инструменту. Код действует две минуты; токен хранится только в памяти процесса. После перезапуска нужно новое подключение. Отзыв в админке блокирует следующий запрос. Публикация и замена Base Earth через делегированный доступ недоступны в этом MVP.
+
+Новые endpoints требуют миграцию `0020_ai_delegated_access.sql` и согласованное обновление backend/admin. Сейчас цепочка проверена локально; production-активация не выполнялась. Подробности и ограничения: [AI_DELEGATED_ACCESS_REPORT.md](AI_DELEGATED_ACCESS_REPORT.md).

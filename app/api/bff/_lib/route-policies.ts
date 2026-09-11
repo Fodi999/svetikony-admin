@@ -25,6 +25,7 @@ import type { AccessLevel, PermissionArea } from "@/lib/auth/permissions";
  * PII, not the `content` area's broader viewer/editor access).
  */
 export const POLICY = {
+  aiAccess: { area: "settings", level: "edit" },
   contentView: { area: "content", level: "view" },
   contentEdit: { area: "content", level: "edit" },
   catalogView: { area: "catalog", level: "view" },

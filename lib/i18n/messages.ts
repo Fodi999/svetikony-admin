@@ -18,6 +18,7 @@ export interface Messages {
     media: string;
     telegram: string;
     settings: string;
+    aiAccess: string;
     more: string;
   };
   actions: {
@@ -83,6 +84,7 @@ export const uk: Messages = {
     media: "Медіа",
     telegram: "Telegram",
     settings: "Налаштування",
+    aiAccess: "AI доступ",
     more: "Ще",
   },
   actions: {

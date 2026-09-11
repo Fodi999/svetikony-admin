@@ -2,10 +2,14 @@
   "mcpServers": {
     "svetikony": {
       "command": "/opt/homebrew/bin/node",
-      "args": ["/Users/dmitrijfomin/plugins/svetikony/dist/server.mjs"],
+      "args": [
+        "/Users/dmitrijfomin/plugins/svetikony/dist/server.mjs"
+      ],
       "env": {
-        "SVETIKONY_ENV_FILE": "/Users/dmitrijfomin/Desktop/svetikony-admin/.env.local",
-        "SVETIKONY_STATE_DIR": "/Users/dmitrijfomin/.local/state/svetikony"
+        "SVETIKONY_ENV_FILE": "/Users/dmitrijfomin/.config/svetikony/production.env",
+        "SVETIKONY_STATE_DIR": "/Users/dmitrijfomin/.local/state/svetikony-production-readonly",
+        "SVETIKONY_API_ORIGIN": "https://svetikony.com",
+        "SVETIKONY_READ_ONLY": "true"
       }
     }
   }

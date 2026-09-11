@@ -8,7 +8,7 @@ export class Terrain {
     this.busy = new Set();
   }
   local() {
-    requireLocal(this.api.config);
+    if(this.api.delegated)this.api.assertAiScope("terrain.read");else requireLocal(this.api.config);
   }
   path(plan, suffix = "") {
     return `/api/admin/terrain-bundles/${plan.region}/L${plan.lod}${suffix}`;
