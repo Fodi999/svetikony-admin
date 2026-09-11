@@ -130,10 +130,6 @@ function buildDay(seed: CalendarSeed, language: Language, index: number): Calend
     eventType: seed.eventType,
     status: index % 5 === 0 ? "draft" : "published",
     imageId: seed.relatedIconIds ? "media-church-exterior" : undefined,
-    relatedIconIds: seed.relatedIconIds ?? [],
-    relatedPrayerIds: seed.relatedPrayerIds ?? [],
-    relatedSaintIds: seed.relatedSaintIds ?? [],
-    relatedGospelIds: seed.relatedGospelIds ?? [],
     createdAt: now,
     updatedAt: now,
   };

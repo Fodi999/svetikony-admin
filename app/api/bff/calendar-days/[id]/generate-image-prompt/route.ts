@@ -2,7 +2,7 @@ import { UPSTREAM_ENDPOINTS } from "@/lib/api/endpoints";
 import { withAuth, type SafeUser } from "../../../_lib/auth";
 import { proxyJsonWrite } from "../../../_lib/proxy";
 import { POLICY } from "../../../_lib/route-policies";
-import { toBffCalendarDayDto, type WorkerCalendarDayDto } from "../../_contract";
+import { toBffCalendarAiWriteResultDto, type WorkerCalendarAiWriteResultDto } from "../../_contract";
 
 /** "Промпт для AI" -- generates directly from an admin-authored English
  * prompt, bypassing the saint-reference resolver. 60s timeout, same as
@@ -14,7 +14,7 @@ async function handlePost(request: Request, _session: { user: SafeUser }, { para
     `${UPSTREAM_ENDPOINTS.calendarDays}/${encodeURIComponent(id)}/generate-image-prompt`,
     "POST",
     body,
-    (raw: WorkerCalendarDayDto) => toBffCalendarDayDto(raw),
+    (raw: WorkerCalendarAiWriteResultDto) => toBffCalendarAiWriteResultDto(raw),
     60_000,
   );
 }

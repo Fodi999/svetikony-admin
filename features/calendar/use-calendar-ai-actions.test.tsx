@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { useForm } from "react-hook-form";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CalendarDayFormValues } from "@/lib/validation/calendar.schema";
-import type { CalendarAiFillResult, CalendarDay } from "@/types/entities";
+import type { CalendarAiFillResult, CalendarAiWriteResult, CalendarDay } from "@/types/entities";
 import { useCalendarAiActions } from "./use-calendar-ai-actions";
 
 const mockApi = vi.hoisted(() => ({
@@ -45,10 +45,6 @@ const EMPTY: CalendarDayFormValues = {
   imageId: undefined,
   seoTitle: null,
   seoDescription: null,
-  relatedIconIds: [],
-  relatedPrayerIds: [],
-  relatedSaintIds: [],
-  relatedGospelIds: [],
 };
 
 function calendarDay(overrides: Partial<CalendarDay> = {}): CalendarDay {
@@ -66,10 +62,6 @@ function calendarDay(overrides: Partial<CalendarDay> = {}): CalendarDay {
     imageId: undefined,
     seoTitle: null,
     seoDescription: null,
-    relatedIconIds: [],
-    relatedPrayerIds: [],
-    relatedSaintIds: [],
-    relatedGospelIds: [],
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
     ...overrides,
@@ -117,15 +109,33 @@ describe("useCalendarAiActions", () => {
     vi.clearAllMocks();
   });
 
-  it("patches the open form's field directly when generateDescription resolves, without dirtying unrelated fields", async () => {
+  it("patches the open form's field directly when generateDescription resolves on a DRAFT day, without dirtying unrelated fields", async () => {
     const user = userEvent.setup();
-    mockApi.generateDescription.mockResolvedValue(calendarDay({ shortDescription: "Згенерований AI-опис." }));
+    mockApi.generateDescription.mockResolvedValue({
+      mode: "direct",
+      day: calendarDay({ shortDescription: "Згенерований AI-опис." }),
+    } satisfies CalendarAiWriteResult);
     renderHarness();
 
     await user.click(screen.getByRole("button", { name: "generate-description" }));
 
     await waitFor(() => expect(screen.getByTestId("shortDescription")).toHaveTextContent("Згенерований AI-опис."));
     expect(mockApi.generateDescription).toHaveBeenCalledWith("day-1");
+  });
+
+  it("generateDescription on a PUBLISHED day never patches the form -- it reports a pending proposal instead", async () => {
+    const user = userEvent.setup();
+    mockApi.generateDescription.mockResolvedValue({
+      mode: "proposal",
+      day: calendarDay({ status: "published" }),
+      proposalId: "proposal-1",
+    } satisfies CalendarAiWriteResult);
+    renderHarness();
+
+    await user.click(screen.getByRole("button", { name: "generate-description" }));
+
+    await waitFor(() => expect(mockToastSuccess).toHaveBeenCalledWith(expect.stringContaining("пропозицію")));
+    expect(screen.getByTestId("shortDescription")).toHaveTextContent("");
   });
 
   it("shows an error toast and leaves the form untouched when the action fails", async () => {
@@ -139,11 +149,12 @@ describe("useCalendarAiActions", () => {
     expect(screen.getByTestId("shortDescription")).toHaveTextContent("");
   });
 
-  it("generateImageFromPrompt calls the API with the id and prompt, and patches imageId on success", async () => {
+  it("generateImageFromPrompt calls the API with the id and prompt, and patches imageId on success for a DRAFT day", async () => {
     const user = userEvent.setup();
-    mockApi.generateImageFromPrompt.mockResolvedValue(
-      calendarDay({ imageId: "media/calendar/day-1/main/custom.png" }),
-    );
+    mockApi.generateImageFromPrompt.mockResolvedValue({
+      mode: "direct",
+      day: calendarDay({ imageId: "media/calendar/day-1/main/custom.png" }),
+    } satisfies CalendarAiWriteResult);
     renderHarness();
 
     await user.click(screen.getByRole("button", { name: "generate-image-from-prompt" }));
@@ -152,9 +163,25 @@ describe("useCalendarAiActions", () => {
     expect(mockApi.generateImageFromPrompt).toHaveBeenCalledWith("day-1", "A test prompt");
   });
 
+  it("generateImageFromPrompt on a PUBLISHED day never patches imageId -- it reports a pending proposal instead", async () => {
+    const user = userEvent.setup();
+    mockApi.generateImageFromPrompt.mockResolvedValue({
+      mode: "proposal",
+      day: calendarDay({ status: "published" }),
+      proposalId: "proposal-2",
+    } satisfies CalendarAiWriteResult);
+    renderHarness();
+
+    await user.click(screen.getByRole("button", { name: "generate-image-from-prompt" }));
+
+    await waitFor(() => expect(mockToastSuccess).toHaveBeenCalledWith(expect.stringContaining("пропозицію")));
+    expect(screen.getByTestId("imageId")).toHaveTextContent("");
+  });
+
   it("fillMissing patches every returned field and summarizes what was filled", async () => {
     const user = userEvent.setup();
     const result: CalendarAiFillResult = {
+      mode: "direct",
       day: calendarDay({ shortDescription: "Опис", seoTitle: "Title", seoDescription: "Desc" }),
       filled: ["description", "seo"],
       skipped: [],
@@ -174,6 +201,7 @@ describe("useCalendarAiActions", () => {
   it("fillMissing tells the admin to fix the source in the Church Calendar when fields were skipped", async () => {
     const user = userEvent.setup();
     mockApi.fillMissing.mockResolvedValue({
+      mode: "direct",
       day: calendarDay(),
       filled: [],
       skipped: [{ field: "description", reason: "review_required" }],
@@ -183,5 +211,40 @@ describe("useCalendarAiActions", () => {
     await user.click(screen.getByRole("button", { name: "fill-missing" }));
 
     await waitFor(() => expect(mockToastInfo).toHaveBeenCalledWith(expect.stringContaining("Церковному календарі")));
+  });
+
+  it("fillMissing on a PUBLISHED day never patches the form -- it reports a pending proposal instead", async () => {
+    const user = userEvent.setup();
+    mockApi.fillMissing.mockResolvedValue({
+      mode: "proposal",
+      day: calendarDay(),
+      proposalId: "proposal-1",
+      proposedFields: ["description", "seo"],
+      skipped: [],
+    } satisfies CalendarAiFillResult);
+    renderHarness();
+
+    await user.click(screen.getByRole("button", { name: "fill-missing" }));
+
+    await waitFor(() => expect(mockToastSuccess).toHaveBeenCalledWith(expect.stringContaining("пропозицію")));
+    // The record was never touched -- the form still shows nothing patched in.
+    expect(screen.getByTestId("shortDescription")).toHaveTextContent("");
+    expect(screen.getByTestId("seoTitle")).toHaveTextContent("");
+  });
+
+  it("fillMissing on a PUBLISHED day with nothing missing creates no proposal and says so", async () => {
+    const user = userEvent.setup();
+    mockApi.fillMissing.mockResolvedValue({
+      mode: "proposal",
+      day: calendarDay(),
+      proposalId: null,
+      proposedFields: [],
+      skipped: [],
+    } satisfies CalendarAiFillResult);
+    renderHarness();
+
+    await user.click(screen.getByRole("button", { name: "fill-missing" }));
+
+    await waitFor(() => expect(mockToastSuccess).toHaveBeenCalledWith(expect.stringContaining("нема чого пропонувати")));
   });
 });

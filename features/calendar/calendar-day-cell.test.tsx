@@ -22,10 +22,6 @@ function baseDay(overrides: Partial<CalendarDay> = {}): CalendarDay {
     shortDescription: "Опис",
     eventType: "feast",
     status: "draft",
-    relatedIconIds: [],
-    relatedPrayerIds: [],
-    relatedSaintIds: [],
-    relatedGospelIds: [],
     ...overrides,
   };
 }

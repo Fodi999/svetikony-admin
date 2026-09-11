@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { apiClient } from "@/lib/api";
 import { errorMessageFor } from "@/lib/api/errors";
 import type { CalendarDayFormValues } from "@/lib/validation/calendar.schema";
-import type { CalendarAiFillResult, CalendarDay } from "@/types/entities";
+import type { CalendarAiField, CalendarAiWriteResult, CalendarDay } from "@/types/entities";
 
 type AiActionName =
   | "generateDescription"
@@ -34,7 +34,7 @@ export type CalendarAiActions = {
   isPending: (action: AiActionName) => boolean;
 };
 
-const FILL_FIELD_LABELS: Record<CalendarAiFillResult["filled"][number], string> = {
+const FILL_FIELD_LABELS: Record<CalendarAiField, string> = {
   description: "короткий опис",
   history: "історична довідка",
   seo: "SEO",
@@ -75,44 +75,63 @@ export function useCalendarAiActions(dayId: string | undefined, form: UseFormRet
     toast.error(errorMessageFor(error));
   }
 
+  /**
+   * Shared onSuccess for every generate/regenerate action: a DRAFT day
+   * was written directly, so patch the open form's fields as before
+   * (`applyDay`). A PUBLISHED day was never touched -- the same generated
+   * value instead became a pending AI proposal; the form must NOT be
+   * patched (it would show content the record doesn't actually have yet),
+   * and the proposal panel's query is invalidated so the new pending
+   * proposal appears there for review.
+   */
+  function handleAiWriteResult(result: CalendarAiWriteResult, field: CalendarAiField) {
+    if (result.mode === "direct") {
+      applyDay(result.day);
+      toast.success(`Оновлено: ${FILL_FIELD_LABELS[field]}.`);
+    } else {
+      toast.success(`Опубліковано: створено пропозицію AI (${FILL_FIELD_LABELS[field]}) на розгляд адміністратора.`);
+      queryClient.invalidateQueries({ queryKey: ["ai-proposals"] });
+    }
+  }
+
   const generateDescription = useMutation({
     mutationFn: () => apiClient.calendarDays.generateDescription(id),
-    onSuccess: applyDay,
+    onSuccess: (result) => handleAiWriteResult(result, "description"),
     onError,
   });
   const regenerateDescription = useMutation({
     mutationFn: () => apiClient.calendarDays.regenerateDescription(id),
-    onSuccess: applyDay,
+    onSuccess: (result) => handleAiWriteResult(result, "description"),
     onError,
   });
   const generateHistory = useMutation({
     mutationFn: () => apiClient.calendarDays.generateHistory(id),
-    onSuccess: applyDay,
+    onSuccess: (result) => handleAiWriteResult(result, "history"),
     onError,
   });
   const regenerateHistory = useMutation({
     mutationFn: () => apiClient.calendarDays.regenerateHistory(id),
-    onSuccess: applyDay,
+    onSuccess: (result) => handleAiWriteResult(result, "history"),
     onError,
   });
   const generateSeo = useMutation({
     mutationFn: () => apiClient.calendarDays.generateSeo(id),
-    onSuccess: applyDay,
+    onSuccess: (result) => handleAiWriteResult(result, "seo"),
     onError,
   });
   const regenerateSeo = useMutation({
     mutationFn: () => apiClient.calendarDays.regenerateSeo(id),
-    onSuccess: applyDay,
+    onSuccess: (result) => handleAiWriteResult(result, "seo"),
     onError,
   });
   const generateImage = useMutation({
     mutationFn: () => apiClient.calendarDays.generateImage(id),
-    onSuccess: applyDay,
+    onSuccess: (result) => handleAiWriteResult(result, "image"),
     onError,
   });
   const regenerateImage = useMutation({
     mutationFn: () => apiClient.calendarDays.regenerateImage(id),
-    onSuccess: applyDay,
+    onSuccess: (result) => handleAiWriteResult(result, "image"),
     onError,
   });
   const assignImage = useMutation({
@@ -122,17 +141,30 @@ export function useCalendarAiActions(dayId: string | undefined, form: UseFormRet
   });
   const generateImageFromPrompt = useMutation({
     mutationFn: (prompt: string) => apiClient.calendarDays.generateImageFromPrompt(id, prompt),
-    onSuccess: applyDay,
+    onSuccess: (result) => handleAiWriteResult(result, "image"),
     onError,
   });
   const fillMissing = useMutation({
     mutationFn: () => apiClient.calendarDays.fillMissing(id),
     onSuccess: (result) => {
-      applyDay(result.day);
-      if (result.filled.length === 0) {
-        toast.success("Усе вже заповнено -- нема чого додавати з AI.");
+      if (result.mode === "direct") {
+        applyDay(result.day);
+        if (result.filled.length === 0) {
+          toast.success("Усе вже заповнено -- нема чого додавати з AI.");
+        } else {
+          toast.success(`Заповнено з AI: ${result.filled.map((f) => FILL_FIELD_LABELS[f]).join(", ")}.`);
+        }
       } else {
-        toast.success(`Заповнено з AI: ${result.filled.map((f) => FILL_FIELD_LABELS[f]).join(", ")}.`);
+        // PUBLISHED day -- nothing was written. A pending proposal (if any)
+        // now exists for a human to review in the proposal panel; never
+        // patch the open form's fields here, since the record itself is
+        // unchanged.
+        if (result.proposalId) {
+          toast.success("Опубліковано: створено пропозицію AI на розгляд адміністратора (нічого не змінено напряму).");
+          queryClient.invalidateQueries({ queryKey: ["ai-proposals"] });
+        } else {
+          toast.success("Усе вже заповнено -- нема чого пропонувати.");
+        }
       }
       if (result.skipped.length > 0) {
         toast.info("Потрібно виправити джерело у Церковному календарі, щоб заповнити решту.");

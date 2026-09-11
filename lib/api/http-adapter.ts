@@ -50,14 +50,14 @@ import { visualizerModelsHttpResource } from "@/lib/api/http/visualizer-models";
  * image fields, real R2). `products` intentionally leaves
  * `linkedIconId`/`dimensions`/`materials`/`variants` UI-only — no matching
  * real D1 column/table exists yet (see lib/api/http/products.ts). `icons`
- * intentionally leaves `relatedPrayerIds`/`relatedArticleIds`/
- * `relatedCalendarDayIds`/`history`/`saintImageDescription`/`materials`/
- * `dimensions` UI-only for the same reason (`galleryImageIds` IS real —
- * migration 0005 added a proper gallery column) (see
- * lib/api/http/icons.ts). `saints` leaves
- * `relatedIconIds`/`relatedCalendarDayIds` UI-only — the Worker only has a
- * single `icon_id`/`calendar_day_id` FK per saint, not the many-to-many
- * shape the admin's relation picker needs (see lib/api/http/saints.ts).
+ * intentionally leaves `relatedPrayerIds`/`relatedArticleIds`/`history`/
+ * `saintImageDescription`/`materials`/`dimensions` UI-only for the same
+ * reason (`galleryImageIds` IS real — migration 0005 added a proper
+ * gallery column; `calendarDayId`, singular, is also real) (see
+ * lib/api/http/icons.ts). `saints` leaves `relatedIconIds` UI-only — the
+ * Worker only has a single `icon_id` FK per saint, not the many-to-many
+ * shape the admin's relation picker needs (`calendarDayId`, singular, is
+ * real — see lib/api/http/saints.ts).
  *
  * `media`: `uploadObject` (Stage 2D), `remove` (Stage 2H, keyed by R2
  * object key, not a mock asset id), and `listObjects` (Telegram media

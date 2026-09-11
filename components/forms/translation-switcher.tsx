@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, CircleDashed, CircleSlash2 } from "lucide-react";
+import { Check, CircleDashed, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Language } from "@/types/entities";
 
@@ -11,19 +11,25 @@ const LANGUAGE_LABEL: Record<Language, string> = { uk: "UK", ru: "RU", en: "EN" 
 const COMPLETENESS_ICON: Record<Completeness, typeof Check> = {
   done: Check,
   partial: CircleDashed,
-  empty: CircleSlash2,
+  // A real Check/CircleDashed here would read as "this translation exists,
+  // just incomplete" -- but "empty" means no sibling record exists at all
+  // yet, so clicking it navigates to a CREATE screen, not an edit of an
+  // existing (if sparse) one. Plus + a dashed border below makes that a
+  // "+ RU" / "+ EN" affordance instead of something that looks like a
+  // loaded-but-blank record (see calendar-day-form's translation-tab bug).
+  empty: Plus,
 };
 
 const COMPLETENESS_LABEL: Record<Completeness, string> = {
   done: "готово",
   partial: "частково",
-  empty: "порожньо",
+  empty: "ще не створено — натисніть, щоб додати переклад",
 };
 
 const COMPLETENESS_CLASS: Record<Completeness, string> = {
   done: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
   partial: "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400",
-  empty: "border-border bg-muted text-muted-foreground",
+  empty: "border-dashed border-border bg-transparent text-muted-foreground",
 };
 
 interface TranslationSwitcherProps {
@@ -54,7 +60,7 @@ export function TranslationSwitcher({ active, onSelect, completeness }: Translat
             )}
           >
             <Icon className="size-3.5" aria-hidden />
-            {LANGUAGE_LABEL[language]}
+            {state === "empty" ? `${LANGUAGE_LABEL[language]} (+)` : LANGUAGE_LABEL[language]}
             <span className="sr-only">{COMPLETENESS_LABEL[state]}</span>
           </button>
         );

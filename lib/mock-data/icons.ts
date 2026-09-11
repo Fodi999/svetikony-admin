@@ -9,7 +9,7 @@ interface IconSeed {
   titles: Record<Language, string>;
   descriptions: Record<Language, string>;
   status: Icon["status"];
-  relatedCalendarDayIds?: string[];
+  calendarDayId?: string;
   /** Languages intentionally missing a record — demonstrates the "empty" translation state. */
   skipLanguages?: Language[];
   /** Languages with a record but missing the description — demonstrates the "partial" translation state. */
@@ -28,7 +28,7 @@ const seeds: IconSeed[] = [
       en: "One of the oldest images of Christ, said by tradition to be the imprint of His face.",
     },
     status: "published",
-    relatedCalendarDayIds: ["cal-nativity-uk"],
+    calendarDayId: "cal-nativity-uk",
   },
   {
     groupId: "icon-bogomater",
@@ -45,7 +45,7 @@ const seeds: IconSeed[] = [
       en: "One of the most venerated icons of the Theotokos of the Hodegetria type.",
     },
     status: "published",
-    relatedCalendarDayIds: ["cal-annunciation-uk"],
+    calendarDayId: "cal-annunciation-uk",
   },
   {
     groupId: "icon-mykolai",
@@ -74,7 +74,7 @@ const seeds: IconSeed[] = [
       en: "An icon depicting the Theotokos's protection over people, revealed at Blachernae.",
     },
     status: "published",
-    relatedCalendarDayIds: ["cal-pokrova-uk"],
+    calendarDayId: "cal-pokrova-uk",
   },
   {
     groupId: "icon-troitsa",
@@ -121,7 +121,7 @@ function buildIcon(seed: IconSeed, language: Language): Icon {
     galleryImageIds: [seed.mainImageId],
     relatedPrayerIds: [],
     relatedArticleIds: [],
-    relatedCalendarDayIds: seed.relatedCalendarDayIds ?? [],
+    calendarDayId: seed.calendarDayId,
     status: seed.status,
     createdAt: now,
     updatedAt: now,

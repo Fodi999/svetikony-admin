@@ -16,5 +16,5 @@ test('production rejects every write before fetch, even with readOnly false',asy
 test('all 34 MCP tools remain discoverable, but write handlers cannot execute',async()=>{
  let called=false;const server=createServer({store:{},async apply(){called=true;}},config);
  const client=new Client({name:'readonly-test',version:'1'});const [a,b]=InMemoryTransport.createLinkedPair();await server.connect(a);await client.connect(b);
- try{assert.equal((await client.listTools()).tools.length,34);const r=await client.callTool({name:'apply_draft',arguments:{changeId:'12345678-1234-4234-8234-123456789abc'}});assert.equal(r.isError,true);assert.match(r.content[0].text,/WRITE ACCESS DISABLED/);assert.equal(called,false);}finally{await client.close();await server.close();}
+ try{assert.equal((await client.listTools()).tools.length,36);const r=await client.callTool({name:'apply_draft',arguments:{changeId:'12345678-1234-4234-8234-123456789abc'}});assert.equal(r.isError,true);assert.match(r.content[0].text,/WRITE ACCESS DISABLED/);assert.equal(called,false);}finally{await client.close();await server.close();}
 });

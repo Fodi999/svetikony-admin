@@ -38,14 +38,16 @@ export interface WorkerIconDto {
 /**
  * Fields deliberately dropped here and never sent to the browser: `siteId`,
  * `isGlobal` (internal single-tenant/Worker fields with no admin use),
- * `calendarDayId` (the real relation is inverted — see toEntity()'s doc
- * comment in lib/api/http/icons.ts), `saintName`/`feastName` (no admin
- * field maps to these yet — the form's "Опис образу святого" is a long
- * free-text description, not a short name pair), and the icon-ordering
- * fields (`orderEnabled`/`orderBlockText`/`productionTime`/`priceCents`/
- * `currency`/`consecrationAvailable`) — the Worker's update preserves all
- * of these untouched as long as the admin never sends them (see
- * ChurchIconPayload's `?? current.X` fallback pattern).
+ * `saintName`/`feastName` (no admin field maps to these yet — the form's
+ * "Опис образу святого" is a long free-text description, not a short name
+ * pair), and the icon-ordering fields (`orderEnabled`/`orderBlockText`/
+ * `productionTime`/`priceCents`/`currency`/`consecrationAvailable`) — the
+ * Worker's update preserves all of these untouched as long as the admin
+ * never sends them (see ChurchIconPayload's `?? current.X` fallback
+ * pattern). `calendarDayId` IS forwarded (same treatment as Prayers/
+ * Gospel's own calendarDayId) — it's the real, singular relation the
+ * Worker actually has; the admin no longer pretends this is a many-valued
+ * `relatedCalendarDayIds` picker.
  */
 export interface BffIconDto {
   id: string;
@@ -57,6 +59,7 @@ export interface BffIconDto {
   language: string;
   translationGroupId: string;
   status: string;
+  calendarDayId: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -72,6 +75,7 @@ export function toBffIconDto(worker: WorkerIconDto): BffIconDto {
     language: worker.language,
     translationGroupId: worker.translationGroupId,
     status: worker.status,
+    calendarDayId: worker.calendarDayId,
     createdAt: worker.createdAt,
     updatedAt: worker.updatedAt,
   };
@@ -91,4 +95,5 @@ export interface WorkerIconWritePayload {
   description?: string;
   language?: string;
   status?: string;
+  calendarDayId?: string | null;
 }

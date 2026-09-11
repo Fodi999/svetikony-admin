@@ -2,7 +2,7 @@ import { UPSTREAM_ENDPOINTS } from "@/lib/api/endpoints";
 import { withAuth, type SafeUser } from "../../../_lib/auth";
 import { proxyJsonWrite } from "../../../_lib/proxy";
 import { POLICY } from "../../../_lib/route-policies";
-import { toBffCalendarDayDto, type WorkerCalendarDayDto } from "../../_contract";
+import { toBffCalendarAiWriteResultDto, type WorkerCalendarAiWriteResultDto } from "../../_contract";
 
 /** 30s: a real OpenAI text completion can take longer than the 10s default
  * (see proxy.ts's proxyJsonWrite doc comment). */
@@ -12,7 +12,7 @@ async function handlePost(_request: Request, _session: { user: SafeUser }, { par
     `${UPSTREAM_ENDPOINTS.calendarDays}/${encodeURIComponent(id)}/generate-description`,
     "POST",
     undefined,
-    (raw: WorkerCalendarDayDto) => toBffCalendarDayDto(raw),
+    (raw: WorkerCalendarAiWriteResultDto) => toBffCalendarAiWriteResultDto(raw),
     30_000,
   );
 }

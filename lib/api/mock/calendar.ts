@@ -1,7 +1,7 @@
 import type { ApiClient } from "@/lib/api/client";
 import { ensureUniqueSlug, loadStore, matchesSearch, mockDelay, notFound, nextId, nowIso, paginate, saveStore } from "@/lib/api/mock-utils";
 import { mockCalendarDays } from "@/lib/mock-data/calendar";
-import type { CalendarAiFillResult, CalendarDay } from "@/types/entities";
+import type { CalendarAiField, CalendarAiFillResult, CalendarAiWriteResult, CalendarDay } from "@/types/entities";
 import { ApiError } from "@/types/api";
 
 const STORE_KEY = "calendarDays";
@@ -21,6 +21,14 @@ function save(id: string, patch: Partial<CalendarDay>): CalendarDay {
   store[index] = updated;
   persist();
   return updated;
+}
+
+/** Mock mode has no real proposal system -- every generate/regenerate
+ * action here always simulates the direct-write outcome, matching this
+ * adapter's existing "everything just writes" simplicity (Stage 1 dev
+ * fallback only; see fillMissing's own note below for the same call). */
+function direct(day: CalendarDay): CalendarAiWriteResult {
+  return { mode: "direct", day };
 }
 
 export const calendarDaysResource: ApiClient["calendarDays"] = {
@@ -96,23 +104,23 @@ export const calendarDaysResource: ApiClient["calendarDays"] = {
     await mockDelay(400);
     const day = getOrThrow(id);
     if (day.shortDescription.trim()) throw new ApiError("conflict", "Опис вже існує -- скористайтеся регенерацією");
-    return save(id, { shortDescription: `Мок-опис для "${day.title}".` });
+    return direct(save(id, { shortDescription: `Мок-опис для "${day.title}".` }));
   },
   async regenerateDescription(id) {
     await mockDelay(400);
     const day = getOrThrow(id);
-    return save(id, { shortDescription: `Новий мок-опис для "${day.title}".` });
+    return direct(save(id, { shortDescription: `Новий мок-опис для "${day.title}".` }));
   },
   async generateHistory(id) {
     await mockDelay(400);
     const day = getOrThrow(id);
     if (day.history?.trim()) throw new ApiError("conflict", "Текст вже існує -- скористайтеся регенерацією");
-    return save(id, { history: `Мок-історична довідка для "${day.title}".` });
+    return direct(save(id, { history: `Мок-історична довідка для "${day.title}".` }));
   },
   async regenerateHistory(id) {
     await mockDelay(400);
     const day = getOrThrow(id);
-    return save(id, { history: `Новий мок-текст для "${day.title}".` });
+    return direct(save(id, { history: `Новий мок-текст для "${day.title}".` }));
   },
   async generateSeo(id) {
     await mockDelay(300);
@@ -120,29 +128,33 @@ export const calendarDaysResource: ApiClient["calendarDays"] = {
     if (day.seoTitle?.trim() && day.seoDescription?.trim()) {
       throw new ApiError("conflict", "SEO title і description вже існують -- скористайтеся регенерацією");
     }
-    return save(id, {
-      seoTitle: day.seoTitle?.trim() ? day.seoTitle : day.title,
-      seoDescription: day.seoDescription?.trim() ? day.seoDescription : `Мок SEO-опис для "${day.title}".`,
-    });
+    return direct(
+      save(id, {
+        seoTitle: day.seoTitle?.trim() ? day.seoTitle : day.title,
+        seoDescription: day.seoDescription?.trim() ? day.seoDescription : `Мок SEO-опис для "${day.title}".`,
+      }),
+    );
   },
   async regenerateSeo(id) {
     await mockDelay(300);
     const day = getOrThrow(id);
-    return save(id, { seoTitle: day.title, seoDescription: `Новий мок SEO-опис для "${day.title}".` });
+    return direct(save(id, { seoTitle: day.title, seoDescription: `Новий мок SEO-опис для "${day.title}".` }));
   },
   async generateImage(id) {
     await mockDelay(400);
     const day = getOrThrow(id);
     if (day.imageId?.trim()) throw new ApiError("conflict", "Зображення вже існує -- скористайтеся регенерацією");
-    return save(id, { imageId: "https://placehold.co/600x400", imageMetadata: { origin: "ai_generated", identityVerified: false } });
+    return direct(save(id, { imageId: "https://placehold.co/600x400", imageMetadata: { origin: "ai_generated", identityVerified: false } }));
   },
   async regenerateImage(id) {
     await mockDelay(400);
     getOrThrow(id);
-    return save(id, {
-      imageId: `https://placehold.co/600x400?text=${Date.now()}`,
-      imageMetadata: { origin: "ai_generated", identityVerified: false },
-    });
+    return direct(
+      save(id, {
+        imageId: `https://placehold.co/600x400?text=${Date.now()}`,
+        imageMetadata: { origin: "ai_generated", identityVerified: false },
+      }),
+    );
   },
   async assignImage(id, imageUrl) {
     await mockDelay(200);
@@ -152,15 +164,20 @@ export const calendarDaysResource: ApiClient["calendarDays"] = {
   async generateImageFromPrompt(id, prompt) {
     await mockDelay(400);
     getOrThrow(id);
-    return save(id, {
-      imageId: `https://placehold.co/600x400?text=${encodeURIComponent(prompt.slice(0, 20))}`,
-      imageMetadata: { origin: "ai_generated", identityVerified: false, customPrompt: prompt },
-    });
+    return direct(
+      save(id, {
+        imageId: `https://placehold.co/600x400?text=${encodeURIComponent(prompt.slice(0, 20))}`,
+        imageMetadata: { origin: "ai_generated", identityVerified: false, customPrompt: prompt },
+      }),
+    );
   },
   async fillMissing(id): Promise<CalendarAiFillResult> {
     await mockDelay(800);
     const day = getOrThrow(id);
-    const filled: CalendarAiFillResult["filled"] = [];
+    // Mock mode has no real proposal system -- always simulates the
+    // direct-write outcome, matching this adapter's existing "everything
+    // just writes" simplicity (Stage 1 dev fallback only).
+    const filled: CalendarAiField[] = [];
     let current = day;
     if (!current.shortDescription.trim()) {
       current = save(id, { shortDescription: `Мок-опис для "${current.title}".` });
@@ -178,6 +195,6 @@ export const calendarDaysResource: ApiClient["calendarDays"] = {
       current = save(id, { imageId: "https://placehold.co/600x400", imageMetadata: { origin: "ai_generated", identityVerified: false } });
       filled.push("image");
     }
-    return { day: current, filled, skipped: [] };
+    return { mode: "direct", day: current, filled, skipped: [] };
   },
 };

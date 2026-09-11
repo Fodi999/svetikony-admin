@@ -3,13 +3,13 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
 import { Eye, Sparkles, X } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/feedback/confirm-dialog";
 import { MediaUploadButton } from "@/components/forms/media-upload-button";
-import { RelationPickerField } from "@/components/forms/relation-picker-field";
 import { SelectField } from "@/components/forms/select-field";
 import { TextField } from "@/components/forms/text-field";
 import { TranslationSwitcher, type Completeness } from "@/components/forms/translation-switcher";
@@ -22,7 +22,7 @@ import { messages } from "@/lib/i18n";
 import { useBeforeUnloadWarning } from "@/lib/utils/use-before-unload";
 import { resolveMediaPreviewUrl } from "@/lib/media/resolve-preview-url";
 import { calendarDaySchema, type CalendarDayFormValues } from "@/lib/validation/calendar.schema";
-import type { CalendarDay, Language } from "@/types/entities";
+import type { CalendarDay, CalendarEventType, Language } from "@/types/entities";
 import { useCalendarAiActions } from "./use-calendar-ai-actions";
 
 const EVENT_TYPE_LABELS = {
@@ -45,10 +45,6 @@ const EMPTY_DEFAULTS: CalendarDayFormValues = {
   imageId: undefined,
   seoTitle: null,
   seoDescription: null,
-  relatedIconIds: [],
-  relatedPrayerIds: [],
-  relatedSaintIds: [],
-  relatedGospelIds: [],
 };
 
 /**
@@ -65,13 +61,40 @@ async function cleanupOrphanUpload(key: string) {
   }
 }
 
+/** Read-only reverse-lookup row for the "Зв'язки" tab -- see the doc
+ * comment above `linkedIcons` etc. for why this is never an editable
+ * picker. */
+function LinkedContentSection({ title, hrefBase, items }: { title: string; hrefBase: string; items: { id: string; label: string }[] }) {
+  return (
+    <div className="space-y-1.5">
+      <p className="text-sm font-medium">{title}</p>
+      {items.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Немає пов&apos;язаних записів.</p>
+      ) : (
+        <ul className="space-y-1">
+          {items.map((item) => (
+            <li key={item.id}>
+              <Link href={`${hrefBase}/${item.id}`} className="text-sm text-primary underline-offset-2 hover:underline">
+                {item.label}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 interface CalendarDayFormProps {
   mode: "create" | "edit";
   day?: CalendarDay;
   /** Prefills the date field in "create" mode -- used when arriving from
    * an empty month-grid slot (task section 7: "виртуальный день" ->
-   * create). Ignored when `day` is set. */
+   * create) or from creating a missing translation of an existing day
+   * (calendar-wide metadata, not language-specific -- see
+   * handleSwitchLanguage). Ignored when `day` is set. */
   initialDate?: string;
+  initialEventType?: CalendarEventType;
   groupId?: string;
   initialLanguage?: Language;
   initialSlug?: string;
@@ -84,6 +107,7 @@ export function CalendarDayForm({
   mode,
   day,
   initialDate,
+  initialEventType,
   groupId,
   initialLanguage,
   initialSlug,
@@ -124,6 +148,7 @@ export function CalendarDayForm({
           language: initialLanguage ?? "uk",
           slug: initialSlug ?? "",
           ...(initialDate ? { date: initialDate } : {}),
+          ...(initialEventType ? { eventType: initialEventType } : {}),
         },
   });
 
@@ -144,15 +169,21 @@ export function CalendarDayForm({
   const [confirmRegenerateImage, setConfirmRegenerateImage] = useState(false);
   const [customImagePrompt, setCustomImagePrompt] = useState("");
 
+  // Read-only reverse lookup for the "Зв'язки" tab: the real relation is
+  // owned by the CHILD record's own calendarDayId (icons/prayers/saints/
+  // gospel each carry it), not a calendar-side array -- writing a fake
+  // multi-select here would silently discard whatever the admin picked
+  // (see calendar-days.ts's toEntity() doc comment). To change a relation,
+  // edit the child record itself.
   const iconsQuery = useQuery({ queryKey: ["icons", "options"], queryFn: () => apiClient.icons.list({ pageSize: 200 }) });
   const prayersQuery = useQuery({ queryKey: ["prayers", "options"], queryFn: () => apiClient.prayers.list({ pageSize: 200 }) });
   const saintsQuery = useQuery({ queryKey: ["saints", "options"], queryFn: () => apiClient.saints.list({ pageSize: 200 }) });
   const gospelQuery = useQuery({ queryKey: ["gospelReadings", "options"], queryFn: () => apiClient.gospelReadings.list({ pageSize: 200 }) });
 
-  const iconOptions = (iconsQuery.data?.items ?? []).map((i) => ({ value: i.id, label: i.title }));
-  const prayerOptions = (prayersQuery.data?.items ?? []).map((p) => ({ value: p.id, label: p.title }));
-  const saintOptions = (saintsQuery.data?.items ?? []).map((s) => ({ value: s.id, label: s.name }));
-  const gospelOptions = (gospelQuery.data?.items ?? []).map((g) => ({ value: g.id, label: g.title }));
+  const linkedIcons = (iconsQuery.data?.items ?? []).filter((i) => i.calendarDayId === day?.id);
+  const linkedPrayers = (prayersQuery.data?.items ?? []).filter((p) => p.calendarDayId === day?.id);
+  const linkedSaints = (saintsQuery.data?.items ?? []).filter((s) => s.calendarDayId === day?.id);
+  const linkedGospel = (gospelQuery.data?.items ?? []).filter((g) => g.calendarDayId === day?.id);
 
   const effectiveGroupId = day?.translationGroupId ?? groupId;
 
@@ -184,7 +215,24 @@ export function CalendarDayForm({
     if (sibling) {
       router.push(`/calendar/${sibling.id}`);
     } else if (effectiveGroupId) {
-      router.push(`/calendar/new?groupId=${effectiveGroupId}&language=${lang}&slug=${encodeURIComponent(form.getValues("slug"))}`);
+      // Only calendar-wide metadata (date, event type, the group-linking
+      // slug) is carried into the new translation -- title/description/
+      // history/SEO are deliberately NOT copied, since those are
+      // language-specific and must be written fresh for each translation.
+      // `date` in particular used to be dropped here, which made a brand
+      // new "+ create translation" screen look like a broken load of an
+      // existing record (blank Date/Title next to a real, carried-over
+      // slug) -- see calendar-day-form's bug history.
+      const params = new URLSearchParams({
+        groupId: effectiveGroupId,
+        language: lang,
+        slug: form.getValues("slug"),
+      });
+      const date = form.getValues("date");
+      if (date) params.set("date", date);
+      const eventType = form.getValues("eventType");
+      if (eventType) params.set("eventType", eventType);
+      router.push(`/calendar/new?${params.toString()}`);
     }
   }
 
@@ -223,7 +271,11 @@ export function CalendarDayForm({
             onClick={ai.fillMissing}
           >
             <Sparkles className="size-4" />
-            {ai.isPending("fillMissing") ? "Заповнення…" : "Заповнити відсутнє з AI"}
+            {ai.isPending("fillMissing")
+              ? "Заповнення…"
+              : day.status === "published"
+                ? "Заповнити відсутнє з AI (запропонувати на розгляд)"
+                : "Заповнити відсутнє з AI"}
           </Button>
         ) : null}
 
@@ -344,10 +396,20 @@ export function CalendarDayForm({
           </TabsContent>
 
           <TabsContent value="relations" className="space-y-4">
-            <RelationPickerField control={form.control} name="relatedIconIds" label="Пов'язані ікони" options={iconOptions} />
-            <RelationPickerField control={form.control} name="relatedPrayerIds" label="Пов'язані молитви" options={prayerOptions} />
-            <RelationPickerField control={form.control} name="relatedSaintIds" label="Пов'язані святі" options={saintOptions} />
-            <RelationPickerField control={form.control} name="relatedGospelIds" label="Пов'язані читання" options={gospelOptions} />
+            {mode === "edit" && day ? (
+              <>
+                <p className="text-xs text-muted-foreground">
+                  Це реальні зв&apos;язки з боку пов&apos;язаних записів (їхнє поле «календарний день»). Щоб додати чи прибрати
+                  зв&apos;язок, відредагуйте відповідний запис — тут це лише перегляд.
+                </p>
+                <LinkedContentSection title="Пов'язані ікони" hrefBase="/icons" items={linkedIcons.map((i) => ({ id: i.id, label: i.title }))} />
+                <LinkedContentSection title="Пов'язані молитви" hrefBase="/prayers" items={linkedPrayers.map((p) => ({ id: p.id, label: p.title }))} />
+                <LinkedContentSection title="Пов'язані святі" hrefBase="/saints" items={linkedSaints.map((s) => ({ id: s.id, label: s.name }))} />
+                <LinkedContentSection title="Пов'язані читання" hrefBase="/gospel" items={linkedGospel.map((g) => ({ id: g.id, label: g.title }))} />
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">Спочатку збережіть день — зв&apos;язки з&apos;являться тут після цього.</p>
+            )}
           </TabsContent>
 
           <TabsContent value="media" className="space-y-4">

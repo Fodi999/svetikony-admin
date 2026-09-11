@@ -112,7 +112,17 @@ export class Operator {
     return after;
   }
   async getChange(id) {
-    if (this.api.config?.environment !== "production") return this.store.get(id);
+    // The propose/apply local journal only exists for the plain
+    // service-token workflow; a delegated AI-access grant's changes live
+    // server-side as ai_proposals rows instead (see prepare() below). This
+    // must key on whether THIS connection is delegated, never on
+    // config.environment -- environment only selects a transport/security
+    // posture (HTTPS-only, no service token in production, etc.), not
+    // whether a change is direct-written or proposed. A delegated session
+    // against a local dev server must behave exactly like one in
+    // production, and vice versa is never possible (production has no
+    // service token to fall back to).
+    if (!this.api.delegated) return this.store.get(id);
     // Interrupted Visualizer/Terrain receipts remain local even with delegated auth.
     let receipt;
     try {
@@ -124,23 +134,39 @@ export class Operator {
     return this.api.proposalRequest(id);
   }
   async listChanges() {
-    return this.api.config?.environment === "production"
-      ? this.api.proposalRequest()
-      : this.store.list();
+    return this.api.delegated ? this.api.proposalRequest() : this.store.list();
   }
+  /**
+   * The single write-routing decision point: does this patch land on the
+   * record directly, or does it become a proposal awaiting human review?
+   * Status of the TARGET decides that -- never config.environment (see
+   * getChange() above for why). A delegated connection with a new/draft
+   * target writes and verifies immediately through the same status-gated
+   * /api/ai-access/content endpoint the record's own draft-only DB
+   * constraint already enforces server-side; a published target always
+   * becomes a proposal; any other status (e.g. archived) is refused
+   * outright rather than silently guessing an intent.
+   */
   async prepare(entity, id, patch, reason, sources = []) {
     if (!reason?.trim()) throw new Error("Explain the purpose of the change");
     const normalized = Object.keys(patch).length ? normalizePatch(entity, patch) : {};
     const before = id ? await this.get(entity, id) : null;
     await this.validate(entity, normalized, before);
-    if (this.api.config?.environment === "production") {
-      if (!id) throw new Error("Server proposals require an existing target; create a draft first");
-      return this.api.proposalRequest("", {
+    if (this.api.delegated) {
+      if (before && !["draft", "published"].includes(before.status))
+        throw new Error(
+          `Automatic edits are refused for status "${before.status}"; this record requires human review`,
+        );
+      if (!before || before.status === "draft")
+        return this.directWrite(entity, id, normalized, before, reason);
+      const proposal = await this.api.proposalRequest("", {
         method: "POST",
         body: { targetType: entity, targetId: id, patch: normalized, reason, sources },
       });
+      return { mode: "proposal", ...proposal };
     }
     const change = this.store.add({
+      mode: "local_staged",
       entity,
       entityId: id ?? null,
       before,
@@ -158,9 +184,45 @@ export class Operator {
     });
     return change;
   }
+  /**
+   * Direct write for a delegated DRAFT_EDIT session against a new-or-draft
+   * target: write, then independently re-fetch and hash-compare every
+   * patched field before reporting success -- an HTTP 200 alone is never
+   * treated as confirmation (mirrors apply()'s own readback-verify logic
+   * for the local propose/apply flow). `status` is always forced to
+   * "draft" here regardless of what the caller's patch contained; the
+   * backend enforces the same rule independently.
+   */
+  async directWrite(entity, id, patch, before, reason) {
+    // normalizePatch() never lets "status" through as a writable field, so
+    // this override can't be shadowed by a caller-supplied value -- it's
+    // here purely so a future change to normalizePatch can't silently
+    // start forwarding it; the backend enforces the same rule independently.
+    const payload = { ...patch, status: "draft" };
+    const result = await this.api.request(entityPath(entity, id), {
+      method: id ? "PUT" : "POST",
+      body: payload,
+    });
+    if (!result?.id) throw new Error("Missing saved entity ID");
+    const after = await this.get(entity, result.id);
+    for (const [field, value] of Object.entries(payload))
+      if (hash(after[field]) !== hash(value)) throw new Error("Readback mismatch: " + field);
+    return {
+      mode: "direct",
+      status: "applied",
+      entity,
+      entityId: result.id,
+      before,
+      after,
+      reason,
+      verified: true,
+    };
+  }
   async apply(id, { publish = false, confirmation } = {}) {
-    if (this.api.config?.environment === "production")
-      throw new Error("Server proposals require human review in web-admin");
+    if (this.api.delegated)
+      throw new Error(
+        "Delegated draft edits are already applied directly by prepare_change; published-record proposals require human review in web-admin",
+      );
     const c = this.store.get(id);
     if (publish && confirmation !== `PUBLISH ${id}`)
       throw new Error("Explicit publication confirmation must identify this change");
@@ -290,6 +352,69 @@ export class Operator {
       c.sources,
     );
   }
+  /**
+   * Read-only date lookup -- the first step of the "fill this date" chat
+   * workflow. Never writes, never picks a record when more than one
+   * matches: every match for the date (optionally narrowed by language) is
+   * returned explicitly, plus every language sharing that record's
+   * translation group so the caller can see uk/ru/en availability in one
+   * call even when only one language was asked for.
+   */
+  async findCalendarDay(date, language) {
+    civilDate(date);
+    const rows = await this.list("calendar");
+    const matches = rows.filter(
+      (r) =>
+        (r.dateNewStyle === date || r.dateOldStyle === date) && (!language || r.language === language),
+    );
+    const groupIds = new Set(matches.map((r) => r.translationGroupId).filter(Boolean));
+    const groupRows = groupIds.size ? rows.filter((r) => groupIds.has(r.translationGroupId)) : matches;
+    const summarize = (r) => ({
+      id: r.id,
+      status: r.status,
+      language: r.language,
+      translationGroupId: r.translationGroupId,
+      slug: r.slug,
+      date: r.dateNewStyle ?? r.dateOldStyle,
+      eventType: r.dayType,
+      title: r.title,
+      updatedAt: r.updatedAt,
+      version: hash(r),
+    });
+    const translations = { uk: null, ru: null, en: null };
+    for (const r of groupRows) if (Object.hasOwn(translations, r.language)) translations[r.language] = summarize(r);
+    return {
+      date,
+      language: language ?? null,
+      found: matches.length > 0,
+      matches: matches.map(summarize),
+      translations,
+    };
+  }
+  /**
+   * Convenience wrapper so Codex never has to know the relation is owned
+   * by the CHILD record's own calendarDayId column, not a calendar-side
+   * array -- calendar's own "Зв'язки" tab is a read-only reverse lookup for
+   * exactly this reason (calendar-side multi-select arrays are never the
+   * source of truth; see CATALOG[entity].refs). Reuses prepare()'s status
+   * policy unchanged: a draft child is written and verified directly, a
+   * published child produces a proposal, and any content type with no
+   * calendarDayId relation is refused up front rather than silently
+   * ignored.
+   */
+  async linkRelatedContent(calendarDayId, targetType, targetId, reason) {
+    const s = spec(targetType);
+    if (!Object.hasOwn(s.refs, "calendarDayId"))
+      throw new Error(`${targetType} has no calendarDayId relation to link`);
+    await this.get("calendar", calendarDayId);
+    return this.prepare(
+      targetType,
+      targetId,
+      { calendarDayId },
+      reason?.trim() || `Link ${targetType} ${targetId} to calendar day ${calendarDayId}`,
+      [],
+    );
+  }
   async imageBrief(date, language) {
     civilDate(date);
     const s = await this.snapshot();
@@ -361,17 +486,21 @@ export class Operator {
     if (entity === "calendar")
       patch.imageMetadata =
         origin === "ai_generated" ? { origin: "ai_generated", identityVerified: false } : null;
-    const proposal = await this.prepare(
+    const result = await this.prepare(
       entity,
       id,
       patch,
       "Attach uploaded " + origin + " image; publication is a separate action",
       [],
     );
+    const direct = result.mode === "direct";
     return {
       asset,
-      changeId: proposal.id,
-      attached: false,
+      // Present only for a staged/proposed outcome -- a direct write has no
+      // separate change/proposal to review, it already happened (and was
+      // verified) inside prepare()/directWrite().
+      changeId: direct ? undefined : result.id,
+      attached: direct,
       published: false,
       existingStatus: row.status,
     };

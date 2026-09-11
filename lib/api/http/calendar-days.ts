@@ -1,12 +1,12 @@
 import type { z } from "zod";
-import type { BffCalendarAiFillResultDto, BffCalendarDayDto, WorkerCalendarDayWritePayload } from "@/app/api/bff/calendar-days/_contract";
+import type { BffCalendarAiFillResultDto, BffCalendarAiWriteResultDto, BffCalendarDayDto, WorkerCalendarDayWritePayload } from "@/app/api/bff/calendar-days/_contract";
 import type { ApiClient, CalendarQuery } from "@/lib/api/client";
 import { BFF_ENDPOINTS } from "@/lib/api/endpoints";
 import { createHttpListResource } from "@/lib/api/http/resource-factory";
 import { httpDelete, httpPost, httpPut } from "@/lib/api/http/transport";
 import { contentStatusSchema, languageSchema } from "@/lib/validation/common";
 import { calendarEventTypeSchema, type CalendarDayFormValues } from "@/lib/validation/calendar.schema";
-import type { CalendarAiFillResult, CalendarDay, CalendarEventType, ContentStatus, Language } from "@/types/entities";
+import type { CalendarAiFillResult, CalendarAiWriteResult, CalendarDay, CalendarEventType, ContentStatus, Language } from "@/types/entities";
 
 /**
  * Real local data has `dayType` values mirrored from the old Rust backend
@@ -22,14 +22,16 @@ function safeEnum<T extends string>(schema: z.ZodType<T>, value: string, fallbac
 }
 
 /**
- * BFF DTO -> admin entity mapping. `relatedIconIds`/`relatedPrayerIds`/
- * `relatedSaintIds`/`relatedGospelIds` are deliberately always `[]`: the
+ * BFF DTO -> admin entity mapping. This entity carries no `relatedIconIds`/
+ * `relatedPrayerIds`/`relatedSaintIds`/`relatedGospelIds` fields at all: the
  * real D1 schema models this relation in the opposite direction (each of
- * those tables carries its own `calendarDayId` FK pointing at this row,
- * not the other way around), so there is nothing on this DTO to read them
- * from. Wiring that up would mean writing to four other modules' tables
- * from this form — out of scope for Stage 2H, not requested. The fields
- * stay mock-only/UI-only in real mode.
+ * those tables carries its own `calendarDayId` FK pointing at this row, not
+ * the other way around), so there is nothing on this DTO to read them from
+ * and no calendar-side array is the source of truth. The calendar edit
+ * form displays those relations read-only by querying icons/prayers/
+ * saints/gospel and filtering by `calendarDayId === day.id` client-side —
+ * see calendar-day-form.tsx. To CHANGE a relation, edit the child record's
+ * own `calendarDayId` field (already real for Prayers/Gospel/Saints/Icons).
  */
 function toEntity(dto: BffCalendarDayDto): CalendarDay {
   return {
@@ -48,10 +50,6 @@ function toEntity(dto: BffCalendarDayDto): CalendarDay {
     seoTitle: dto.seoTitle,
     seoDescription: dto.seoDescription,
     imageMetadata: dto.imageMetadata,
-    relatedIconIds: [],
-    relatedPrayerIds: [],
-    relatedSaintIds: [],
-    relatedGospelIds: [],
     createdAt: dto.createdAt,
     updatedAt: dto.updatedAt,
   };
@@ -79,6 +77,14 @@ function toPayload(values: CalendarDayFormValues): WorkerCalendarDayWritePayload
 
 function aiActionPath(id: string, action: string): string {
   return `${BFF_ENDPOINTS.calendarDays}/${encodeURIComponent(id)}/${action}`;
+}
+
+/** Shared by every generate/regenerate AI action below: a DRAFT day's
+ * result carries the written entity; a PUBLISHED day's carries the
+ * still-unchanged entity plus a pending proposal id -- see
+ * CalendarAiWriteResult's own doc comment. */
+function toAiWriteResult(dto: BffCalendarAiWriteResultDto): CalendarAiWriteResult {
+  return dto.mode === "direct" ? { mode: "direct", day: toEntity(dto.day) } : { mode: "proposal", day: toEntity(dto.day), proposalId: dto.proposalId };
 }
 
 /**
@@ -149,38 +155,40 @@ export const calendarDaysHttpResource: ApiClient["calendarDays"] = {
     );
     return toEntity(dto);
   },
-  async generateDescription(id: string): Promise<CalendarDay> {
-    return toEntity(await httpPost<BffCalendarDayDto>(aiActionPath(id, "generate-description"), undefined, AI_TEXT_TIMEOUT_MS));
+  async generateDescription(id: string): Promise<CalendarAiWriteResult> {
+    return toAiWriteResult(await httpPost<BffCalendarAiWriteResultDto>(aiActionPath(id, "generate-description"), undefined, AI_TEXT_TIMEOUT_MS));
   },
-  async regenerateDescription(id: string): Promise<CalendarDay> {
-    return toEntity(await httpPost<BffCalendarDayDto>(aiActionPath(id, "regenerate-description"), undefined, AI_TEXT_TIMEOUT_MS));
+  async regenerateDescription(id: string): Promise<CalendarAiWriteResult> {
+    return toAiWriteResult(await httpPost<BffCalendarAiWriteResultDto>(aiActionPath(id, "regenerate-description"), undefined, AI_TEXT_TIMEOUT_MS));
   },
-  async generateHistory(id: string): Promise<CalendarDay> {
-    return toEntity(await httpPost<BffCalendarDayDto>(aiActionPath(id, "generate-history"), undefined, AI_TEXT_TIMEOUT_MS));
+  async generateHistory(id: string): Promise<CalendarAiWriteResult> {
+    return toAiWriteResult(await httpPost<BffCalendarAiWriteResultDto>(aiActionPath(id, "generate-history"), undefined, AI_TEXT_TIMEOUT_MS));
   },
-  async regenerateHistory(id: string): Promise<CalendarDay> {
-    return toEntity(await httpPost<BffCalendarDayDto>(aiActionPath(id, "regenerate-history"), undefined, AI_TEXT_TIMEOUT_MS));
+  async regenerateHistory(id: string): Promise<CalendarAiWriteResult> {
+    return toAiWriteResult(await httpPost<BffCalendarAiWriteResultDto>(aiActionPath(id, "regenerate-history"), undefined, AI_TEXT_TIMEOUT_MS));
   },
-  async generateSeo(id: string): Promise<CalendarDay> {
-    return toEntity(await httpPost<BffCalendarDayDto>(aiActionPath(id, "generate-seo"), undefined, AI_TEXT_TIMEOUT_MS));
+  async generateSeo(id: string): Promise<CalendarAiWriteResult> {
+    return toAiWriteResult(await httpPost<BffCalendarAiWriteResultDto>(aiActionPath(id, "generate-seo"), undefined, AI_TEXT_TIMEOUT_MS));
   },
-  async regenerateSeo(id: string): Promise<CalendarDay> {
-    return toEntity(await httpPost<BffCalendarDayDto>(aiActionPath(id, "regenerate-seo"), undefined, AI_TEXT_TIMEOUT_MS));
+  async regenerateSeo(id: string): Promise<CalendarAiWriteResult> {
+    return toAiWriteResult(await httpPost<BffCalendarAiWriteResultDto>(aiActionPath(id, "regenerate-seo"), undefined, AI_TEXT_TIMEOUT_MS));
   },
-  async generateImage(id: string): Promise<CalendarDay> {
-    return toEntity(await httpPost<BffCalendarDayDto>(aiActionPath(id, "generate-image"), undefined, AI_IMAGE_TIMEOUT_MS));
+  async generateImage(id: string): Promise<CalendarAiWriteResult> {
+    return toAiWriteResult(await httpPost<BffCalendarAiWriteResultDto>(aiActionPath(id, "generate-image"), undefined, AI_IMAGE_TIMEOUT_MS));
   },
-  async regenerateImage(id: string): Promise<CalendarDay> {
-    return toEntity(await httpPost<BffCalendarDayDto>(aiActionPath(id, "regenerate-image"), undefined, AI_IMAGE_TIMEOUT_MS));
+  async regenerateImage(id: string): Promise<CalendarAiWriteResult> {
+    return toAiWriteResult(await httpPost<BffCalendarAiWriteResultDto>(aiActionPath(id, "regenerate-image"), undefined, AI_IMAGE_TIMEOUT_MS));
   },
   async assignImage(id: string, imageUrl: string): Promise<CalendarDay> {
     return toEntity(await httpPut<BffCalendarDayDto>(aiActionPath(id, "image"), { imageUrl }));
   },
-  async generateImageFromPrompt(id: string, prompt: string): Promise<CalendarDay> {
-    return toEntity(await httpPost<BffCalendarDayDto>(aiActionPath(id, "generate-image-prompt"), { prompt }, AI_IMAGE_TIMEOUT_MS));
+  async generateImageFromPrompt(id: string, prompt: string): Promise<CalendarAiWriteResult> {
+    return toAiWriteResult(await httpPost<BffCalendarAiWriteResultDto>(aiActionPath(id, "generate-image-prompt"), { prompt }, AI_IMAGE_TIMEOUT_MS));
   },
   async fillMissing(id: string): Promise<CalendarAiFillResult> {
     const dto = await httpPost<BffCalendarAiFillResultDto>(aiActionPath(id, "fill-missing"), undefined, AI_FILL_MISSING_TIMEOUT_MS);
-    return { day: toEntity(dto.day), filled: dto.filled, skipped: dto.skipped };
+    return dto.mode === "direct"
+      ? { mode: "direct", day: toEntity(dto.day), filled: dto.filled, skipped: dto.skipped }
+      : { mode: "proposal", day: toEntity(dto.day), proposalId: dto.proposalId, proposedFields: dto.proposedFields, skipped: dto.skipped };
   },
 };

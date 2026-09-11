@@ -48,7 +48,7 @@ const EMPTY_DEFAULTS: IconFormValues = {
   galleryImageIds: [],
   relatedPrayerIds: [],
   relatedArticleIds: [],
-  relatedCalendarDayIds: [],
+  calendarDayId: undefined,
   status: "draft",
 };
 
@@ -349,7 +349,13 @@ export function IconForm({ mode, icon, groupId, initialLanguage, initialSlug, on
           <TabsContent value="relations" className="space-y-4">
             <RelationPickerField control={form.control} name="relatedPrayerIds" label="Пов'язані молитви" options={prayerOptions} />
             <RelationPickerField control={form.control} name="relatedArticleIds" label="Пов'язані статті" options={articleOptions} />
-            <RelationPickerField control={form.control} name="relatedCalendarDayIds" label="Пов'язані календарні дні" options={calendarOptions} />
+            <SelectField
+              control={form.control}
+              name="calendarDayId"
+              label="Пов'язаний календарний день"
+              options={calendarOptions}
+              placeholder="Без зв'язку"
+            />
           </TabsContent>
 
           <TabsContent value="publication" className="space-y-4">

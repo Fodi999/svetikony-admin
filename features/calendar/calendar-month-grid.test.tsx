@@ -19,10 +19,6 @@ function day(date: string, overrides: Partial<CalendarDay> = {}): CalendarDay {
     shortDescription: "",
     eventType: "feast",
     status: "draft",
-    relatedIconIds: [],
-    relatedPrayerIds: [],
-    relatedSaintIds: [],
-    relatedGospelIds: [],
     ...overrides,
   };
 }

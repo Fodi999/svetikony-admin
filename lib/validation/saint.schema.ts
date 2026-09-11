@@ -20,7 +20,7 @@ export const saintSchema = z.object({
   imageId: z.string().optional(),
   status: contentStatusSchema,
   relatedIconIds: z.array(z.string()),
-  relatedCalendarDayIds: z.array(z.string()),
+  calendarDayId: z.string().optional(),
 });
 
 export type SaintFormValues = z.infer<typeof saintSchema>;

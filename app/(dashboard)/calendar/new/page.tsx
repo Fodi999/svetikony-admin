@@ -9,7 +9,7 @@ import { CalendarDayForm } from "@/features/calendar/calendar-day-form";
 import { apiClient } from "@/lib/api";
 import { errorMessageFor } from "@/lib/api/errors";
 import type { CalendarDayFormValues } from "@/lib/validation/calendar.schema";
-import type { Language } from "@/types/entities";
+import type { CalendarEventType, Language } from "@/types/entities";
 
 export default function NewCalendarDayPage() {
   return (
@@ -27,6 +27,7 @@ function NewCalendarDayPageInner() {
   // section 7); undefined for the ordinary "+ Додати" entry point, where
   // CalendarDayForm's own EMPTY_DEFAULTS (blank date) still applies.
   const initialDate = searchParams.get("date") ?? undefined;
+  const initialEventType = (searchParams.get("eventType") as CalendarEventType | null) ?? undefined;
   const groupId = searchParams.get("groupId") ?? undefined;
   const language = (searchParams.get("language") as Language | null) ?? undefined;
   const slug = searchParams.get("slug") ?? undefined;
@@ -49,6 +50,7 @@ function NewCalendarDayPageInner() {
       <CalendarDayForm
         mode="create"
         initialDate={initialDate}
+        initialEventType={initialEventType}
         groupId={groupId}
         initialLanguage={language}
         initialSlug={slug}

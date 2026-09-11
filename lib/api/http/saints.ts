@@ -17,11 +17,12 @@ function safeEnum<T extends string>(schema: z.ZodType<T>, value: string, fallbac
 }
 
 /**
- * BFF DTO -> admin entity mapping. `relatedIconIds`/`relatedCalendarDayIds`
- * are deliberately always []: the admin picks MANY icons/calendar days per
- * saint via a relation picker, but the real D1 schema only has a single
- * `icon_id`/`calendar_day_id` FK per saint (the inverse of what the picker
- * needs) — same deferral as Calendar Day's related* fields in Stage 2H.
+ * BFF DTO -> admin entity mapping. `relatedIconIds` is deliberately always
+ * []: the admin picks MANY icons per saint via a relation picker, but the
+ * real D1 schema only has a single `icon_id` FK per saint (the inverse of
+ * what the picker needs) — same deferral as Calendar Day's related* fields
+ * in Stage 2H. `calendarDayId` (singular) IS real and maps straight
+ * through, same treatment as Prayers/Gospel's own calendarDayId.
  */
 function toEntity(dto: BffSaintDto): Saint {
   return {
@@ -37,7 +38,7 @@ function toEntity(dto: BffSaintDto): Saint {
     imageId: dto.imageUrl || undefined,
     status: safeEnum<ContentStatus>(contentStatusSchema, dto.status, "draft"),
     relatedIconIds: [],
-    relatedCalendarDayIds: [],
+    calendarDayId: dto.calendarDayId ?? undefined,
     createdAt: dto.createdAt,
     updatedAt: dto.updatedAt,
   };
@@ -57,6 +58,7 @@ function toPayload(values: SaintFormValues): WorkerSaintWritePayload {
     feastDayNewStyle: values.feastDayNewStyle ?? "",
     imageUrl: values.imageId ?? "",
     status: values.status,
+    calendarDayId: values.calendarDayId || null,
   };
 }
 

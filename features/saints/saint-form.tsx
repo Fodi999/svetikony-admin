@@ -45,7 +45,7 @@ const EMPTY_DEFAULTS: SaintFormValues = {
   imageId: undefined,
   status: "draft",
   relatedIconIds: [],
-  relatedCalendarDayIds: [],
+  calendarDayId: undefined,
 };
 
 interface SaintFormProps {
@@ -221,7 +221,13 @@ export function SaintForm({ mode, saint, groupId, initialLanguage, initialSlug, 
 
           <TabsContent value="relations" className="space-y-4">
             <RelationPickerField control={form.control} name="relatedIconIds" label="Пов'язані ікони" options={iconOptions} />
-            <RelationPickerField control={form.control} name="relatedCalendarDayIds" label="Пов'язані календарні дні" options={calendarOptions} />
+            <SelectField
+              control={form.control}
+              name="calendarDayId"
+              label="Пов'язаний календарний день"
+              options={calendarOptions}
+              placeholder="Без зв'язку"
+            />
           </TabsContent>
 
           <TabsContent value="publication" className="space-y-4">

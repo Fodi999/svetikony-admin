@@ -6,7 +6,9 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/feedback/confirm-dialog";
 import { StateMessage } from "@/components/feedback/state-message";
+import { useUnsavedChanges } from "@/components/feedback/unsaved-changes-context";
 import { RequireAccess } from "@/components/layout/require-access";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ProposalPanel } from "@/features/ai-proposals/proposal-panel";
 import { CalendarDayForm } from "@/features/calendar/calendar-day-form";
@@ -21,8 +23,17 @@ export default function EditCalendarDayPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { canEdit } = useAuth();
+  const { guardNavigation } = useUnsavedChanges();
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [proposalRevision, setProposalRevision] = useState(0);
+  // Bumped whenever the form must show freshly-fetched values instead of
+  // whatever it currently holds (a proposal was applied, or the admin asked
+  // for a manual refresh) -- combined with the record id below into the
+  // form's `key` so React Hook Form's mount-time `defaultValues` are always
+  // re-evaluated against the latest `query.data`, never a stale instance
+  // left over from a previous id (SPA navigation between calendar days does
+  // not otherwise remount this component; see calendar-day-form.tsx's own
+  // notes on this bug).
+  const [formRevision, setFormRevision] = useState(0);
 
   const query = useQuery({
     queryKey: ["calendarDays", params.id],
@@ -71,12 +82,26 @@ export default function EditCalendarDayPage() {
               targetId={params.id}
               onApplied={async () => {
                 await query.refetch({ throwOnError: true });
-                setProposalRevision((x) => x + 1);
+                setFormRevision((x) => x + 1);
               }}
             />
           ) : null}
+          <div className="flex justify-end px-4 pt-4 md:px-6">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() =>
+                guardNavigation(() => {
+                  void query.refetch({ throwOnError: true }).then(() => setFormRevision((x) => x + 1));
+                })
+              }
+            >
+              Оновити дані із сервера
+            </Button>
+          </div>
           <CalendarDayForm
-            key={proposalRevision}
+            key={`${query.data.id}-${formRevision}`}
             mode="edit"
             day={query.data}
             submitting={updateMutation.isPending}

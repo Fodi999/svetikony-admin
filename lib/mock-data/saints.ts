@@ -139,7 +139,7 @@ function buildSaint(seed: SaintSeed, language: Language): Saint {
     imageId: seed.imageId,
     status: seed.status,
     relatedIconIds: [],
-    relatedCalendarDayIds: [],
+    calendarDayId: undefined,
     createdAt: now,
     updatedAt: now,
   };

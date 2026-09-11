@@ -21,6 +21,7 @@ import type {
   AuthUser,
   AutopostContentType,
   CalendarAiFillResult,
+  CalendarAiWriteResult,
   CalendarDay,
   ChurchInfo,
   ContentPlanDay,
@@ -274,29 +275,38 @@ export interface ApiClient {
   };
   calendarDays: CrudResource<CalendarDay, CalendarDayFormValues, CalendarQuery> & {
     /** "Церковний календар" AI preparation actions -- see
-     * lib/church/calendar-ai-actions.ts in svet-ikony. Every action here
-     * saves as draft only; none of them ever changes `status` or touches
-     * Telegram. Refuses to overwrite a field that already has content
-     * (use the paired regenerate* action for that, with a confirmation in
-     * the UI) except `fillMissing`, which only ever fills what's empty. */
-    generateDescription(id: string): Promise<CalendarDay>;
-    regenerateDescription(id: string): Promise<CalendarDay>;
-    generateHistory(id: string): Promise<CalendarDay>;
-    regenerateHistory(id: string): Promise<CalendarDay>;
+     * lib/church/calendar-ai-actions.ts in svet-ikony. None of them ever
+     * changes `status` or touches Telegram. Refuses to overwrite a field
+     * that already has content (use the paired regenerate* action for
+     * that, with a confirmation in the UI) except `fillMissing`, which
+     * only ever fills what's empty. A DRAFT day is written directly
+     * (`mode: "direct"`); a PUBLISHED day is never mutated -- the exact
+     * same generated value instead becomes a pending AI proposal for human
+     * review (`mode: "proposal"`) -- see CalendarAiWriteResult. Only
+     * `assignImage` ("Обрати з медіатеки", a manual pick with no AI
+     * generation) is exempt from this and always writes directly. */
+    generateDescription(id: string): Promise<CalendarAiWriteResult>;
+    regenerateDescription(id: string): Promise<CalendarAiWriteResult>;
+    generateHistory(id: string): Promise<CalendarAiWriteResult>;
+    regenerateHistory(id: string): Promise<CalendarAiWriteResult>;
     /** Fills whichever of seoTitle/seoDescription is empty. */
-    generateSeo(id: string): Promise<CalendarDay>;
+    generateSeo(id: string): Promise<CalendarAiWriteResult>;
     /** Always overwrites both SEO fields. */
-    regenerateSeo(id: string): Promise<CalendarDay>;
-    generateImage(id: string): Promise<CalendarDay>;
+    regenerateSeo(id: string): Promise<CalendarAiWriteResult>;
+    generateImage(id: string): Promise<CalendarAiWriteResult>;
     /** Always attempts a fresh image; the previous one is restored if
-     * generation fails. */
-    regenerateImage(id: string): Promise<CalendarDay>;
-    /** "Обрати з медіатеки" -- persists an already-uploaded R2 key/URL. */
+     * generation fails (DRAFT only -- a PUBLISHED day never had anything
+     * written to restore in the first place). */
+    regenerateImage(id: string): Promise<CalendarAiWriteResult>;
+    /** "Обрати з медіатеки" -- persists an already-uploaded R2 key/URL
+     * directly, regardless of status. Not an AI action (no generation, no
+     * review step) -- see assignCalendarImage's own doc comment. */
     assignImage(id: string, imageUrl: string): Promise<CalendarDay>;
     /** "Промпт для AI" -- generates directly from an admin-authored English
      * prompt, bypassing the automatic saint-reference resolver. Always
-     * overwrites any existing image. */
-    generateImageFromPrompt(id: string, prompt: string): Promise<CalendarDay>;
+     * overwrites any existing image; follows the same draft-direct/
+     * published-proposal policy as regenerateImage. */
+    generateImageFromPrompt(id: string, prompt: string): Promise<CalendarAiWriteResult>;
     /** "Заповнити відсутнє з AI" -- fills every missing field it safely
      * can; never overwrites existing content. */
     fillMissing(id: string): Promise<CalendarAiFillResult>;

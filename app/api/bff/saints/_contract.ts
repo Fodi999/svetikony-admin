@@ -33,10 +33,11 @@ export interface WorkerSaintDto {
 /**
  * Fields deliberately dropped here and never sent to the browser: `siteId`,
  * `isGlobal` (internal single-tenant/Worker fields with no admin use),
- * `iconId`/`calendarDayId` (the real relation is inverted from the admin's
- * `relatedIconIds`/`relatedCalendarDayIds` — those pick MANY icons/days per
- * saint via a picker, while the Worker only has a single FK each — same
- * deferral as Calendar Day's related* fields in Stage 2H).
+ * `iconId` (the admin's `relatedIconIds` picks MANY icons per saint via a
+ * picker, while the Worker only has a single FK — same deferral as Calendar
+ * Day's related* fields in Stage 2H). `calendarDayId` IS forwarded (same
+ * treatment as Prayers/Gospel's own calendarDayId) — it's the real,
+ * singular relation the Worker actually has.
  */
 export interface BffSaintDto {
   id: string;
@@ -50,6 +51,7 @@ export interface BffSaintDto {
   language: string;
   translationGroupId: string;
   status: string;
+  calendarDayId: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -67,6 +69,7 @@ export function toBffSaintDto(worker: WorkerSaintDto): BffSaintDto {
     language: worker.language,
     translationGroupId: worker.translationGroupId,
     status: worker.status,
+    calendarDayId: worker.calendarDayId,
     createdAt: worker.createdAt,
     updatedAt: worker.updatedAt,
   };
@@ -88,4 +91,5 @@ export interface WorkerSaintWritePayload {
   imageUrl?: string;
   language?: string;
   status?: string;
+  calendarDayId?: string | null;
 }

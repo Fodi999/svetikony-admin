@@ -14,7 +14,7 @@ export const iconSchema = z.object({
   galleryImageIds: z.array(z.string()),
   relatedPrayerIds: z.array(z.string()),
   relatedArticleIds: z.array(z.string()),
-  relatedCalendarDayIds: z.array(z.string()),
+  calendarDayId: z.string().optional(),
   status: contentStatusSchema,
 });
 

@@ -129,19 +129,42 @@ export interface WorkerCalendarDayWritePayload {
   seoDescription?: string | null;
 }
 
-/** Outcome of "Заповнити відсутнє з AI" -- mirrors
- * lib/church/calendar-ai-actions.ts's FillMissingCalendarResult in svet-ikony. */
+/**
+ * Outcome of "Заповнити відсутнє з AI" -- mirrors
+ * lib/church/calendar-ai-actions.ts's FillMissingCalendarResult union in
+ * svet-ikony. `mode: "direct"` means the day was NEW/DRAFT and missing
+ * fields were written straight to it (`day` already reflects them).
+ * `mode: "proposal"` means the day was PUBLISHED, so nothing was written;
+ * `day` is unchanged, and `proposalId` names the pending ai_proposals row
+ * a human must review (null when there was nothing to propose).
+ */
 export type WorkerCalendarAiField = "description" | "history" | "seo" | "image";
-export interface WorkerCalendarAiFillResultDto {
-  day: WorkerCalendarDayDto;
-  filled: WorkerCalendarAiField[];
-  skipped: { field: WorkerCalendarAiField; reason: "missing_source" | "review_required" | "failed" }[];
-}
-export interface BffCalendarAiFillResultDto {
-  day: BffCalendarDayDto;
-  filled: WorkerCalendarAiField[];
-  skipped: { field: WorkerCalendarAiField; reason: "missing_source" | "review_required" | "failed" }[];
-}
+type WorkerCalendarAiSkip = { field: WorkerCalendarAiField; reason: "missing_source" | "review_required" | "failed" };
+export type WorkerCalendarAiFillResultDto =
+  | { mode: "direct"; day: WorkerCalendarDayDto; filled: WorkerCalendarAiField[]; skipped: WorkerCalendarAiSkip[] }
+  | { mode: "proposal"; day: WorkerCalendarDayDto; proposalId: string | null; proposedFields: WorkerCalendarAiField[]; skipped: WorkerCalendarAiSkip[] };
+export type BffCalendarAiFillResultDto =
+  | { mode: "direct"; day: BffCalendarDayDto; filled: WorkerCalendarAiField[]; skipped: WorkerCalendarAiSkip[] }
+  | { mode: "proposal"; day: BffCalendarDayDto; proposalId: string | null; proposedFields: WorkerCalendarAiField[]; skipped: WorkerCalendarAiSkip[] };
 export function toBffCalendarAiFillResultDto(worker: WorkerCalendarAiFillResultDto): BffCalendarAiFillResultDto {
-  return { day: toBffCalendarDayDto(worker.day), filled: worker.filled, skipped: worker.skipped };
+  return worker.mode === "direct"
+    ? { mode: "direct", day: toBffCalendarDayDto(worker.day), filled: worker.filled, skipped: worker.skipped }
+    : { mode: "proposal", day: toBffCalendarDayDto(worker.day), proposalId: worker.proposalId, proposedFields: worker.proposedFields, skipped: worker.skipped };
+}
+
+/**
+ * Outcome of every generate/regenerate calendar AI action (description/
+ * history/SEO/image, including the custom-prompt image variant) -- mirrors
+ * lib/church/calendar-ai-actions.ts's CalendarAiActionResult in svet-ikony.
+ * `mode: "direct"` -- the day was DRAFT, `day` already reflects the
+ * written field(s). `mode: "proposal"` -- the day was PUBLISHED; `day` is
+ * the still-unchanged record, and `proposalId` names the pending AI
+ * proposal a human must review.
+ */
+export type WorkerCalendarAiWriteResultDto = { mode: "direct"; day: WorkerCalendarDayDto } | { mode: "proposal"; day: WorkerCalendarDayDto; proposalId: string };
+export type BffCalendarAiWriteResultDto = { mode: "direct"; day: BffCalendarDayDto } | { mode: "proposal"; day: BffCalendarDayDto; proposalId: string };
+export function toBffCalendarAiWriteResultDto(worker: WorkerCalendarAiWriteResultDto): BffCalendarAiWriteResultDto {
+  return worker.mode === "direct"
+    ? { mode: "direct", day: toBffCalendarDayDto(worker.day) }
+    : { mode: "proposal", day: toBffCalendarDayDto(worker.day), proposalId: worker.proposalId };
 }

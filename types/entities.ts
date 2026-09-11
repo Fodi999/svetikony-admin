@@ -335,19 +335,30 @@ export interface CalendarDay extends Identifiable, Timestamps, Translatable {
   seoTitle?: string | null;
   seoDescription?: string | null;
   imageMetadata?: CalendarImageMetadata | null;
-  relatedIconIds: string[];
-  relatedPrayerIds: string[];
-  relatedSaintIds: string[];
-  relatedGospelIds: string[];
 }
 
-/** Outcome of "Заповнити відсутнє з AI" -- see CalendarAiApi.fillMissing. */
+/**
+ * Outcome of "Заповнити відсутнє з AI" -- see CalendarAiApi.fillMissing.
+ * `mode: "direct"` -- the day was NEW/DRAFT, missing fields were written
+ * straight to it (`day` already reflects them). `mode: "proposal"` -- the
+ * day was PUBLISHED, so nothing was written; `proposalId` names the
+ * pending AI proposal a human must review (null when nothing was missing).
+ */
 export type CalendarAiField = "description" | "history" | "seo" | "image";
-export interface CalendarAiFillResult {
-  day: CalendarDay;
-  filled: CalendarAiField[];
-  skipped: { field: CalendarAiField; reason: "missing_source" | "review_required" | "failed" }[];
-}
+type CalendarAiSkip = { field: CalendarAiField; reason: "missing_source" | "review_required" | "failed" };
+export type CalendarAiFillResult =
+  | { mode: "direct"; day: CalendarDay; filled: CalendarAiField[]; skipped: CalendarAiSkip[] }
+  | { mode: "proposal"; day: CalendarDay; proposalId: string | null; proposedFields: CalendarAiField[]; skipped: CalendarAiSkip[] };
+
+/**
+ * Outcome of every generate/regenerate calendar AI action (description/
+ * history/SEO/image, including the custom-prompt image variant). `mode:
+ * "direct"` -- the day was DRAFT, `day` already reflects the written
+ * field(s). `mode: "proposal"` -- the day was PUBLISHED; `day` is the
+ * still-unchanged record, and `proposalId` names the pending AI proposal a
+ * human must review.
+ */
+export type CalendarAiWriteResult = { mode: "direct"; day: CalendarDay } | { mode: "proposal"; day: CalendarDay; proposalId: string };
 
 // ---------------------------------------------------------------------------
 // Icons
@@ -365,7 +376,10 @@ export interface Icon extends Identifiable, Timestamps, Translatable {
   galleryImageIds: string[];
   relatedPrayerIds: string[];
   relatedArticleIds: string[];
-  relatedCalendarDayIds: string[];
+  /** The real, singular relation (church_icons.calendar_day_id) -- replaces
+   * the old `relatedCalendarDayIds` (plural) the Worker could never fully
+   * honor, same reasoning as Gospel/Prayers' own `calendarDayId` field. */
+  calendarDayId?: string;
   status: ContentStatus;
 }
 
@@ -440,7 +454,10 @@ export interface Saint extends Identifiable, Timestamps, Translatable {
   imageId?: string;
   status: ContentStatus;
   relatedIconIds: string[];
-  relatedCalendarDayIds: string[];
+  /** The real, singular relation (church_saints.calendar_day_id) -- replaces
+   * the old `relatedCalendarDayIds` (plural) the Worker could never fully
+   * honor, same reasoning as Gospel/Prayers' own `calendarDayId` field. */
+  calendarDayId?: string;
 }
 
 // ---------------------------------------------------------------------------

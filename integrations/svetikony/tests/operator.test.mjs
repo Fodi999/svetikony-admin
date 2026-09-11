@@ -244,6 +244,42 @@ test("duplicate language slug is rejected", async () => {
     /Duplicate/,
   );
 });
+test("find_calendar_day returns every match explicitly and reports translation availability", async () => {
+  const t = setup();
+  t.data.calendar.push({ ...day });
+  t.data.calendar.push({ ...day, id: "day-2", language: "ru", slug: "day" });
+  const r = await t.op.findCalendarDay("2026-09-10");
+  assert.equal(r.found, true);
+  assert.equal(r.matches.length, 2);
+  assert.ok(r.matches.some((m) => m.id === "day-1"));
+  assert.ok(r.matches.some((m) => m.id === "day-2"));
+});
+test("find_calendar_day narrows by language and reports not-found without guessing", async () => {
+  const t = setup();
+  t.data.calendar.push({ ...day });
+  const found = await t.op.findCalendarDay("2026-09-10", "ru");
+  assert.equal(found.found, false);
+  assert.equal(found.matches.length, 0);
+  const missing = await t.op.findCalendarDay("2026-01-01");
+  assert.equal(missing.found, false);
+});
+test("link_related_content refuses a content type with no calendarDayId relation", async () => {
+  const t = setup();
+  await assert.rejects(
+    t.op.linkRelatedContent("day-1", "alphabet", "letter-1", "Link"),
+    /no calendarDayId relation/,
+  );
+  assert.equal(t.writeCount(), 0);
+});
+test("link_related_content stages the child's own calendarDayId, not a calendar-side array", async () => {
+  const t = setup();
+  t.data.calendar.push({ ...day });
+  t.data.saints.push({ ...saint });
+  const c = await t.op.linkRelatedContent("day-1", "saints", "saint-1", "Link saint to feast day");
+  assert.equal(c.entity, "saints");
+  assert.equal(c.patch.calendarDayId, "day-1");
+  assert.equal(t.writeCount(), 0);
+});
 test("image context uses actual date relationships, no generation", async () => {
   const t = setup();
   t.data.calendar.push({ ...day });
