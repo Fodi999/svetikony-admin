@@ -146,6 +146,20 @@ export class AdminApi {
       throw new Error("Invalid AI API response");
     }
   }
+  async proposalRequest(id = "", { method = "GET", body } = {}) {
+    const info = this.delegatedInfo();
+    if (id && !/^[a-zA-Z0-9-]+$/.test(id)) throw new Error("Invalid proposal ID");
+    if (
+      !["GET", "POST"].includes(method) ||
+      (method === "POST" && (id || info.mode !== "DRAFT_EDIT"))
+    )
+      throw new Error("AI review disabled");
+    if (method === "POST") {
+      this.assertAiScope(body.targetType + ".write");
+      this.assertAiScope(body.targetType + ".read");
+    }
+    return this.aiRequest("/api/ai-access/proposals" + (id ? "/" + id : ""), { method, body });
+  }
   async aiStatus() {
     return this.aiRequest("/api/ai-access/status");
   }

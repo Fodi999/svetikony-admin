@@ -56,3 +56,13 @@ This is an on-demand local MCP server, not a 24/7 scheduler. SQLite keeps propos
 6. On completion ask the user to revoke access in web-admin. Never claim a new UI chat has 34 tools based only on a separate SDK process: distinguish installed tools/list verification from new-chat acceptance.
 
 Production configuration contains origin and local state path only; it does not read the old production.env credential file. Local proposal storage persists editorial revisions, never pairing codes/tokens. Tool discovery does not grant authority.
+
+## Server proposal review (requires 0021 rollout)
+
+In production, prepare_change saves a server proposal for an existing record;
+get_change/list_changes read that grant's own server proposals. This supersedes
+LOCAL-storage wording above only for production. Apply is human-only in web-admin;
+do not call publish_change or apply_draft to apply a server proposal. Explain that
+pending is a proposal, not changed CMS data. On stale, reread the target and prepare
+a fresh proposal. Do not automatically import old SQLite proposals or replay an
+uncertain create: list server proposals first. LOCAL SQLite behavior is retained.

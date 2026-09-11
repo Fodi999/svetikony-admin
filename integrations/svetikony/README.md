@@ -150,3 +150,26 @@ real data validation for this release uses the existing nine L1 files.
 Добавлен 34-й инструмент `connect_ai_access`. Super admin создаёт временный доступ в `/ai-access`, выбирает режим и модули и передаёт одноразовый pairing code инструменту. Код действует две минуты; токен хранится только в памяти процесса. После перезапуска нужно новое подключение. Отзыв в админке блокирует следующий запрос. Публикация и замена Base Earth через делегированный доступ недоступны в этом MVP.
 
 Новые endpoints требуют миграцию `0020_ai_delegated_access.sql` и согласованное обновление backend/admin. Production pairing и READ были подтверждены до текущего этапа. Текущие исправления backend/admin пока только LOCAL и не развёрнуты. Подробности и ограничения: [AI_DELEGATED_ACCESS_REPORT.md](AI_DELEGATED_ACCESS_REPORT.md).
+
+## Server proposals (local implementation, rollout pending)
+
+Production `prepare_change` for an existing record now creates an immutable server
+proposal through `/api/ai-access/proposals`. `get_change`/`list_changes` read that
+grant's server proposals. No target is changed by preparing a proposal. The AI
+cannot apply/reject these proposals or publish; a human super-admin reviews them
+in web-admin → «Пропозиції AI» or on the calendar record. Applying the whole patch
+requires confirmation and checks the complete original row atomically. Changed
+records produce `stale`; create a fresh proposal instead of overwriting edits.
+
+LOCAL continues to use local SQLite. Existing SQLite files and old production
+proposals are retained, but are not automatically imported or exposed in the new
+server list. To recreate an old proposal, first read its exact local revision and
+compare it with current CMS content, then prepare a new server proposal. Do not
+copy stale values blindly. Production server proposals require an existing target;
+create a draft via the existing draft workflow before proposing changes to a new
+record. Proposal editing in place is intentionally unsupported; create a new one.
+
+Deploying this source or reinstalling its production plugin requires coordinated
+backend migration `0021_ai_proposals.sql` and backend/admin rollout. None of those
+production actions are performed by this implementation task. No fallback to
+local production proposals is used when the new server endpoint is unavailable.

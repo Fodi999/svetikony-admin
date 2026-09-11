@@ -111,11 +111,35 @@ export class Operator {
     }
     return after;
   }
+  async getChange(id) {
+    if (this.api.config?.environment !== "production") return this.store.get(id);
+    // Interrupted Visualizer/Terrain receipts remain local even with delegated auth.
+    let receipt;
+    try {
+      receipt = this.store.get(id);
+    } catch {
+      /* Not a local operation. */
+    }
+    if (["visualizer", "visualizer-base", "terrain"].includes(receipt?.scope)) return receipt;
+    return this.api.proposalRequest(id);
+  }
+  async listChanges() {
+    return this.api.config?.environment === "production"
+      ? this.api.proposalRequest()
+      : this.store.list();
+  }
   async prepare(entity, id, patch, reason, sources = []) {
     if (!reason?.trim()) throw new Error("Explain the purpose of the change");
     const normalized = Object.keys(patch).length ? normalizePatch(entity, patch) : {};
     const before = id ? await this.get(entity, id) : null;
     await this.validate(entity, normalized, before);
+    if (this.api.config?.environment === "production") {
+      if (!id) throw new Error("Server proposals require an existing target; create a draft first");
+      return this.api.proposalRequest("", {
+        method: "POST",
+        body: { targetType: entity, targetId: id, patch: normalized, reason, sources },
+      });
+    }
     const change = this.store.add({
       entity,
       entityId: id ?? null,
@@ -135,6 +159,8 @@ export class Operator {
     return change;
   }
   async apply(id, { publish = false, confirmation } = {}) {
+    if (this.api.config?.environment === "production")
+      throw new Error("Server proposals require human review in web-admin");
     const c = this.store.get(id);
     if (publish && confirmation !== `PUBLISH ${id}`)
       throw new Error("Explicit publication confirmation must identify this change");
