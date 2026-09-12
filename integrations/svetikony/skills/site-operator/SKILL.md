@@ -122,3 +122,19 @@ steps or guess when a lookup is ambiguous.
 7. Report per language: found/created, direct-write or proposal, fields
    filled, image outcome, translation group id, and anything skipped with a
    reason. State plainly that nothing was published.
+
+
+## Creating missing editorial translations
+
+Use `create_translation_draft(entity, sourceId, language, fields, reason)` for missing
+UK/RU/EN versions. This requires delegated DRAFT_EDIT and creates a real server CMS
+draft immediately, not a proposal and never a publication. Read the source and
+existing translations first. Supply every populated editorial text field translated;
+do not supply identity, dates, image assets or relationship IDs. The tool preserves
+slug and verifies the server translation group, reuses images and resolves linked
+records in the requested language. Create missing related translations first.
+It refuses duplicate translations, missing/ambiguous relationships and changed
+sources. Existing backend scopes and Telegram autopost locks remain authoritative.
+After any uncertain write or failed readback, inspect list_content/get_content;
+never retry blindly or generate a duplicate. Existing translations are not replaced.
+Published edits still require server proposal review by a human.

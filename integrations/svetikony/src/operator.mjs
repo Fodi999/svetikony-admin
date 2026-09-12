@@ -193,6 +193,53 @@ export class Operator {
    * "draft" here regardless of what the caller's patch contained; the
    * backend enforces the same rule independently.
    */
+  async createTranslationDraft(entity, sourceId, language, fields, reason) {
+    if (!this.api.delegated) throw new Error("Translation drafts require delegated DRAFT_EDIT access");
+    const source = await this.get(entity, sourceId);
+    if (!["uk", "ru", "en"].includes(language) || language === source.language)
+      throw new Error("Choose a different supported translation language");
+    if (!["draft", "published"].includes(source.status)) throw new Error("Source is not draft or published");
+    if (!source.translationGroupId) throw new Error("Source has no translation group");
+    const schema = spec(entity);
+    const normalized = normalizePatch(entity, fields);
+    const preserved = ["dateOldStyle", "dateNewStyle", "calendarType", "dayType", "rank",
+      "feastDayOldStyle", "feastDayNewStyle", "imageUrl", "galleryUrls", "mainImageUrl",
+      "cardImageUrl", "letter", "sortOrder", "numericValue", "prayerType", "sourceUrl"];
+    const locked = ["slug", "language", ...preserved, ...Object.keys(schema.refs)];
+    if (Object.keys(normalized).some(k => locked.includes(k)))
+      throw new Error("Identity, assets, dates and relationships are resolved from the source, not translation fields");
+    // Require all populated editorial fields, so missing text is never silently copied in Ukrainian.
+    for (const key of [...schema.required, ...schema.text, "seoTitle", "seoDescription", "saintName", "feastName", "note", "source", "modernEquivalent"])
+      if (!locked.includes(key) && source[key] && !normalized[key]?.trim?.())
+        throw new Error("Missing translated field: " + key);
+    const rows = await this.list(entity);
+    if (rows.some(r => r.language === language && (r.slug === source.slug || r.translationGroupId === source.translationGroupId)))
+      throw new Error("Translation already exists; read it instead of creating or overwriting");
+    if (rows.some(r => r.slug === source.slug && r.translationGroupId !== source.translationGroupId))
+      throw new Error("Ambiguous source translation group");
+    const patch = { ...normalized, slug: source.slug, language };
+    // Optional database nulls are not text values. Omit them on create;
+    // existing calendar normalization derives the old-style date from the civil date.
+    for (const key of preserved) if (source[key] !== undefined && source[key] !== null) patch[key] = source[key];
+    for (const [key, target] of Object.entries(schema.refs)) {
+      if (!source[key]) continue;
+      const linked = await this.get(target, source[key]);
+      const matches = (await this.list(target)).filter(r => r.language === language && r.translationGroupId && r.translationGroupId === linked.translationGroupId);
+      if (matches.length !== 1) throw new Error("Create or resolve related translation first: " + key);
+      patch[key] = matches[0].id;
+    }
+    if (hash(source) !== hash(await this.get(entity, sourceId))) throw new Error("Source changed; reload before translating");
+    if (entity === "calendar" || patch.calendarDayId) {
+      const settings = await this.api.request("/api/admin/telegram/autopost/settings");
+      if (settings?.globalEnabled !== false)
+        throw new Error("Translation draft blocked: calendar writes require Telegram autopost to be disabled. No write attempted; change settings only with explicit human approval.");
+    }
+    // Existing transport and backend enforce scopes, draft status and Telegram autopost locks.
+    const result = await this.prepare(entity, null, patch, reason);
+    if (result.after?.translationGroupId !== source.translationGroupId)
+      throw new Error("Translation group readback mismatch; inspect the created record, do not retry");
+    return { ...result, sourceId, translationGroupId: source.translationGroupId };
+  }
   async directWrite(entity, id, patch, before, reason) {
     // normalizePatch() never lets "status" through as a writable field, so
     // this override can't be shadowed by a caller-supplied value -- it's

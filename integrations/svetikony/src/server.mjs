@@ -234,6 +234,13 @@ export function createServer(op, config) {
     true,
   );
   register(
+    "create_translation_draft",
+    "Create one missing editorial translation as a verified server CMS draft. Supply translated editorial fields for every populated source field. Preserves slug/group, dates and images; resolves related translations by group and language, refusing missing relationships or existing translations. Never publishes. After an uncertain error, list/read records; never blindly retry. Requires delegated DRAFT_EDIT and existing backend scopes/autopost safeguards.",
+    { entity, sourceId: id, language, fields: z.record(z.string(), z.unknown()), reason: z.string().min(1).max(2000) },
+    (a) => op.createTranslationDraft(a.entity, a.sourceId, a.language, a.fields, a.reason),
+    true,
+  );
+  register(
     "prepare_change",
     "Write-routing tool for a delegated DRAFT_EDIT grant: a NEW (id omitted) or DRAFT target is written directly and verified by readback -- result.mode is \"direct\" and the record already reflects the patch, still draft, never published. A PUBLISHED target instead creates a server proposal for human review -- result.mode is \"proposal\" and the record is untouched until a human applies it in web-admin. The target's own status decides this, not the environment. A target in any other status (e.g. archived) is refused. In LOCAL non-delegated mode, this always stages a local SQLite proposal instead (apply_draft/publish_change apply it). Use actual IDs, verify source facts, and keep each change bounded.",
     {
