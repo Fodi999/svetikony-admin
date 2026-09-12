@@ -139,7 +139,22 @@ export class AdminApi {
       this.#ai = null;
       throw new Error("AI access expired or revoked; pair again");
     }
-    if (!response.ok) throw new Error("AI API HTTP " + response.status);
+    if (!response.ok) {
+      // Never echo arbitrary backend bodies: they may contain credentials or payloads.
+      const known = {
+        "Calendar writes disabled while Telegram autopost is enabled": "TELEGRAM_AUTOPOST_ACTIVE: calendar-linked drafts are blocked by backend policy",
+        "Only drafts may be edited": "PUBLISHED_TARGET: use a proposal for human review",
+        "Draft edit access required": "DRAFT_EDIT_REQUIRED: obtain a draft-edit grant",
+        "Required access was not granted": "SCOPE_DENIED: grant lacks the required section permission",
+      };
+      let hint = "";
+      try {
+        const error = await response.json();
+        const detail = error?.details ?? error?.message;
+        if (typeof detail === "string" && Object.hasOwn(known, detail)) hint = ": " + known[detail];
+      } catch { /* Generic status only for unknown responses. */ }
+      throw new Error("AI API HTTP " + response.status + hint);
+    }
     try {
       return await response.json();
     } catch {

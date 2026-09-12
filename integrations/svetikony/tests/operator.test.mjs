@@ -416,3 +416,10 @@ test("uploaded image only stages attachment and records honest AI provenance", a
   });
   assert.equal(t.writeCount(), 0);
 });
+
+test('nullable old-style date is derived only with an explicit civil date',()=>{
+ const p=normalizePatch('calendar',{dateNewStyle:'2026-09-12',dateOldStyle:null});
+ assert.equal(p.dateOldStyle,'2026-08-30');
+ assert.throws(()=>normalizePatch('calendar',{dateOldStyle:null}),/civil date/);
+ assert.throws(()=>normalizePatch('calendar',{dateNewStyle:'2026-09-12',dateOldStyle:'2026-08-29'}),/disagree/);
+});

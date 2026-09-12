@@ -157,6 +157,10 @@ export function normalizePatch(entity, patch) {
       out[key] = value;
       continue;
     }
+    if (entity === "calendar" && key === "dateOldStyle" && value === null) {
+      if (!patch.dateNewStyle) throw new Error("Set the civil date before deriving old-style date");
+      continue;
+    }
     if (entity === "calendar" && ["seoTitle", "seoDescription"].includes(key) && value === null) {
       out[key] = null;
       continue;

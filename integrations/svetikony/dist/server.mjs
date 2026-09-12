@@ -31413,6 +31413,10 @@ function normalizePatch(entity, patch) {
       out[key] = value;
       continue;
     }
+    if (entity === "calendar" && key === "dateOldStyle" && value === null) {
+      if (!patch.dateNewStyle) throw new Error("Set the civil date before deriving old-style date");
+      continue;
+    }
     if (entity === "calendar" && ["seoTitle", "seoDescription"].includes(key) && value === null) {
       out[key] = null;
       continue;
@@ -31663,7 +31667,22 @@ var AdminApi = class {
       this.#ai = null;
       throw new Error("AI access expired or revoked; pair again");
     }
-    if (!response.ok) throw new Error("AI API HTTP " + response.status);
+    if (!response.ok) {
+      const known = {
+        "Calendar writes disabled while Telegram autopost is enabled": "TELEGRAM_AUTOPOST_ACTIVE: calendar-linked drafts are blocked by backend policy",
+        "Only drafts may be edited": "PUBLISHED_TARGET: use a proposal for human review",
+        "Draft edit access required": "DRAFT_EDIT_REQUIRED: obtain a draft-edit grant",
+        "Required access was not granted": "SCOPE_DENIED: grant lacks the required section permission"
+      };
+      let hint = "";
+      try {
+        const error51 = await response.json();
+        const detail = error51?.details ?? error51?.message;
+        if (typeof detail === "string" && Object.hasOwn(known, detail)) hint = ": " + known[detail];
+      } catch {
+      }
+      throw new Error("AI API HTTP " + response.status + hint);
+    }
     try {
       return await response.json();
     } catch {
@@ -32319,7 +32338,7 @@ var Operator = class {
     if (hash2(source) !== hash2(await this.get(entity, sourceId))) throw new Error("Source changed; reload before translating");
     if (entity === "calendar" || patch.calendarDayId) {
       const settings = await this.api.request("/api/admin/telegram/autopost/settings");
-      if (settings?.globalEnabled !== false)
+      if (settings?.globalEnabled !== false && settings?.draftSourcesExcluded !== true)
         throw new Error("Translation draft blocked: calendar writes require Telegram autopost to be disabled. No write attempted; change settings only with explicit human approval.");
     }
     const result = await this.prepare(entity, null, patch, reason);

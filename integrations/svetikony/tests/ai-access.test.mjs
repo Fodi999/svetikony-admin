@@ -27,3 +27,11 @@ test('production config needs only origin and does not read an env/service token
 test('pairing and upstream errors never echo response bodies or tokens',async()=>{
  const {api}=setup();api.fetcher=async()=>Response.json({accessToken:token,error:token},{status:403});await assert.rejects(api.connectAiAccess(code),e=>!e.message.includes(token)&&/HTTP 403/.test(e.message));
 });
+
+test('known draft refusal is actionable, arbitrary response secrets are never echoed', async()=>{
+ const {api}=setup();await api.connectAiAccess(code);
+ api.fetcher=async()=>Response.json({details:'Calendar writes disabled while Telegram autopost is enabled',accessToken:token},{status:403});
+ await assert.rejects(api.request('/api/admin/church-content/prayers'),e=>e.message.includes('TELEGRAM_AUTOPOST_ACTIVE')&&!e.message.includes(token));
+ api.fetcher=async()=>Response.json({details:token},{status:403});
+ await assert.rejects(api.request('/api/admin/church-content/prayers'),e=>e.message==='AI API HTTP 403');
+});

@@ -231,7 +231,7 @@ export class Operator {
     if (hash(source) !== hash(await this.get(entity, sourceId))) throw new Error("Source changed; reload before translating");
     if (entity === "calendar" || patch.calendarDayId) {
       const settings = await this.api.request("/api/admin/telegram/autopost/settings");
-      if (settings?.globalEnabled !== false)
+      if (settings?.globalEnabled !== false && settings?.draftSourcesExcluded !== true)
         throw new Error("Translation draft blocked: calendar writes require Telegram autopost to be disabled. No write attempted; change settings only with explicit human approval.");
     }
     // Existing transport and backend enforce scopes, draft status and Telegram autopost locks.

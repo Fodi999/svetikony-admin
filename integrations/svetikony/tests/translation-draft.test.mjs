@@ -70,3 +70,9 @@ test('active or unknown autopost blocks calendar creation before POST',async()=>
   assert.equal(s.writes(),0);
  }
 });
+
+test('new backend permits isolated drafts while old backend remains locked',async()=>{
+ const s=setup();s.rows.calendar.push({...s.source,id:'day',dateNewStyle:'2026-09-12'});
+ const original=s.api.request;s.api.request=async(p,o)=>p.includes('/autopost/')?{globalEnabled:true,draftSourcesExcluded:true}:original(p,o);
+ const r=await s.op.createTranslationDraft('calendar','day','en',fields,'Translate');assert.equal(r.after.status,'draft');assert.equal(s.writes(),1);
+});
