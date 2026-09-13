@@ -9,6 +9,7 @@ async function handle(
 ) {
   const path = ((await params).path ?? []).join("/");
   if (
+    !(["GET", "POST"].includes(request.method) && /^editor\/[a-z]+\/[a-zA-Z0-9-]+$/.test(path)) &&
     !(request.method === "GET" && /^(?:[a-zA-Z0-9-]+)?$/.test(path)) &&
     !(request.method === "POST" && /^[a-zA-Z0-9-]+\/(apply|reject)$/.test(path))
   )

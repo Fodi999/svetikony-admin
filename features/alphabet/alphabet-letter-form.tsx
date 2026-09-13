@@ -13,8 +13,8 @@ import { TextField } from "@/components/forms/text-field";
 import { TranslationSwitcher, type Completeness } from "@/components/forms/translation-switcher";
 import { useUnsavedChanges } from "@/components/feedback/unsaved-changes-context";
 import { Button } from "@/components/ui/button";
-import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
-import { ProposalPanel } from "@/features/ai-proposals/proposal-panel";
+import { FieldDescription, FieldLabel } from "@/components/ui/field";
+import { proposalRequest } from "@/features/ai-proposals/proposal-panel";
 import { apiClient } from "@/lib/api";
 import { messages } from "@/lib/i18n";
 import { resolveMediaPreviewUrl } from "@/lib/media/resolve-preview-url";
@@ -85,6 +85,7 @@ export function AlphabetLetterFormComponent({
   const queryClient = useQueryClient();
   const { setDirty } = useUnsavedChanges();
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [publishing, setPublishing] = useState(false);
   // Uploads made this session, not yet confirmed saved — distinct from the
   // form's persisted mainImageId/audioUrl so an in-progress edit can never
   // delete an already-published asset, only ever its own unsaved upload.
@@ -120,6 +121,26 @@ export function AlphabetLetterFormComponent({
   }, [form, setDirty]);
 
   useBeforeUnloadWarning(form.formState.isDirty);
+
+  const editor = useQuery({
+    queryKey: ["alphabet-editor", letter?.id],
+    queryFn: () => proposalRequest(`/editor/alphabet/${letter!.id}`),
+    enabled: mode === "edit" && !!letter,
+    refetchInterval: 15000,
+    refetchOnWindowFocus: true,
+  });
+  const editorVersion = useRef<string | null>(null);
+  useEffect(() => {
+    if (!editor.data || form.formState.isDirty || editorVersion.current === editor.data.version) return;
+    const w = editor.data.working;
+    form.reset({ ...EMPTY_DEFAULTS, ...letter, letter: w.letter, name: w.name,
+      order: w.sortOrder, description: w.shortDescription, historicalNote: w.fullText,
+      numericValue: w.numericValue ?? undefined, mainImageId: w.mainImageUrl || undefined,
+      audioUrl: w.audioUrl || "", modernEquivalent: w.modernEquivalent || "", cardImageUrl: w.cardImageUrl || "", seoTitle: w.seoTitle || "", seoDescription: w.seoDescription || "" });
+    editorVersion.current = editor.data.version;
+    setDirty(false);
+  }, [editor.data, form, letter, setDirty]);
+
 
   const effectiveGroupId = letter?.translationGroupId ?? groupId;
 
@@ -162,7 +183,25 @@ export function AlphabetLetterFormComponent({
       return;
     }
     const values = form.getValues();
-    await onSubmit(values);
+    if (mode === "edit" && letter) {
+      if (!editorVersion.current || editor.isError) return;
+      await proposalRequest(`/editor/alphabet/${letter.id}`, {
+        version: editorVersion.current,
+        confirmation: `PUBLISH ${letter.id}`,
+        patch: {
+          letter: values.letter, name: values.name, sortOrder: values.order,
+          shortDescription: values.description || "", fullText: values.historicalNote || "",
+          mainImageUrl: values.mainImageId || "", audioUrl: values.audioUrl || "",
+          seoTitle: values.seoTitle || "", seoDescription: values.seoDescription || "",
+          numericValue: values.numericValue ?? null,
+          modernEquivalent: values.modernEquivalent || "", cardImageUrl: values.cardImageUrl || "",
+        },
+      });
+      form.reset(values);
+      await editor.refetch();
+      await queryClient.invalidateQueries({ queryKey: ["alphabetLetters"] });
+      toast.success("Опубліковано");
+    } else await onSubmit(values);
     setPendingImageKey(undefined); // now persisted — no longer an orphan candidate
     setPendingAudioKey(undefined);
 
@@ -185,17 +224,10 @@ export function AlphabetLetterFormComponent({
   return (
     <div className="flex h-full flex-col">
       <div className="flex-1 space-y-4 overflow-y-auto p-4 pb-24 md:p-6">
-        {letter ? (
-          <ProposalPanel
-            targetId={letter.id}
-            applyDisabled={form.formState.isDirty}
-            onApplied={async () => {
-              const updated = await apiClient.alphabetLetters.get(letter.id);
-              form.reset({ ...EMPTY_DEFAULTS, ...updated });
-              setDirty(false);
-              await queryClient.invalidateQueries({ queryKey: ["alphabetLetters"] });
-            }}
-          />
+        {mode === "edit" ? (
+          <p role="status" className="text-sm text-muted-foreground">
+            {editor.isError ? "Не вдалося завантажити робочу версію. Оновіть сторінку." : editor.isLoading ? "Завантаження…" : "Робоча версія. Зміни з’являться на сайті після публікації."}
+          </p>
         ) : null}
         {effectiveGroupId ? (
           <div className="space-y-1.5">
@@ -204,24 +236,20 @@ export function AlphabetLetterFormComponent({
           </div>
         ) : null}
 
-        {letter ? (
-          <Field>
-            <FieldLabel>Translation Group ID</FieldLabel>
-            <p className="rounded-md border bg-muted px-3 py-2 font-mono text-xs text-muted-foreground">{letter.translationGroupId}</p>
-            <FieldDescription>Лише для перегляду — керується автоматично.</FieldDescription>
-          </Field>
-        ) : null}
-
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-[120px_1fr]">
           <TextField control={form.control} name="letter" label="Гліф" description="Напр.: Б" />
           <TextField control={form.control} name="name" label="Назва букви" />
         </div>
         <TextField control={form.control} name="slug" label="Slug" description="Латиниця, цифри, дефіси" />
         <NumberField control={form.control} name="numericValue" label="Числове значення" min={0} max={999} />
-        <TextField control={form.control} name="pronunciation" label="Вимова" />
+        <TextField control={form.control} name="modernEquivalent" label="Сучасний відповідник" />
         <TextField control={form.control} name="description" label="Опис" textarea rows={3} />
         <TextField control={form.control} name="historicalNote" label="Історична довідка" textarea rows={4} />
 
+        <TextField control={form.control} name="cardImageUrl" label="Зображення картки — URL" />
+        {values.cardImageUrl ? <img src={resolveMediaPreviewUrl(values.cardImageUrl)} alt="Зображення картки" className="h-32 rounded object-contain" /> : null}
+        <TextField control={form.control} name="seoTitle" label="SEO — заголовок" />
+        <TextField control={form.control} name="seoDescription" label="SEO — опис" textarea rows={3} />
         <div className="space-y-2">
           <FieldLabel>Фото букви</FieldLabel>
           <div className="flex gap-2">
@@ -317,8 +345,8 @@ export function AlphabetLetterFormComponent({
           <Eye className="size-4" />
           {messages.actions.preview}
         </Button>
-        <Button type="button" className="h-11 flex-1" disabled={submitting} onClick={handleSave}>
-          {messages.actions.save}
+        <Button type="button" className="h-11 flex-1" disabled={publishing || submitting || (mode === "edit" && (!editor.data || editor.isError))} onClick={() => { if (publishing) return; setPublishing(true); void handleSave().catch(() => toast.error("Не вдалося опублікувати. Оновіть робочу версію та перевірте зміни.")).finally(() => setPublishing(false)); }}>
+          {mode === "edit" ? "Опублікувати" : messages.actions.save}
         </Button>
       </div>
 

@@ -138,3 +138,15 @@ sources. Existing backend scopes and Telegram autopost locks remain authoritativ
 After any uncertain write or failed readback, inspect list_content/get_content;
 never retry blindly or generate a duplicate. Existing translations are not replaced.
 Published edits still require server proposal review by a human.
+
+
+## Alphabet working editor
+
+For `alphabet`, keep using `prepare_change` and `upload_image`. Published records
+remain unchanged while their server proposals form a working version in web-admin.
+Tell the user to open the letter: text, SEO and image appear in the ordinary fields.
+They review/edit those fields and click «Опублікувати» once. Do not send them through
+separate text/image Apply actions. Describe a verified proposal as saved to the working
+version, not as published. The human-only editor endpoint is never an AI tool.
+Other content modules retain their existing proposal review behavior. Do not delete,
+replay or silently import existing proposals. New chat is required after plugin update.

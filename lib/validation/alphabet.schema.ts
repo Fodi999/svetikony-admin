@@ -12,6 +12,10 @@ export const alphabetLetterSchema = z.object({
   historicalNote: z.string().max(3000).optional(),
   numericValue: z.number().int().min(0).max(999).optional(),
   mainImageId: z.string().optional(),
+  modernEquivalent: z.string().optional(),
+  cardImageUrl: z.string().optional(),
+  seoTitle: z.string().optional(),
+  seoDescription: z.string().optional(),
   audioUrl: z.string().optional(),
 });
 
