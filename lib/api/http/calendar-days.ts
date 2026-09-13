@@ -33,7 +33,7 @@ function safeEnum<T extends string>(schema: z.ZodType<T>, value: string, fallbac
  * see calendar-day-form.tsx. To CHANGE a relation, edit the child record's
  * own `calendarDayId` field (already real for Prayers/Gospel/Saints/Icons).
  */
-function toEntity(dto: BffCalendarDayDto): CalendarDay {
+export function calendarDayFromDto(dto: BffCalendarDayDto): CalendarDay {
   return {
     id: dto.id,
     translationGroupId: dto.translationGroupId,
@@ -57,7 +57,7 @@ function toEntity(dto: BffCalendarDayDto): CalendarDay {
 
 /** Admin form -> Worker write payload. Only fields the Worker's
  * ChurchCalendarDayPayload accepts; `relatedIconIds` etc. are not sent —
- * see toEntity()'s doc comment for why. */
+ * see calendarDayFromDto()'s doc comment for why. */
 function toPayload(values: CalendarDayFormValues): WorkerCalendarDayWritePayload {
   return {
     dateNewStyle: values.date,
@@ -84,7 +84,7 @@ function aiActionPath(id: string, action: string): string {
  * still-unchanged entity plus a pending proposal id -- see
  * CalendarAiWriteResult's own doc comment. */
 function toAiWriteResult(dto: BffCalendarAiWriteResultDto): CalendarAiWriteResult {
-  return dto.mode === "direct" ? { mode: "direct", day: toEntity(dto.day) } : { mode: "proposal", day: toEntity(dto.day), proposalId: dto.proposalId };
+  return dto.mode === "direct" ? { mode: "direct", day: calendarDayFromDto(dto.day) } : { mode: "proposal", day: calendarDayFromDto(dto.day), proposalId: dto.proposalId };
 }
 
 /**
@@ -111,7 +111,7 @@ const AI_FILL_MISSING_TIMEOUT_MS = 125_000;
 const baseResource = createHttpListResource<BffCalendarDayDto, CalendarDay, CalendarQuery>({
   listPath: BFF_ENDPOINTS.calendarDays,
   itemPath: (id) => `${BFF_ENDPOINTS.calendarDays}/${encodeURIComponent(id)}`,
-  toEntity,
+  toEntity: calendarDayFromDto,
   buildBackendParams: (query) => {
     const params = new URLSearchParams();
     if (query?.month) {
@@ -131,11 +131,11 @@ export const calendarDaysHttpResource: ApiClient["calendarDays"] = {
   ...baseResource,
   async create(values: CalendarDayFormValues): Promise<CalendarDay> {
     const dto = await httpPost<BffCalendarDayDto>(BFF_ENDPOINTS.calendarDays, toPayload(values));
-    return toEntity(dto);
+    return calendarDayFromDto(dto);
   },
   async update(id: string, values: CalendarDayFormValues): Promise<CalendarDay> {
     const dto = await httpPut<BffCalendarDayDto>(`${BFF_ENDPOINTS.calendarDays}/${encodeURIComponent(id)}`, toPayload(values));
-    return toEntity(dto);
+    return calendarDayFromDto(dto);
   },
   async remove(id: string): Promise<void> {
     await httpDelete(`${BFF_ENDPOINTS.calendarDays}/${encodeURIComponent(id)}`);
@@ -153,7 +153,7 @@ export const calendarDaysHttpResource: ApiClient["calendarDays"] = {
       BFF_ENDPOINTS.calendarDays,
       toPayload({ ...values, language: language as CalendarDayFormValues["language"] }),
     );
-    return toEntity(dto);
+    return calendarDayFromDto(dto);
   },
   async generateDescription(id: string): Promise<CalendarAiWriteResult> {
     return toAiWriteResult(await httpPost<BffCalendarAiWriteResultDto>(aiActionPath(id, "generate-description"), undefined, AI_TEXT_TIMEOUT_MS));
@@ -180,7 +180,7 @@ export const calendarDaysHttpResource: ApiClient["calendarDays"] = {
     return toAiWriteResult(await httpPost<BffCalendarAiWriteResultDto>(aiActionPath(id, "regenerate-image"), undefined, AI_IMAGE_TIMEOUT_MS));
   },
   async assignImage(id: string, imageUrl: string): Promise<CalendarDay> {
-    return toEntity(await httpPut<BffCalendarDayDto>(aiActionPath(id, "image"), { imageUrl }));
+    return calendarDayFromDto(await httpPut<BffCalendarDayDto>(aiActionPath(id, "image"), { imageUrl }));
   },
   async generateImageFromPrompt(id: string, prompt: string): Promise<CalendarAiWriteResult> {
     return toAiWriteResult(await httpPost<BffCalendarAiWriteResultDto>(aiActionPath(id, "generate-image-prompt"), { prompt }, AI_IMAGE_TIMEOUT_MS));
@@ -188,7 +188,7 @@ export const calendarDaysHttpResource: ApiClient["calendarDays"] = {
   async fillMissing(id: string): Promise<CalendarAiFillResult> {
     const dto = await httpPost<BffCalendarAiFillResultDto>(aiActionPath(id, "fill-missing"), undefined, AI_FILL_MISSING_TIMEOUT_MS);
     return dto.mode === "direct"
-      ? { mode: "direct", day: toEntity(dto.day), filled: dto.filled, skipped: dto.skipped }
-      : { mode: "proposal", day: toEntity(dto.day), proposalId: dto.proposalId, proposedFields: dto.proposedFields, skipped: dto.skipped };
+      ? { mode: "direct", day: calendarDayFromDto(dto.day), filled: dto.filled, skipped: dto.skipped }
+      : { mode: "proposal", day: calendarDayFromDto(dto.day), proposalId: dto.proposalId, proposedFields: dto.proposedFields, skipped: dto.skipped };
   },
 };

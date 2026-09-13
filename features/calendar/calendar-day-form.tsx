@@ -101,6 +101,8 @@ interface CalendarDayFormProps {
   onSubmit: (values: CalendarDayFormValues) => Promise<void>;
   onDelete?: () => void;
   submitting?: boolean;
+  workingCopy?: boolean;
+  onSaved?: () => Promise<unknown>;
 }
 
 export function CalendarDayForm({
@@ -114,6 +116,8 @@ export function CalendarDayForm({
   onSubmit,
   onDelete,
   submitting,
+  workingCopy = false,
+  onSaved,
 }: CalendarDayFormProps) {
   const router = useRouter();
   const { setDirty } = useUnsavedChanges();
@@ -245,8 +249,10 @@ export function CalendarDayForm({
       return;
     }
     await onSubmit(form.getValues());
+    pendingUploadKeyRef.current = undefined;
     setPendingUploadKey(undefined); // now persisted — no longer an orphan candidate
     setDirty(false);
+    await onSaved?.();
   }
 
   const values = form.watch();
@@ -273,7 +279,7 @@ export function CalendarDayForm({
             <Sparkles className="size-4" />
             {ai.isPending("fillMissing")
               ? "Заповнення…"
-              : day.status === "published"
+              : day.status === "published" && !workingCopy
                 ? "Заповнити відсутнє з AI (запропонувати на розгляд)"
                 : "Заповнити відсутнє з AI"}
           </Button>
@@ -554,9 +560,9 @@ export function CalendarDayForm({
           <Eye className="size-4" />
           {messages.actions.preview}
         </Button>
-        <Button type="button" variant="secondary" className="h-11 flex-1" disabled={submitting} onClick={() => handleSave(false)}>
+        {!workingCopy ? <Button type="button" variant="secondary" className="h-11 flex-1" disabled={submitting} onClick={() => handleSave(false)}>
           {messages.actions.save}
-        </Button>
+        </Button> : null}
         <Button type="button" className="h-11 flex-1" disabled={submitting} onClick={() => handleSave(true)}>
           {messages.actions.publish}
         </Button>

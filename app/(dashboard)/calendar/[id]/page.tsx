@@ -10,12 +10,14 @@ import { useUnsavedChanges } from "@/components/feedback/unsaved-changes-context
 import { RequireAccess } from "@/components/layout/require-access";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ProposalPanel } from "@/features/ai-proposals/proposal-panel";
+import { proposalRequest } from "@/features/ai-proposals/proposal-panel";
 import { CalendarDayForm } from "@/features/calendar/calendar-day-form";
+import { calendarDayFromDto } from "@/lib/api/http/calendar-days";
 import { apiClient } from "@/lib/api";
 import { errorMessageFor } from "@/lib/api/errors";
 import { useAuth } from "@/lib/auth/auth-context";
 import { messages } from "@/lib/i18n";
+import type { CalendarDay } from "@/types/entities";
 import type { CalendarDayFormValues } from "@/lib/validation/calendar.schema";
 
 export default function EditCalendarDayPage() {
@@ -23,7 +25,7 @@ export default function EditCalendarDayPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { canEdit } = useAuth();
-  const { guardNavigation } = useUnsavedChanges();
+  const { guardNavigation, isDirty } = useUnsavedChanges();
   const [confirmDelete, setConfirmDelete] = useState(false);
   // Bumped whenever the form must show freshly-fetched values instead of
   // whatever it currently holds (a proposal was applied, or the admin asked
@@ -34,17 +36,38 @@ export default function EditCalendarDayPage() {
   // not otherwise remount this component; see calendar-day-form.tsx's own
   // notes on this bug).
   const [formRevision, setFormRevision] = useState(0);
+  const [review, setReview] = useState<{day: CalendarDay; working: Record<string, unknown>; version: string} | null>(null);
 
   const query = useQuery({
     queryKey: ["calendarDays", params.id],
-    queryFn: () => apiClient.calendarDays.get(params.id),
+    queryFn: async () => {
+      const editor = await proposalRequest(`/editor/calendar/${params.id}`);
+      return { ...editor, day: calendarDayFromDto(editor.working) };
+    },
+    refetchOnWindowFocus: false,
+    refetchInterval: isDirty ? false : 15000,
+    enabled: !isDirty,
   });
 
+  if (query.data && !isDirty && review !== query.data) setReview(query.data);
+
   const updateMutation = useMutation({
-    mutationFn: (values: CalendarDayFormValues) => apiClient.calendarDays.update(params.id, values),
+    mutationFn: (values: CalendarDayFormValues) => proposalRequest(`/editor/calendar/${params.id}`, {
+      version: review!.version,
+      confirmation: `PUBLISH ${params.id}`,
+      patch: {
+        title: values.title, description: values.shortDescription, history: values.history || "",
+        imageUrl: values.imageId || "", seoTitle: values.seoTitle ?? null, seoDescription: values.seoDescription ?? null,
+        dateNewStyle: values.date,
+        dayType: values.eventType === review!.day.eventType ? review!.working.dayType : values.eventType,
+        ...(values.imageId !== review!.working.imageUrl || !review!.working.imageMetadata ||
+          (review!.working.imageMetadata as {origin?: string; identityVerified?: boolean}).origin === "ai_generated" &&
+          (review!.working.imageMetadata as {identityVerified?: boolean}).identityVerified === false
+          ? {imageMetadata: values.imageId === review!.working.imageUrl ? review!.working.imageMetadata ?? null : null} : {}),
+      },
+    }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["calendarDays"] });
-      toast.success("Зміни збережено");
+      toast.success("Опубліковано");
     },
     onError: (error) => toast.error(errorMessageFor(error)),
   });
@@ -75,17 +98,8 @@ export default function EditCalendarDayPage() {
             action={{ label: messages.actions.retry, onClick: () => query.refetch() }}
           />
         </div>
-      ) : query.data ? (
+      ) : review ? (
         <>
-          {canEdit("settings") ? (
-            <ProposalPanel
-              targetId={params.id}
-              onApplied={async () => {
-                await query.refetch({ throwOnError: true });
-                setFormRevision((x) => x + 1);
-              }}
-            />
-          ) : null}
           <div className="flex justify-end px-4 pt-4 md:px-6">
             <Button
               type="button"
@@ -101,9 +115,15 @@ export default function EditCalendarDayPage() {
             </Button>
           </div>
           <CalendarDayForm
-            key={`${query.data.id}-${formRevision}`}
+            key={`${review!.day.id}-${review!.version}-${formRevision}`}
             mode="edit"
-            day={query.data}
+            day={review!.day}
+            workingCopy
+            onSaved={async () => {
+              await query.refetch({ throwOnError: true });
+              await queryClient.invalidateQueries({ queryKey: ["calendarDays"] });
+              setFormRevision((x) => x + 1);
+            }}
             submitting={updateMutation.isPending}
             onSubmit={async (values) => {
               await updateMutation.mutateAsync(values);
@@ -114,7 +134,7 @@ export default function EditCalendarDayPage() {
             open={confirmDelete}
             onOpenChange={setConfirmDelete}
             title="Видалити календарний день?"
-            description={`«${query.data.title}» буде видалено безповоротно.`}
+            description={`«${review!.day.title}» буде видалено безповоротно.`}
             destructive
             confirmLabel={messages.actions.delete}
             onConfirm={() => deleteMutation.mutate()}

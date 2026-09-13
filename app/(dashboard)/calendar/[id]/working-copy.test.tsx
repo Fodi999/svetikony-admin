@@ -1,0 +1,24 @@
+import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { afterEach, expect, it, vi } from 'vitest';
+import type { CalendarDayFormValues } from '@/lib/validation/calendar.schema';
+import type { CalendarDay } from '@/types/entities';
+const mocks = vi.hoisted(() => ({request:vi.fn()}));
+vi.mock('next/navigation',()=>({useParams:()=>({id:'day'}),useRouter:()=>({push:vi.fn()})}));
+vi.mock('@/lib/auth/auth-context',()=>({useAuth:()=>({canEdit:()=>true})}));
+vi.mock('@/components/feedback/unsaved-changes-context',()=>({useUnsavedChanges:()=>({isDirty:false,guardNavigation:(fn:()=>void)=>fn()})}));
+vi.mock('@/components/layout/require-access',()=>({RequireAccess:({children}:{children:React.ReactNode})=>children}));
+vi.mock('@/features/ai-proposals/proposal-panel',()=>({proposalRequest:mocks.request}));
+vi.mock('@/features/calendar/calendar-day-form',()=>({CalendarDayForm:({day,onSubmit,workingCopy}:{day:CalendarDay;onSubmit:(v:CalendarDayFormValues)=>Promise<void>;workingCopy:boolean})=><div><p>{day.history}</p><p>{day.imageId}</p><button onClick={()=>onSubmit({...day,shortDescription:day.shortDescription || ''} as CalendarDayFormValues)}>{workingCopy?'Publish working copy':'Legacy'}</button></div>}));
+import Page from './page';
+afterEach(()=>{cleanup();vi.clearAllMocks();});
+it('loads pending text and image into the editor and publishes only on a human click',async()=>{
+ mocks.request.mockImplementation(async (_path,body)=>body?{}:{version:'v1',working:{id:'day',language:'uk',status:'published',dateNewStyle:'2026-09-01',slug:'day',title:'Day',dayType:'feast',description:'Description',history:'AI working history',imageUrl:'media/calendar/new.png',imageMetadata:{origin:'ai_generated',identityVerified:false}}});
+ render(<QueryClientProvider client={new QueryClient({defaultOptions:{queries:{retry:false}}})}><Page/></QueryClientProvider>);
+ expect(await screen.findByText('AI working history')).toBeInTheDocument();
+ expect(screen.getByText('media/calendar/new.png')).toBeInTheDocument();
+ expect(mocks.request.mock.calls.every(c=>c[1]===undefined)).toBe(true);
+ fireEvent.click(screen.getByText('Publish working copy'));
+ await waitFor(()=>expect(mocks.request).toHaveBeenCalledWith('/editor/calendar/day',expect.objectContaining({version:'v1',confirmation:'PUBLISH day',patch:expect.objectContaining({history:'AI working history',imageUrl:'media/calendar/new.png',imageMetadata:{origin:'ai_generated',identityVerified:false}})})));
+ expect(screen.queryByText('Пропозиція AI')).not.toBeInTheDocument();
+});
