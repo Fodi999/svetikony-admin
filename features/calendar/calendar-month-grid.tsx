@@ -18,6 +18,7 @@ export function CalendarMonthGrid({
   month,
   daysByDate,
   existingDates,
+  language = "uk",
   todayIso,
   selectedDate,
   editable,
@@ -27,6 +28,7 @@ export function CalendarMonthGrid({
   month: number; // 0-11
   daysByDate: Map<string, CalendarDay>;
   existingDates: Set<string>;
+  language?: CalendarDay["language"];
   todayIso: string;
   selectedDate: string | null;
   editable: boolean;
@@ -60,6 +62,7 @@ export function CalendarMonthGrid({
               key={dateIso}
               dateIso={dateIso}
               day={day}
+              createLanguage={language}
               hiddenByFilter={!day && existingDates.has(dateIso)}
               isToday={dateIso === todayIso}
               isSelected={dateIso === selectedDate}

@@ -122,7 +122,7 @@ export function CalendarListView() {
     return map;
   }, [filteredDays]);
 
-  const existingDates = useMemo(() => new Set(monthDays.map((day) => day.date)), [monthDays]);
+  const existingDates = useMemo(() => new Set(monthDays.filter((day) => language === "all" || day.language === language).map((day) => day.date)), [monthDays, language]);
 
   const daysInMonth = new Date(cursor.year, cursor.month + 1, 0).getDate();
 
@@ -266,6 +266,7 @@ export function CalendarListView() {
                 month={cursor.month}
                 daysByDate={daysByDate}
                 existingDates={existingDates}
+                language={language === "all" ? "uk" : language}
                 todayIso={todayStr}
                 selectedDate={selectedDate}
                 editable={editable}

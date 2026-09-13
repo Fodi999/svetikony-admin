@@ -37,6 +37,7 @@ export function CalendarDayCell({
   dateIso,
   day,
   hiddenByFilter,
+  createLanguage = "uk",
   isToday,
   isSelected,
   editable,
@@ -48,6 +49,7 @@ export function CalendarDayCell({
    * filter hides it -- must not offer "+ Створити" then, or the action
    * would invite creating a duplicate right next to the hidden record. */
   hiddenByFilter: boolean;
+  createLanguage?: CalendarDay["language"];
   isToday: boolean;
   isSelected: boolean;
   editable: boolean;
@@ -74,7 +76,7 @@ export function CalendarDayCell({
         <p className="text-[11px] text-muted-foreground">{hiddenByFilter ? "Приховано фільтром" : "Немає запису"}</p>
         {editable && !hiddenByFilter ? (
           <GuardedLink
-            href={`/calendar/new?date=${dateIso}`}
+            href={`/calendar/new?date=${dateIso}&language=${createLanguage}`}
             className="mt-auto inline-flex items-center gap-0.5 text-[11px] font-medium text-primary hover:underline"
           >
             <Plus className="size-3" aria-hidden />

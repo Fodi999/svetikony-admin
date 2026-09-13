@@ -70,7 +70,7 @@ describe("CalendarDayCell", () => {
     renderCell({ day: undefined, editable: true });
     expect(screen.getByText("Немає запису")).toBeInTheDocument();
     const link = screen.getByRole("link", { name: /Створити/ });
-    expect(link).toHaveAttribute("href", "/calendar/new?date=2026-08-13");
+    expect(link).toHaveAttribute("href", "/calendar/new?date=2026-08-13&language=uk");
   });
 
   it("hides the create link when not editable", () => {

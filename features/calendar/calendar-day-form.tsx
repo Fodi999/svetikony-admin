@@ -271,6 +271,10 @@ export function CalendarDayForm({
           <div className="space-y-1.5">
             <p className="text-xs font-medium text-muted-foreground">Переклади</p>
             <TranslationSwitcher active={values.language} onSelect={handleSwitchLanguage} completeness={completeness} />
+            <p className="text-sm text-muted-foreground">Публікація перекладів окрема: {(["uk", "ru", "en"] as const).map((lang) => {
+              const sibling = siblings.find((day) => day.language === lang);
+              return `${lang.toUpperCase()} — ${!sibling ? "немає перекладу" : sibling.status === "published" ? "опубліковано" : sibling.status === "draft" ? "чернетка" : "не опубліковано"}`;
+            }).join(" · ")}. На сайті доступні лише опубліковані версії.</p>
           </div>
         ) : null}
 

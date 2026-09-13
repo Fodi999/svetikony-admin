@@ -176,4 +176,14 @@ describe("CalendarListView", () => {
     // reliably by calendar-day-filters.test.ts's direct logic test).
     expect(screen.getAllByRole("combobox").length).toBeGreaterThanOrEqual(3);
   });
+  it("allows recreating a missing Ukrainian translation when English remains", async () => {
+    const {year, month} = currentCursor();
+    const date = `${monthKey(year, month)}-01`;
+    mockList.mockResolvedValue({items: [day({date, language: "en", status: "published"})], total: 1});
+    renderView();
+    await screen.findByText("Пн");
+    expect(screen.queryByText("Приховано фільтром")).not.toBeInTheDocument();
+    expect(screen.getAllByRole("link", {name: "Створити"}).some(link => link.getAttribute("href") === `/calendar/new?date=${date}&language=uk`)).toBe(true);
+  });
+
 });

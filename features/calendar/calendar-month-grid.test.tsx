@@ -70,4 +70,14 @@ describe("CalendarMonthGrid", () => {
     renderGrid();
     expect(screen.getByText("31")).toBeInTheDocument();
   });
+  it("keeps a status-filtered existing translation protected from duplicates", () => {
+    renderGrid({existingDates: new Set(["2026-08-13"])});
+    expect(screen.getByText("Приховано фільтром")).toBeInTheDocument();
+    expect(screen.getAllByRole("link", {name: "Створити"}).some(link => link.getAttribute("href")?.includes("date=2026-08-13"))).toBe(false);
+  });
+  it("creates in the selected language", () => {
+    renderGrid({language: "ru"});
+    expect(screen.getAllByRole("link", {name: "Створити"})[0]).toHaveAttribute("href", "/calendar/new?date=2026-08-01&language=ru");
+  });
+
 });
