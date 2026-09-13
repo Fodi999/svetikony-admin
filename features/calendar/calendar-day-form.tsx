@@ -464,7 +464,7 @@ export function CalendarDayForm({
                 <label className="text-sm font-medium">Промпт для AI (англійською)</label>
                 <p className="text-xs text-muted-foreground">
                   Опишіть зображення власними словами англійською -- AI згенерує саме за цим описом, минаючи автоматичний пошук
-                  референсу. Решта тексту дня залишається українською.
+                  референсу. Мова тексту дня відповідає вибраному перекладу (UK/RU/EN).
                 </p>
                 <Textarea
                   value={customImagePrompt}
