@@ -197,8 +197,8 @@ export function CalendarDayForm({
   const effectiveGroupId = day?.translationGroupId ?? groupId;
 
   const siblingsQuery = useQuery({
-    queryKey: ["calendarDays", "group", effectiveGroupId],
-    queryFn: () => apiClient.calendarDays.list({ pageSize: 200 }),
+    queryKey: ["calendarDays", "group", effectiveGroupId, form.getValues("date").slice(0, 7)],
+    queryFn: () => apiClient.calendarDays.list({ pageSize: 500, month: form.getValues("date").slice(0, 7) }),
     enabled: !!effectiveGroupId,
   });
   const siblings = (siblingsQuery.data?.items ?? []).filter((d) => d.translationGroupId === effectiveGroupId);
@@ -274,13 +274,13 @@ export function CalendarDayForm({
           </div>
         ) : null}
 
-        {mode === "create" && onCreateWithAi && !groupId ? (
+        {mode === "create" && onCreateWithAi ? (
           <div className="space-y-2 rounded-xl border p-4">
-            <Button type="button" className="w-full" disabled={submitting || !/^\d{4}-\d{2}-\d{2}$/.test(values.date) || Boolean(values.title || values.shortDescription || values.history || values.imageId)} onClick={() => void onCreateWithAi(values.date, values.language)}>
-              <Sparkles className="size-4" />{preparationStatus || "Створити чернетку з AI: текст і фото"}
+            <Button type="button" className="w-full" disabled={submitting || !/^\d{4}-\d{2}-\d{2}$/.test(values.date) || Boolean(values.title || values.shortDescription || values.history || values.imageId || values.seoTitle || values.seoDescription)} onClick={() => void onCreateWithAi(values.date, values.language)}>
+              <Sparkles className="size-4" />{preparationStatus || "Заповнити UK/RU/EN з AI · одне фото"}
             </Button>
-            <p className="text-sm text-muted-foreground">Оберіть сучасну дату. Юліанська дата розраховується автоматично. AI підготує нерухомі пам’яті за старим стилем із календарного джерела та збереже чернетку. Перехідні свята, піст і читання потребують окремої перевірки. Публікуєте лише ви.</p>
-            {Boolean(values.title || values.shortDescription || values.history || values.imageId) ? <p className="text-sm">Для введених вручну даних спочатку збережіть чернетку, потім заповніть відсутнє з AI.</p> : null}
+            <p className="text-sm text-muted-foreground">Оберіть сучасну дату. Юліанська дата розраховується автоматично. AI заповнить відсутні переклади UK/RU/EN та використає одне фото. Нові записи зберігаються як чернетки за старим стилем. Перехідні свята, піст і читання потребують окремої перевірки. Публікуєте лише ви.</p>
+            {Boolean(values.title || values.shortDescription || values.history || values.imageId || values.seoTitle || values.seoDescription) ? <p className="text-sm">Для введених вручну даних спочатку збережіть чернетку, потім заповніть відсутнє з AI.</p> : null}
             {preparationStatus ? <p role="status">{preparationStatus} Не закривайте сторінку.</p> : null}
           </div>
         ) : null}

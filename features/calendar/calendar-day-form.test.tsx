@@ -169,13 +169,13 @@ describe("AI creation from an empty date", () => {
     const create = vi.fn().mockResolvedValue(undefined);
     renderForm({ mode: "create", initialDate: "2026-10-01", onCreateWithAi: create });
     expect(screen.getByText(/Юліанська дата.*2026-09-18/)).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Створити чернетку з AI: текст і фото" }));
+    await userEvent.click(screen.getByRole("button", { name: "Заповнити UK/RU/EN з AI · одне фото" }));
     expect(create).toHaveBeenCalledWith("2026-10-01", "uk");
   });
   it("does not overwrite manually entered text", async () => {
     renderForm({ mode: "create", initialDate: "2026-10-01", onCreateWithAi: vi.fn() });
     await userEvent.type(screen.getByLabelText("Назва"), "Моя назва");
-    expect(screen.getByRole("button", { name: "Створити чернетку з AI: текст і фото" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Заповнити UK/RU/EN з AI · одне фото" })).toBeDisabled();
   });
   it("blocks publish and generation while preparing", () => {
     renderForm({ mode: "create", initialDate: "2026-10-01", onCreateWithAi: vi.fn(), submitting: true, preparationStatus: "1/3 · Джерело та AI-текст…" });

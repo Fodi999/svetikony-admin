@@ -8,8 +8,7 @@ import { RequireAccess } from "@/components/layout/require-access";
 import { CalendarDayForm } from "@/features/calendar/calendar-day-form";
 import { apiClient } from "@/lib/api";
 import { errorMessageFor } from "@/lib/api/errors";
-import { httpPost } from "@/lib/api/http/transport";
-import { calendarDaySchema } from "@/lib/validation/calendar.schema";
+import { prepareCalendarLanguages } from "@/features/calendar/prepare-calendar-languages";
 import { useUnsavedChanges } from "@/components/feedback/unsaved-changes-context";
 import type { CalendarDayFormValues } from "@/lib/validation/calendar.schema";
 import type { CalendarEventType, Language } from "@/types/entities";
@@ -57,39 +56,20 @@ function NewCalendarDayPageInner() {
     if (preparing.current) return;
     preparing.current = true;
     setPreparationError("");
-    let createdId: string | undefined;
     try {
-      setPreparationStatus("Перевірка дати…");
-      const existing = await apiClient.calendarDays.list({ pageSize: 500, month: date.slice(0, 7), language });
-      const match = existing.items.find((day) => day.date === date && day.language === language);
-      if (match) {
-        setDirty(false);
-        toast.info("Запис цієї дати вже існує — відкриваємо його без змін");
-        router.push(`/calendar/${match.id}`);
-        return;
-      }
-      setPreparationStatus("1/3 · Джерело та AI-текст…");
-      const prepared = await httpPost<CalendarDayFormValues & { sourceUrl: string }>("/api/bff/calendar-days/prepare-date", { date, language }, 105_000);
-      const sourceLabel = language === "en" ? "Source (fixed commemorations)" : language === "ru" ? "Источник (неподвижные памяти)" : "Джерело (нерухомі пам’яті)";
-      const values = calendarDaySchema.parse({ ...prepared, status: "draft", history: `${prepared.history}\n\n${sourceLabel}: ${prepared.sourceUrl}` });
-      setPreparationStatus("2/3 · Збереження чернетки…");
-      const created = await apiClient.calendarDays.create(values);
-      createdId = created.id;
-      setPreparationStatus("3/3 · Генерація AI-фото…");
-      await apiClient.calendarDays.generateImage(created.id);
-      toast.success("Чернетку з текстом і фото створено. Перевірте перед публікацією.");
+      setPreparationStatus("Перевірка перекладів UK/RU/EN…");
+      const id = await prepareCalendarLanguages(date, language, groupId, setPreparationStatus);
+      setDirty(false);
+      toast.success("Переклади підготовлено. Нові записи збережено як чернетки; перевірте перед публікацією.");
+      router.push(`/calendar/${id}`);
     } catch (error) {
-      const message = createdId ? "Текст збережено як чернетку, але фото не згенеровано. Повторіть генерацію у вкладці Медіа." : errorMessageFor(error);
+      const message = errorMessageFor(error);
       setPreparationError(message);
       toast.error(message);
     } finally {
       preparing.current = false;
       setPreparationStatus("");
-      if (createdId) {
-        setDirty(false);
-        await queryClient.invalidateQueries({ queryKey: ["calendarDays"] });
-        router.push(`/calendar/${createdId}`);
-      }
+      await queryClient.invalidateQueries({ queryKey: ["calendarDays"] });
     }
   }
 
