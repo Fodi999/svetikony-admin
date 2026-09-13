@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useIsMutating, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api";
 import { errorMessageFor } from "@/lib/api/errors";
@@ -52,6 +52,8 @@ export type SlotActions = {
  */
 export function useSlotActions(civilDate: string, year: number): SlotActions {
   const queryClient = useQueryClient();
+  const dayKey = ["telegram-preparation", civilDate];
+  const dayBusy = useIsMutating({ mutationKey: dayKey }) > 0;
 
   function invalidate() {
     queryClient.invalidateQueries({ queryKey: ["telegram", "contentPlan", year] });
@@ -62,56 +64,67 @@ export function useSlotActions(civilDate: string, year: number): SlotActions {
   }
 
   const generateText = useMutation({
+    mutationKey: dayKey,
     mutationFn: (ct: AutopostContentType) => apiClient.telegram.contentPlan.generateText(civilDate, ct),
     onSuccess: invalidate,
     onError,
   });
   const regenerateText = useMutation({
+    mutationKey: dayKey,
     mutationFn: (ct: AutopostContentType) => apiClient.telegram.contentPlan.regenerateText(civilDate, ct),
     onSuccess: invalidate,
     onError,
   });
   const editText = useMutation({
+    mutationKey: dayKey,
     mutationFn: ([ct, text]: [AutopostContentType, string]) => apiClient.telegram.contentPlan.editText(civilDate, ct, text),
     onSuccess: invalidate,
     onError,
   });
   const generateImage = useMutation({
+    mutationKey: dayKey,
     mutationFn: (ct: AutopostContentType) => apiClient.telegram.contentPlan.generateImage(civilDate, ct),
     onSuccess: invalidate,
     onError,
   });
   const regenerateImage = useMutation({
+    mutationKey: dayKey,
     mutationFn: (ct: AutopostContentType) => apiClient.telegram.contentPlan.regenerateImage(civilDate, ct),
     onSuccess: invalidate,
     onError,
   });
   const assignImage = useMutation({
+    mutationKey: dayKey,
     mutationFn: ([ct, mediaUrl]: [AutopostContentType, string]) => apiClient.telegram.contentPlan.assignImage(civilDate, ct, mediaUrl),
     onSuccess: invalidate,
     onError,
   });
   const removeImage = useMutation({
+    mutationKey: dayKey,
     mutationFn: (ct: AutopostContentType) => apiClient.telegram.contentPlan.removeImage(civilDate, ct),
     onSuccess: invalidate,
     onError,
   });
   const assignAudio = useMutation({
+    mutationKey: dayKey,
     mutationFn: ([ct, audioUrl]: [AutopostContentType, string]) => apiClient.telegram.contentPlan.assignAudio(civilDate, ct, audioUrl),
     onSuccess: invalidate,
     onError,
   });
   const removeAudio = useMutation({
+    mutationKey: dayKey,
     mutationFn: (ct: AutopostContentType) => apiClient.telegram.contentPlan.removeAudio(civilDate, ct),
     onSuccess: invalidate,
     onError,
   });
   const markReady = useMutation({
+    mutationKey: dayKey,
     mutationFn: (ct: AutopostContentType) => apiClient.telegram.contentPlan.markReady(civilDate, ct),
     onSuccess: invalidate,
     onError,
   });
   const markUnready = useMutation({
+    mutationKey: dayKey,
     mutationFn: (ct: AutopostContentType) => apiClient.telegram.contentPlan.markUnready(civilDate, ct),
     onSuccess: invalidate,
     onError,
@@ -129,7 +142,7 @@ export function useSlotActions(civilDate: string, year: number): SlotActions {
     if (removeAudio.isPending && removeAudio.variables === contentType) return "removeAudio";
     if (markReady.isPending && markReady.variables === contentType) return "markReady";
     if (markUnready.isPending && markUnready.variables === contentType) return "markUnready";
-    return null;
+    return dayBusy ? "generateText" : null;
   }
 
   return {

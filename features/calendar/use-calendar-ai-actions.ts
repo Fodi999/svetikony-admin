@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { UseFormReturn } from "react-hook-form";
 import { toast } from "sonner";
@@ -31,6 +32,7 @@ export type CalendarAiActions = {
   assignImage: (imageUrl: string) => void;
   generateImageFromPrompt: (prompt: string) => void;
   fillMissing: () => void;
+  isBusy: boolean;
   isPending: (action: AiActionName) => boolean;
 };
 
@@ -59,121 +61,140 @@ const FILL_FIELD_LABELS: Record<CalendarAiField, string> = {
 export function useCalendarAiActions(dayId: string | undefined, form: UseFormReturn<CalendarDayFormValues>): CalendarAiActions {
   const queryClient = useQueryClient();
   const id = dayId ?? "";
+  const inFlight = useRef(false);
+  const { isDirty } = form.formState;
+  async function run<T>(operation: () => Promise<T>): Promise<T> {
+    if (inFlight.current) throw new Error("AI вже працює. Дочекайтеся завершення.");
+    if (isDirty) throw new Error("Спочатку завершіть або скасуйте ручні зміни, потім запускайте AI.");
+    inFlight.current = true;
+    try { return await operation(); } finally { inFlight.current = false; }
+  }
 
   function invalidate() {
     queryClient.invalidateQueries({ queryKey: ["calendarDays"] });
   }
-  function applyDay(day: CalendarDay) {
-    form.setValue("shortDescription", day.shortDescription);
-    form.setValue("history", day.history ?? "");
-    form.setValue("seoTitle", day.seoTitle ?? null);
-    form.setValue("seoDescription", day.seoDescription ?? null);
-    form.setValue("imageId", day.imageId);
+  function applyDay(day: CalendarDay, fields: CalendarAiField[] = ["description", "history", "seo", "image"]) {
+    // Only touch generated fields, and never overwrite a manual edit made
+    // while the request was in flight.
+    const updates: Partial<CalendarDayFormValues> = {};
+    if (fields.includes("description")) updates.shortDescription = day.shortDescription;
+    if (fields.includes("history")) updates.history = day.history ?? "";
+    if (fields.includes("seo")) { updates.seoTitle = day.seoTitle ?? null; updates.seoDescription = day.seoDescription ?? null; }
+    if (fields.includes("image")) updates.imageId = day.imageId;
+    for (const key of Object.keys(updates) as (keyof CalendarDayFormValues)[]) {
+      if (!form.getFieldState(key).isDirty) form.setValue(key, updates[key]);
+    }
     invalidate();
   }
   function onError(error: unknown) {
     toast.error(errorMessageFor(error));
   }
 
-  /**
-   * Shared onSuccess for every generate/regenerate action: a DRAFT day
-   * was written directly, so patch the open form's fields as before
-   * (`applyDay`). A PUBLISHED day was never touched -- the same generated
-   * value instead became a pending AI proposal; the form must NOT be
-   * patched (it would show content the record doesn't actually have yet),
-   * and the proposal panel's query is invalidated so the new pending
-   * proposal appears there for review.
-   */
+  // Published changes are reread through the same working-editor query.
   function handleAiWriteResult(result: CalendarAiWriteResult, field: CalendarAiField) {
     if (result.mode === "direct") {
-      applyDay(result.day);
+      applyDay(result.day, [field]);
       toast.success(`Оновлено: ${FILL_FIELD_LABELS[field]}.`);
     } else {
-      toast.success(`Опубліковано: створено пропозицію AI (${FILL_FIELD_LABELS[field]}) на розгляд адміністратора.`);
-      queryClient.invalidateQueries({ queryKey: ["ai-proposals"] });
+      toast.success(`Підготовлено: ${FILL_FIELD_LABELS[field]}. Перевірте поля перед публікацією.`);
+      invalidate();
     }
   }
 
   const generateDescription = useMutation({
-    mutationFn: () => apiClient.calendarDays.generateDescription(id),
+    mutationKey: ["calendar-ai", id],
+    mutationFn: () => run(() => apiClient.calendarDays.generateDescription(id)),
     onSuccess: (result) => handleAiWriteResult(result, "description"),
     onError,
   });
   const regenerateDescription = useMutation({
-    mutationFn: () => apiClient.calendarDays.regenerateDescription(id),
+    mutationKey: ["calendar-ai", id],
+    mutationFn: () => run(() => apiClient.calendarDays.regenerateDescription(id)),
     onSuccess: (result) => handleAiWriteResult(result, "description"),
     onError,
   });
   const generateHistory = useMutation({
-    mutationFn: () => apiClient.calendarDays.generateHistory(id),
+    mutationKey: ["calendar-ai", id],
+    mutationFn: () => run(() => apiClient.calendarDays.generateHistory(id)),
     onSuccess: (result) => handleAiWriteResult(result, "history"),
     onError,
   });
   const regenerateHistory = useMutation({
-    mutationFn: () => apiClient.calendarDays.regenerateHistory(id),
+    mutationKey: ["calendar-ai", id],
+    mutationFn: () => run(() => apiClient.calendarDays.regenerateHistory(id)),
     onSuccess: (result) => handleAiWriteResult(result, "history"),
     onError,
   });
   const generateSeo = useMutation({
-    mutationFn: () => apiClient.calendarDays.generateSeo(id),
+    mutationKey: ["calendar-ai", id],
+    mutationFn: () => run(() => apiClient.calendarDays.generateSeo(id)),
     onSuccess: (result) => handleAiWriteResult(result, "seo"),
     onError,
   });
   const regenerateSeo = useMutation({
-    mutationFn: () => apiClient.calendarDays.regenerateSeo(id),
+    mutationKey: ["calendar-ai", id],
+    mutationFn: () => run(() => apiClient.calendarDays.regenerateSeo(id)),
     onSuccess: (result) => handleAiWriteResult(result, "seo"),
     onError,
   });
   const generateImage = useMutation({
-    mutationFn: () => apiClient.calendarDays.generateImage(id),
+    mutationKey: ["calendar-ai", id],
+    mutationFn: () => run(() => apiClient.calendarDays.generateImage(id)),
     onSuccess: (result) => handleAiWriteResult(result, "image"),
     onError,
   });
   const regenerateImage = useMutation({
-    mutationFn: () => apiClient.calendarDays.regenerateImage(id),
+    mutationKey: ["calendar-ai", id],
+    mutationFn: () => run(() => apiClient.calendarDays.regenerateImage(id)),
     onSuccess: (result) => handleAiWriteResult(result, "image"),
     onError,
   });
   const assignImage = useMutation({
+    mutationKey: ["calendar-ai", id],
     mutationFn: (imageUrl: string) => apiClient.calendarDays.assignImage(id, imageUrl),
-    onSuccess: applyDay,
+    onSuccess: (day) => applyDay(day, ["image"]),
     onError,
   });
   const generateImageFromPrompt = useMutation({
-    mutationFn: (prompt: string) => apiClient.calendarDays.generateImageFromPrompt(id, prompt),
+    mutationKey: ["calendar-ai", id],
+    mutationFn: (prompt: string) => run(() => apiClient.calendarDays.generateImageFromPrompt(id, prompt)),
     onSuccess: (result) => handleAiWriteResult(result, "image"),
     onError,
   });
   const fillMissing = useMutation({
-    mutationFn: () => apiClient.calendarDays.fillMissing(id),
+    mutationKey: ["calendar-ai", id],
+    mutationFn: () => run(() => apiClient.calendarDays.fillMissing(id)),
     onSuccess: (result) => {
       if (result.mode === "direct") {
-        applyDay(result.day);
+        applyDay(result.day, result.filled);
         if (result.filled.length === 0) {
-          toast.success("Усе вже заповнено -- нема чого додавати з AI.");
+          if (!result.skipped.length) toast.success("Усе вже заповнено -- нема чого додавати з AI.");
         } else {
           toast.success(`Заповнено з AI: ${result.filled.map((f) => FILL_FIELD_LABELS[f]).join(", ")}.`);
         }
       } else {
-        // PUBLISHED day -- nothing was written. A pending proposal (if any)
-        // now exists for a human to review in the proposal panel; never
-        // patch the open form's fields here, since the record itself is
-        // unchanged.
+        // Read back the server working copy, retaining its publication version.
         if (result.proposalId) {
-          toast.success("Опубліковано: створено пропозицію AI на розгляд адміністратора (нічого не змінено напряму).");
-          queryClient.invalidateQueries({ queryKey: ["ai-proposals"] });
+          toast.success("AI заповнив робочу версію. Перевірте поля та натисніть «Опублікувати», коли все готово.");
+          invalidate();
         } else {
-          toast.success("Усе вже заповнено -- нема чого пропонувати.");
+          if (!result.skipped.length) toast.success("Усе вже заповнено -- нема чого додавати з AI.");
         }
       }
       if (result.skipped.length > 0) {
-        toast.info("Потрібно виправити джерело у Церковному календарі, щоб заповнити решту.");
+        for (const skipped of result.skipped) {
+          const reason = skipped.reason === "failed"
+            ? "генерація не завершилася. Перевірте підключення та ліміти API; повторіть лише відсутнє"
+            : "потрібно перевірити джерело у Церковному календарі";
+          toast.info(`${FILL_FIELD_LABELS[skipped.field]}: ${reason}.`);
+        }
       }
     },
     onError,
   });
 
   function isPending(action: AiActionName): boolean {
+
     switch (action) {
       case "generateDescription":
         return generateDescription.isPending;
@@ -212,6 +233,7 @@ export function useCalendarAiActions(dayId: string | undefined, form: UseFormRet
     assignImage: (imageUrl) => assignImage.mutate(imageUrl),
     generateImageFromPrompt: (prompt) => generateImageFromPrompt.mutate(prompt),
     fillMissing: () => fillMissing.mutate(),
+    isBusy: generateDescription.isPending || regenerateDescription.isPending || generateHistory.isPending || regenerateHistory.isPending || generateSeo.isPending || regenerateSeo.isPending || generateImage.isPending || regenerateImage.isPending || generateImageFromPrompt.isPending || fillMissing.isPending,
     isPending,
   };
 }

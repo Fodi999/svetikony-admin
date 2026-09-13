@@ -422,11 +422,11 @@ export const telegramResource: TelegramApi = {
       assertSlotMutable(findOrCreateSlot(date, contentType));
       return saveSlot(date, contentType, { status: "draft" });
     },
-    async prepareDay(date: string): Promise<PrepareDayReport> {
+    async prepareDay(date: string, onlyContentType?: AutopostContentType): Promise<PrepareDayReport> {
       await mockDelay(800);
       const inRange = date >= "2026-09-01" && date <= "2026-09-30";
       const results: PrepareDayReport["results"] = [];
-      for (const contentType of AUTOPOST_CONTENT_TYPES) {
+      for (const contentType of onlyContentType ? [onlyContentType] : AUTOPOST_CONTENT_TYPES) {
         const existing = preparedSlots.get(slotKey(date, contentType));
         if (existing?.status === "sent") {
           results.push({ contentType, result: "skipped_sent" });

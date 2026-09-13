@@ -99,9 +99,9 @@ function toAiWriteResult(dto: BffCalendarAiWriteResultDto): CalendarAiWriteResul
  * first -- otherwise the admin sees a raw client-side abort instead of a
  * proper error body.
  */
-const AI_TEXT_TIMEOUT_MS = 35_000;
-const AI_IMAGE_TIMEOUT_MS = 65_000;
-const AI_FILL_MISSING_TIMEOUT_MS = 125_000;
+const AI_TEXT_TIMEOUT_MS = 125_000;
+const AI_IMAGE_TIMEOUT_MS = 125_000;
+const AI_FILL_MISSING_TIMEOUT_MS = 305_000;
 
 /**
  * Backend supports `year`/`month` filters server-side but not

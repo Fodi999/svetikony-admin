@@ -65,7 +65,7 @@ function slotAction(
   const path = `${BFF_ENDPOINTS.telegram.contentPlan}/${encodeURIComponent(date)}/${encodeURIComponent(contentType)}/${action}`;
   if (method === "PUT") return httpPut<BffTelegramPostDto>(path, body);
   if (method === "DELETE") return httpDeleteJson<BffTelegramPostDto>(path, body);
-  return httpPost<BffTelegramPostDto>(path, body);
+  return httpPost<BffTelegramPostDto>(path, body, /^(re)?generate-/.test(action) ? 125_000 : undefined);
 }
 
 function toAutopostSettings(dto: BffAutopostSettingsDto): TelegramAutopostSettings {
@@ -166,8 +166,8 @@ export const telegramHttpResource: TelegramApi = {
     async markUnready(date: string, contentType: AutopostContentType): Promise<TelegramPost> {
       return toPost(await slotAction(date, contentType, "unready", "POST"));
     },
-    async prepareDay(date: string): Promise<PrepareDayReport> {
-      return httpPost<BffPrepareDayReportDto>(`${BFF_ENDPOINTS.telegram.contentPlan}/${encodeURIComponent(date)}/prepare`, undefined);
+    async prepareDay(date: string, contentType?: AutopostContentType): Promise<PrepareDayReport> {
+      return httpPost<BffPrepareDayReportDto>(`${BFF_ENDPOINTS.telegram.contentPlan}/${encodeURIComponent(date)}/prepare`, contentType ? { contentType } : undefined, 185_000);
     },
   },
 };

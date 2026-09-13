@@ -15,7 +15,7 @@ async function handlePost(request: Request, _session: { user: SafeUser }, { para
     "POST",
     body,
     (raw: WorkerCalendarAiWriteResultDto) => toBffCalendarAiWriteResultDto(raw),
-    60_000,
+    120_000,
   );
 }
 

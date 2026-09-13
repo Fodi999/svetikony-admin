@@ -16,7 +16,7 @@ async function handlePost(_request: Request, _session: { user: SafeUser }, { par
     "POST",
     undefined,
     (raw: WorkerCalendarAiFillResultDto) => toBffCalendarAiFillResultDto(raw),
-    120_000,
+    300_000,
   );
 }
 

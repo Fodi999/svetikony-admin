@@ -260,7 +260,8 @@ export function CalendarDayForm({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex-1 space-y-4 overflow-y-auto p-4 pb-28 md:p-6 md:pb-24">
+      {ai.isBusy ? <p role="status" className="px-4 pt-3 text-sm text-muted-foreground">AI готує матеріали. Дочекайтеся завершення; публікація виконується окремо.</p> : null}
+      <fieldset disabled={ai.isBusy || submitting} aria-busy={ai.isBusy} className="min-w-0 flex-1 space-y-4 overflow-y-auto p-4 pb-28 md:p-6 md:pb-24">
         {effectiveGroupId ? (
           <div className="space-y-1.5">
             <p className="text-xs font-medium text-muted-foreground">Переклади</p>
@@ -550,7 +551,7 @@ export function CalendarDayForm({
             ) : null}
           </TabsContent>
         </Tabs>
-      </div>
+      </fieldset>
 
       <div
         className="fixed inset-x-0 bottom-16 z-20 flex gap-2 border-t bg-background p-3 md:sticky md:bottom-0 md:inset-x-auto"
@@ -560,10 +561,10 @@ export function CalendarDayForm({
           <Eye className="size-4" />
           {messages.actions.preview}
         </Button>
-        {!workingCopy ? <Button type="button" variant="secondary" className="h-11 flex-1" disabled={submitting} onClick={() => handleSave(false)}>
+        {!workingCopy ? <Button type="button" variant="secondary" className="h-11 flex-1" disabled={submitting || ai.isBusy} onClick={() => handleSave(false)}>
           {messages.actions.save}
         </Button> : null}
-        <Button type="button" className="h-11 flex-1" disabled={submitting} onClick={() => handleSave(true)}>
+        <Button type="button" className="h-11 flex-1" disabled={submitting || ai.isBusy} onClick={() => handleSave(true)}>
           {messages.actions.publish}
         </Button>
       </div>

@@ -8,13 +8,19 @@ import { toBffPrepareDayReportDto, type WorkerPrepareDayReportDto } from "../../
  * app/api/admin/telegram/content-plan/[date]/prepare/route.ts. Fills
  * missing text/images for the day's available slots; never sends Telegram,
  * never marks anything ready. */
-async function handlePost(_request: Request, _session: { user: SafeUser }, { params }: { params: Promise<{ date: string }> }) {
+async function handlePost(request: Request, _session: { user: SafeUser }, { params }: { params: Promise<{ date: string }> }) {
   const { date } = await params;
+  const text = await request.text();
+  let body: unknown;
+  try { body = text ? JSON.parse(text) : undefined; } catch {
+    return Response.json({ code: "VALIDATION_ERROR", message: "Invalid JSON" }, { status: 400 });
+  }
   return proxyJsonWrite(
     `${UPSTREAM_ENDPOINTS.telegram.contentPlan}/${encodeURIComponent(date)}/prepare`,
     "POST",
-    undefined,
+    body,
     (raw: WorkerPrepareDayReportDto) => toBffPrepareDayReportDto(raw),
+    180_000,
   );
 }
 

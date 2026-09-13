@@ -78,6 +78,7 @@ function Harness({ dayId }: { dayId?: string }) {
 
   return (
     <div>
+      <input aria-label="manual history" {...form.register("history")} />
       <p data-testid="shortDescription">{shortDescription}</p>
       <p data-testid="seoTitle">{seoTitle ?? ""}</p>
       <p data-testid="seoDescription">{seoDescription ?? ""}</p>
@@ -134,7 +135,7 @@ describe("useCalendarAiActions", () => {
 
     await user.click(screen.getByRole("button", { name: "generate-description" }));
 
-    await waitFor(() => expect(mockToastSuccess).toHaveBeenCalledWith(expect.stringContaining("пропозицію")));
+    await waitFor(() => expect(mockToastSuccess).toHaveBeenCalledWith(expect.stringMatching(/Підготовлено|робочу версію/)));
     expect(screen.getByTestId("shortDescription")).toHaveTextContent("");
   });
 
@@ -174,7 +175,7 @@ describe("useCalendarAiActions", () => {
 
     await user.click(screen.getByRole("button", { name: "generate-image-from-prompt" }));
 
-    await waitFor(() => expect(mockToastSuccess).toHaveBeenCalledWith(expect.stringContaining("пропозицію")));
+    await waitFor(() => expect(mockToastSuccess).toHaveBeenCalledWith(expect.stringMatching(/Підготовлено|робочу версію/)));
     expect(screen.getByTestId("imageId")).toHaveTextContent("");
   });
 
@@ -226,7 +227,7 @@ describe("useCalendarAiActions", () => {
 
     await user.click(screen.getByRole("button", { name: "fill-missing" }));
 
-    await waitFor(() => expect(mockToastSuccess).toHaveBeenCalledWith(expect.stringContaining("пропозицію")));
+    await waitFor(() => expect(mockToastSuccess).toHaveBeenCalledWith(expect.stringMatching(/Підготовлено|робочу версію/)));
     // The record was never touched -- the form still shows nothing patched in.
     expect(screen.getByTestId("shortDescription")).toHaveTextContent("");
     expect(screen.getByTestId("seoTitle")).toHaveTextContent("");
@@ -245,6 +246,44 @@ describe("useCalendarAiActions", () => {
 
     await user.click(screen.getByRole("button", { name: "fill-missing" }));
 
-    await waitFor(() => expect(mockToastSuccess).toHaveBeenCalledWith(expect.stringContaining("нема чого пропонувати")));
+    await waitFor(() => expect(mockToastSuccess).toHaveBeenCalledWith(expect.stringContaining("нема чого додавати")));
   });
+  it('refuses paid generation when the editor has unsaved manual changes', async () => {
+    renderHarness();
+    const user = userEvent.setup();
+    await user.type(screen.getByRole('textbox', { name: 'manual history' }), 'My manual text');
+    await user.click(screen.getByRole('button', { name: 'fill-missing' }));
+    expect(mockApi.fillMissing).not.toHaveBeenCalled();
+    expect(screen.getByRole('textbox', { name: 'manual history' })).toHaveValue('My manual text');
+    expect(mockToastError).toHaveBeenCalled();
+  });
+
+  it('reports API failures separately from source review problems', async () => {
+    mockApi.fillMissing.mockResolvedValue({ mode: 'direct', day: calendarDay(), filled: [], skipped: [{ field: 'image', reason: 'failed' }] });
+    renderHarness();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'fill-missing' }));
+    await waitFor(() => expect(mockToastInfo).toHaveBeenCalledWith(expect.stringContaining('ліміти API')));
+  });
+
+  it('refreshes the working editor immediately after published generation', async () => {
+    const invalidate = vi.spyOn(QueryClient.prototype, 'invalidateQueries');
+    mockApi.generateDescription.mockResolvedValue({ mode: 'proposal', day: calendarDay({ status: 'published' }), proposalId: 'p' });
+    renderHarness();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'generate-description' }));
+    await waitFor(() => expect(invalidate).toHaveBeenCalledWith({ queryKey: ['calendarDays'] }));
+    invalidate.mockRestore();
+  });
+
+  it('keeps an unrelated manual field when a response arrives', async () => {
+    let resolve!: (value: CalendarAiWriteResult) => void;
+    mockApi.generateDescription.mockReturnValue(new Promise<CalendarAiWriteResult>(r => { resolve = r; }));
+    renderHarness();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'generate-description' }));
+    await user.type(screen.getByRole('textbox', { name: 'manual history' }), 'Keep this history');
+    resolve({ mode: 'direct', day: calendarDay({ shortDescription: 'Новий опис', history: 'Old server history' }) });
+    await waitFor(() => expect(screen.getByTestId('shortDescription')).toHaveTextContent('Новий опис'));
+    expect(screen.getByRole('textbox', { name: 'manual history' })).toHaveValue('Keep this history');
+  });
+
 });

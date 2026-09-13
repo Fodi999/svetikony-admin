@@ -7,7 +7,7 @@ import { PrepareDayPanel } from "./prepare-day-panel";
 
 const mockPrepareDay = vi.fn();
 vi.mock("@/lib/api", () => ({
-  apiClient: { telegram: { contentPlan: { prepareDay: (date: string) => mockPrepareDay(date) } } },
+  apiClient: { telegram: { contentPlan: { prepareDay: (date: string, contentType?: string) => mockPrepareDay(date, contentType) } } },
 }));
 
 const mockToastSuccess = vi.fn();
@@ -60,7 +60,8 @@ function expectResultLine(label: string, value: number) {
 
 describe("PrepareDayPanel", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
+    mockPrepareDay.mockResolvedValue(baseReport());
   });
 
   it("shows a confirmation before calling prepareDay, and never calls it on cancel", async () => {
@@ -77,13 +78,13 @@ describe("PrepareDayPanel", () => {
 
   it("calls prepareDay with the day's civil date once confirmed", async () => {
     const user = userEvent.setup();
-    mockPrepareDay.mockResolvedValue(baseReport());
+    mockPrepareDay.mockResolvedValueOnce(baseReport());
     renderPanel();
 
     await user.click(screen.getByRole("button", { name: "Підготувати весь день" }));
     await user.click(screen.getByRole("button", { name: "Підготувати" }));
 
-    await waitFor(() => expect(mockPrepareDay).toHaveBeenCalledWith("2026-09-30"));
+    await waitFor(() => expect(mockPrepareDay).toHaveBeenCalledWith("2026-09-30", "saint_of_day"));
   });
 
   it("shows a disabled loading state while in flight -- a second click cannot fire a duplicate request", async () => {
@@ -106,7 +107,7 @@ describe("PrepareDayPanel", () => {
 
   it("renders the exact per-outcome summary and toasts success once the request resolves", async () => {
     const user = userEvent.setup();
-    mockPrepareDay.mockResolvedValue(
+    mockPrepareDay.mockResolvedValueOnce(
       baseReport({ prepared: 3, alreadyPrepared: 1, missingSource: 1, reviewRequired: 0, failed: 0, imageFailed: 0 }),
     );
     renderPanel();
@@ -125,7 +126,7 @@ describe("PrepareDayPanel", () => {
 
   it("combines failed and imageFailed into a single 'Помилки' count", async () => {
     const user = userEvent.setup();
-    mockPrepareDay.mockResolvedValue(baseReport({ prepared: 2, failed: 1, imageFailed: 1 }));
+    mockPrepareDay.mockResolvedValueOnce(baseReport({ prepared: 2, failed: 1, imageFailed: 1 }));
     renderPanel();
 
     await user.click(screen.getByRole("button", { name: "Підготувати весь день" }));
@@ -146,4 +147,24 @@ describe("PrepareDayPanel", () => {
     await waitFor(() => expect(mockToastError).toHaveBeenCalled());
     expect(screen.queryByText("Підготовку завершено")).not.toBeInTheDocument();
   });
+  it('prepares each slot separately in schedule order', async () => {
+    renderPanel();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Підготувати весь день' }));
+    await user.click(screen.getByRole('button', { name: 'Підготувати' }));
+    await waitFor(() => expect(mockPrepareDay).toHaveBeenCalledTimes(5));
+    expect(new Set(mockPrepareDay.mock.calls.map(call => call[1])).size).toBe(5);
+    expect(mockPrepareDay.mock.calls.every(call => call[0] === '2026-09-30')).toBe(true);
+  });
+
+  it('stops the sequence after an unknown network outcome instead of blindly retrying', async () => {
+    mockPrepareDay.mockRejectedValueOnce(new Error('timeout'));
+    renderPanel();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Підготувати весь день' }));
+    await user.click(screen.getByRole('button', { name: 'Підготувати' }));
+    await screen.findByRole('alert');
+    expect(mockPrepareDay).toHaveBeenCalledTimes(1);
+  });
+
 });

@@ -116,7 +116,7 @@ export function DayDrawer({
             </div>
           ) : null}
 
-          {civilDate ? <PrepareDayPanel civilDate={civilDate} year={year} /> : null}
+          {civilDate ? <PrepareDayPanel key={civilDate} civilDate={civilDate} year={year} /> : null}
 
           {dayQuery.isLoading ? (
             <div className="space-y-2">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -25,6 +25,7 @@ export default function EditCalendarDayPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { canEdit } = useAuth();
+  const aiBusy = useIsMutating({ mutationKey: ["calendar-ai", params.id] }) > 0;
   const { guardNavigation, isDirty } = useUnsavedChanges();
   const [confirmDelete, setConfirmDelete] = useState(false);
   // Bumped whenever the form must show freshly-fetched values instead of
@@ -45,11 +46,11 @@ export default function EditCalendarDayPage() {
       return { ...editor, day: calendarDayFromDto(editor.working) };
     },
     refetchOnWindowFocus: false,
-    refetchInterval: isDirty ? false : 15000,
-    enabled: !isDirty,
+    refetchInterval: isDirty || aiBusy ? false : 15000,
+    enabled: !isDirty && !aiBusy,
   });
 
-  if (query.data && !isDirty && review !== query.data) setReview(query.data);
+  if (query.data && !isDirty && !aiBusy && review !== query.data) setReview(query.data);
 
   const updateMutation = useMutation({
     mutationFn: (values: CalendarDayFormValues) => proposalRequest(`/editor/calendar/${params.id}`, {

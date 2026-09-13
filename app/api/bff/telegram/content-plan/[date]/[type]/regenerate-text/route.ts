@@ -15,6 +15,7 @@ async function handlePost(_request: Request, _session: { user: SafeUser }, { par
     "POST",
     undefined,
     (raw: WorkerTelegramPostDto) => toBffTelegramPostDto(raw),
+    120_000,
   );
 }
 
