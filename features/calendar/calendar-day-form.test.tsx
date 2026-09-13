@@ -84,14 +84,14 @@ function renderForm(props: Partial<React.ComponentProps<typeof CalendarDayForm>>
 describe("CalendarDayForm loading an existing record", () => {
   it("shows the fetched date and title, not blank fields", () => {
     renderForm({ day: baseDay() });
-    expect(screen.getByLabelText("Дата")).toHaveValue("2026-09-06");
+    expect(screen.getByLabelText("Сучасна дата (григоріанська)")).toHaveValue("2026-09-06");
     expect(screen.getByLabelText("Назва")).toHaveValue("Собор Архістратига Михаїла");
     expect(screen.getByLabelText("Slug")).toHaveValue("sobor-arhystratyha-myhaila");
   });
 
   it("shows the new record's values, not stale ones, when remounted for a different record (the `key` fix)", () => {
     const { rerender } = renderForm({ day: baseDay() });
-    expect(screen.getByLabelText("Дата")).toHaveValue("2026-09-06");
+    expect(screen.getByLabelText("Сучасна дата (григоріанська)")).toHaveValue("2026-09-06");
 
     const nextDay = baseDay({
       id: "day-2",
@@ -112,7 +112,7 @@ describe("CalendarDayForm loading an existing record", () => {
         </UnsavedChangesProvider>
       </QueryClientProvider>,
     );
-    expect(screen.getByLabelText("Дата")).toHaveValue("2026-09-07");
+    expect(screen.getByLabelText("Сучасна дата (григоріанська)")).toHaveValue("2026-09-07");
     expect(screen.getByLabelText("Назва")).toHaveValue("Передсвято Різдва");
   });
 });
@@ -160,5 +160,26 @@ describe("CalendarDayForm relations tab", () => {
       "/saints/saint-1",
     );
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+  });
+});
+
+
+describe("AI creation from an empty date", () => {
+  it("shows both dates and starts without requiring title/slug/description", async () => {
+    const create = vi.fn().mockResolvedValue(undefined);
+    renderForm({ mode: "create", initialDate: "2026-10-01", onCreateWithAi: create });
+    expect(screen.getByText(/Юліанська дата.*2026-09-18/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Створити чернетку з AI: текст і фото" }));
+    expect(create).toHaveBeenCalledWith("2026-10-01", "uk");
+  });
+  it("does not overwrite manually entered text", async () => {
+    renderForm({ mode: "create", initialDate: "2026-10-01", onCreateWithAi: vi.fn() });
+    await userEvent.type(screen.getByLabelText("Назва"), "Моя назва");
+    expect(screen.getByRole("button", { name: "Створити чернетку з AI: текст і фото" })).toBeDisabled();
+  });
+  it("blocks publish and generation while preparing", () => {
+    renderForm({ mode: "create", initialDate: "2026-10-01", onCreateWithAi: vi.fn(), submitting: true, preparationStatus: "1/3 · Джерело та AI-текст…" });
+    expect(screen.getByRole("button", { name: "Опублікувати" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "1/3 · Джерело та AI-текст…" })).toBeDisabled();
   });
 });

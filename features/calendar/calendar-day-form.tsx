@@ -23,6 +23,7 @@ import { useBeforeUnloadWarning } from "@/lib/utils/use-before-unload";
 import { resolveMediaPreviewUrl } from "@/lib/media/resolve-preview-url";
 import { calendarDaySchema, type CalendarDayFormValues } from "@/lib/validation/calendar.schema";
 import type { CalendarDay, CalendarEventType, Language } from "@/types/entities";
+import { gregorianToJulianCalendarDate } from "./julian-calendar";
 import { useCalendarAiActions } from "./use-calendar-ai-actions";
 
 const EVENT_TYPE_LABELS = {
@@ -99,6 +100,8 @@ interface CalendarDayFormProps {
   initialLanguage?: Language;
   initialSlug?: string;
   onSubmit: (values: CalendarDayFormValues) => Promise<void>;
+  onCreateWithAi?: (date: string, language: Language) => Promise<void>;
+  preparationStatus?: string;
   onDelete?: () => void;
   submitting?: boolean;
   workingCopy?: boolean;
@@ -115,6 +118,8 @@ export function CalendarDayForm({
   initialSlug,
   onSubmit,
   onDelete,
+  onCreateWithAi,
+  preparationStatus,
   submitting,
   workingCopy = false,
   onSaved,
@@ -269,6 +274,17 @@ export function CalendarDayForm({
           </div>
         ) : null}
 
+        {mode === "create" && onCreateWithAi && !groupId ? (
+          <div className="space-y-2 rounded-xl border p-4">
+            <Button type="button" className="w-full" disabled={submitting || !/^\d{4}-\d{2}-\d{2}$/.test(values.date) || Boolean(values.title || values.shortDescription || values.history || values.imageId)} onClick={() => void onCreateWithAi(values.date, values.language)}>
+              <Sparkles className="size-4" />{preparationStatus || "Створити чернетку з AI: текст і фото"}
+            </Button>
+            <p className="text-sm text-muted-foreground">Оберіть сучасну дату. Юліанська дата розраховується автоматично. AI підготує нерухомі пам’яті за старим стилем із календарного джерела та збереже чернетку. Перехідні свята, піст і читання потребують окремої перевірки. Публікуєте лише ви.</p>
+            {Boolean(values.title || values.shortDescription || values.history || values.imageId) ? <p className="text-sm">Для введених вручну даних спочатку збережіть чернетку, потім заповніть відсутнє з AI.</p> : null}
+            {preparationStatus ? <p role="status">{preparationStatus} Не закривайте сторінку.</p> : null}
+          </div>
+        ) : null}
+
         {mode === "edit" && day ? (
           <Button
             type="button"
@@ -296,7 +312,8 @@ export function CalendarDayForm({
           </TabsList>
 
           <TabsContent value="basic" className="space-y-4">
-            <TextField control={form.control} name="date" label="Дата" type="date" />
+            <TextField control={form.control} name="date" label="Сучасна дата (григоріанська)" type="date" />
+            <p className="text-sm text-muted-foreground">Юліанська дата (старий стиль): {/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(values.date) ? gregorianToJulianCalendarDate(values.date) : "—"}</p>
             <TextField control={form.control} name="title" label="Назва" />
             <TextField control={form.control} name="slug" label="Slug" description="Латиниця, цифри, дефіси" />
             <SelectField

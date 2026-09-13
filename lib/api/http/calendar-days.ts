@@ -1,3 +1,4 @@
+import { gregorianToJulianCalendarDate } from "@/features/calendar/julian-calendar";
 import type { z } from "zod";
 import type { BffCalendarAiFillResultDto, BffCalendarAiWriteResultDto, BffCalendarDayDto, WorkerCalendarDayWritePayload } from "@/app/api/bff/calendar-days/_contract";
 import type { ApiClient, CalendarQuery } from "@/lib/api/client";
@@ -61,6 +62,7 @@ export function calendarDayFromDto(dto: BffCalendarDayDto): CalendarDay {
 function toPayload(values: CalendarDayFormValues): WorkerCalendarDayWritePayload {
   return {
     dateNewStyle: values.date,
+    dateOldStyle: gregorianToJulianCalendarDate(values.date),
     calendarType: "both",
     title: values.title,
     slug: values.slug,
