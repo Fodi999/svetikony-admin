@@ -44,4 +44,5 @@ it("creates nothing if source/text preparation fails", async () => {
   open(); await userEvent.click(screen.getByText("prepare"));
   await waitFor(() => expect(mocks.error).toHaveBeenCalled());
   expect(mocks.create).not.toHaveBeenCalled(); expect(mocks.image).not.toHaveBeenCalled();
+  expect(screen.getByRole("alert")).toHaveTextContent("source unavailable");
 });

@@ -27,6 +27,7 @@ function NewCalendarDayPageInner() {
   const { setDirty } = useUnsavedChanges();
   const preparing = useRef(false);
   const [preparationStatus, setPreparationStatus] = useState("");
+  const [preparationError, setPreparationError] = useState("");
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   // Prefills the date when arriving from an empty month-grid slot (task
@@ -55,6 +56,7 @@ function NewCalendarDayPageInner() {
   async function createWithAi(date: string, language: Language) {
     if (preparing.current) return;
     preparing.current = true;
+    setPreparationError("");
     let createdId: string | undefined;
     try {
       setPreparationStatus("Перевірка дати…");
@@ -77,7 +79,9 @@ function NewCalendarDayPageInner() {
       await apiClient.calendarDays.generateImage(created.id);
       toast.success("Чернетку з текстом і фото створено. Перевірте перед публікацією.");
     } catch (error) {
-      toast.error(createdId ? "Текст збережено як чернетку, але фото не згенеровано. Повторіть генерацію у вкладці Медіа." : errorMessageFor(error));
+      const message = createdId ? "Текст збережено як чернетку, але фото не згенеровано. Повторіть генерацію у вкладці Медіа." : errorMessageFor(error);
+      setPreparationError(message);
+      toast.error(message);
     } finally {
       preparing.current = false;
       setPreparationStatus("");
@@ -91,6 +95,7 @@ function NewCalendarDayPageInner() {
 
   return (
     <RequireAccess area="content" requireEdit>
+      {preparationError ? <p role="alert" className="mx-6 mt-4 rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">{preparationError}</p> : null}
       <CalendarDayForm
         mode="create"
         initialDate={initialDate}
