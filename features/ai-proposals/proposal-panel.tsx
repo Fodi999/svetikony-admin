@@ -50,10 +50,12 @@ export function ProposalPanel({
   targetId,
   onApplied,
   list = false,
+  applyDisabled = false,
 }: {
   targetId?: string;
   onApplied?: () => Promise<unknown>;
   list?: boolean;
+  applyDisabled?: boolean;
 }) {
   const [locale, setLocale] = useState<keyof typeof proposalMessages>("uk"),
     [selected, setSelected] = useState<string | null>(null),
@@ -83,7 +85,7 @@ export function ProposalPanel({
   });
   const p = detail.data;
   async function action(kind: "apply" | "reject") {
-    if (!p || busy) return;
+    if (!p || busy || (kind === "apply" && applyDisabled)) return;
     setBusy(true);
     setError(false);
     try {
@@ -191,6 +193,7 @@ export function ProposalPanel({
           {t.next}
         </Button>
       </div>
+      {applyDisabled ? <p role="status">{t.unsaved}</p> : null}
       {p ? (
         <article className="space-y-4 border-t pt-4">
           <h3>
@@ -205,7 +208,7 @@ export function ProposalPanel({
                   <h5>{t.current}</h5>
                   <FieldValue
                     value={(p.current ?? p.before)[field]}
-                    image={field === "imageUrl"}
+                    image={["imageUrl", "mainImageUrl", "cardImageUrl"].includes(field)}
                     alt={t.current + " " + t.image}
                   />
                 </div>
@@ -213,7 +216,7 @@ export function ProposalPanel({
                   <h5>{t.proposed}</h5>
                   <FieldValue
                     value={v}
-                    image={field === "imageUrl"}
+                    image={["imageUrl", "mainImageUrl", "cardImageUrl"].includes(field)}
                     alt={t.proposed + " " + t.image}
                   />
                 </div>
@@ -222,7 +225,7 @@ export function ProposalPanel({
           ))}
           {p.status === "pending" ? (
             <div className="flex gap-2">
-              <Button disabled={busy || detail.isFetching} onClick={() => setConfirm(true)}>
+              <Button disabled={busy || detail.isFetching || applyDisabled} onClick={() => setConfirm(true)}>
                 {t.apply}
               </Button>
               <Button disabled={busy} variant="outline" onClick={() => void action("reject")}>

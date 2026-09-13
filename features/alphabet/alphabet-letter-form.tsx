@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Eye, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -14,6 +14,7 @@ import { TranslationSwitcher, type Completeness } from "@/components/forms/trans
 import { useUnsavedChanges } from "@/components/feedback/unsaved-changes-context";
 import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
+import { ProposalPanel } from "@/features/ai-proposals/proposal-panel";
 import { apiClient } from "@/lib/api";
 import { messages } from "@/lib/i18n";
 import { resolveMediaPreviewUrl } from "@/lib/media/resolve-preview-url";
@@ -81,6 +82,7 @@ export function AlphabetLetterFormComponent({
   submitting,
 }: AlphabetLetterFormProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { setDirty } = useUnsavedChanges();
   const [previewOpen, setPreviewOpen] = useState(false);
   // Uploads made this session, not yet confirmed saved — distinct from the
@@ -183,6 +185,18 @@ export function AlphabetLetterFormComponent({
   return (
     <div className="flex h-full flex-col">
       <div className="flex-1 space-y-4 overflow-y-auto p-4 pb-24 md:p-6">
+        {letter ? (
+          <ProposalPanel
+            targetId={letter.id}
+            applyDisabled={form.formState.isDirty}
+            onApplied={async () => {
+              const updated = await apiClient.alphabetLetters.get(letter.id);
+              form.reset({ ...EMPTY_DEFAULTS, ...updated });
+              setDirty(false);
+              await queryClient.invalidateQueries({ queryKey: ["alphabetLetters"] });
+            }}
+          />
+        ) : null}
         {effectiveGroupId ? (
           <div className="space-y-1.5">
             <p className="text-xs font-medium text-muted-foreground">Переклади</p>

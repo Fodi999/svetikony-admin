@@ -23,7 +23,7 @@ afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
 });
-function setup() {
+function setup(imageField = "imageUrl", applyDisabled = false) {
   let applied = false;
   const mutations: string[] = [];
   const p = {
@@ -35,7 +35,7 @@ function setup() {
     reason: "Review",
     before: { history: "Old", status: "published", title: "Day" },
     current: { history: "Old", status: "published" },
-    patch: { history: "New", imageUrl: "https://example.invalid/image.png", seoTitle: "SEO" },
+    patch: { history: "New", [imageField]: "https://example.invalid/image.png", seoTitle: "SEO" },
   };
   vi.stubGlobal(
     "fetch",
@@ -53,7 +53,7 @@ function setup() {
     <QueryClientProvider
       client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
     >
-      <ProposalPanel targetId="day" onApplied={onApplied} />
+      <ProposalPanel targetId="day" onApplied={onApplied} applyDisabled={applyDisabled} />
     </QueryClientProvider>,
   );
   return { mutations, onApplied };
@@ -80,4 +80,17 @@ it("reject does not invoke the target refresh/apply callback", async () => {
   fireEvent.click(await screen.findByText("Відхилити"));
   await waitFor(() => expect(mutations).toEqual(["/api/bff/ai-proposals/proposal/reject"]));
   expect(onApplied).not.toHaveBeenCalled();
+});
+
+it.each(["mainImageUrl", "cardImageUrl"])("previews alphabet image field %s without applying", async (field) => {
+  const { mutations } = setup(field);
+  fireEvent.click(await screen.findByText("Переглянути"));
+  expect(await screen.findByRole("img")).toHaveAttribute("src", "https://example.invalid/image.png");
+  expect(mutations).toEqual([]);
+});
+it("blocks apply while the editor has unsaved changes", async () => {
+  const { mutations } = setup("mainImageUrl", true);
+  fireEvent.click(await screen.findByText("Переглянути"));
+  expect(await screen.findByRole("button", { name: "Застосувати" })).toBeDisabled();
+  expect(mutations).toEqual([]);
 });

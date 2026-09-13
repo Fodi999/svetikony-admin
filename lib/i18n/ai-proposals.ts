@@ -1,5 +1,6 @@
 export const proposalMessages = {
   uk: {
+    unsaved: "Збережіть або скасуйте зміни форми перед застосуванням пропозиції AI.",
     title: "Пропозиція AI",
     list: "Пропозиції AI",
     pending: "Очікує перевірки",
@@ -29,6 +30,7 @@ export const proposalMessages = {
     previous: "Назад",
   },
   ru: {
+    unsaved: "Сохраните или отмените изменения формы перед применением предложения AI.",
     title: "Предложение AI",
     list: "Предложения AI",
     pending: "Ожидает проверки",
@@ -58,6 +60,7 @@ export const proposalMessages = {
     previous: "Назад",
   },
   en: {
+    unsaved: "Save or discard form changes before applying an AI proposal.",
     title: "AI proposal",
     list: "AI Proposals",
     pending: "Awaiting review",
