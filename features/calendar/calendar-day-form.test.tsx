@@ -11,9 +11,9 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push: mockPush }) }));
 
 const mockApi = vi.hoisted(() => ({
   icons: { list: vi.fn() },
-  prayers: { list: vi.fn() },
+  prayers: { list: vi.fn(), update: vi.fn(), create: vi.fn() },
   saints: { list: vi.fn() },
-  gospelReadings: { list: vi.fn() },
+  gospelReadings: { list: vi.fn(), update: vi.fn(), create: vi.fn() },
   calendarDays: {
     list: vi.fn(),
     generateDescription: vi.fn(),
@@ -160,6 +160,100 @@ describe("CalendarDayForm relations tab", () => {
       "/saints/saint-1",
     );
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+  });
+
+  it("links an existing unlinked prayer to this day", async () => {
+    const user = userEvent.setup();
+    mockApi.prayers.list.mockReturnValue(
+      Promise.resolve({ items: [{ id: "prayer-1", title: "Псалом 90", language: "uk", text: "Живий в помочі" }], total: 1 }),
+    );
+    mockApi.prayers.update.mockResolvedValue({ id: "prayer-1", title: "Псалом 90", calendarDayId: "day-1" });
+    renderForm({ day: baseDay() });
+
+    await user.click(screen.getByRole("tab", { name: "Зв'язки" }));
+    await user.click(await screen.findByRole("combobox", { name: "Оберіть існуючий запис" }));
+    await user.click(await screen.findByRole("option", { name: "Псалом 90 (UK)" }));
+    await user.click(screen.getByRole("button", { name: "Зв'язати" }));
+
+    expect(mockApi.prayers.update).toHaveBeenCalledWith(
+      "prayer-1",
+      expect.objectContaining({ id: "prayer-1", title: "Псалом 90", calendarDayId: "day-1" }),
+    );
+  });
+
+  it("excludes a prayer already linked to a different day from the link picker", async () => {
+    const user = userEvent.setup();
+    mockApi.prayers.list.mockReturnValue(
+      Promise.resolve({
+        items: [
+          { id: "prayer-1", title: "Псалом 90", language: "uk", calendarDayId: "some-other-day" },
+          { id: "prayer-2", title: "Молитва Господня", language: "uk" },
+        ],
+        total: 2,
+      }),
+    );
+    renderForm({ day: baseDay() });
+    await user.click(screen.getByRole("tab", { name: "Зв'язки" }));
+
+    await user.click(await screen.findByRole("combobox", { name: "Оберіть існуючий запис" }));
+    expect(await screen.findByRole("option", { name: "Молитва Господня (UK)" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /Псалом 90/ })).not.toBeInTheDocument();
+  });
+
+  it("quick-creates a new prayer pre-linked to this day, with no AI authorship", async () => {
+    const user = userEvent.setup();
+    mockApi.prayers.create.mockResolvedValue({ id: "prayer-new", title: "Нова молитва", calendarDayId: "day-1" });
+    renderForm({ day: baseDay() });
+    await user.click(screen.getByRole("tab", { name: "Зв'язки" }));
+
+    await user.click(screen.getByRole("button", { name: "+ Створити нову" }));
+    await user.type(screen.getByLabelText("Назва молитви"), "Нова молитва");
+    await user.type(screen.getByLabelText("Текст молитви"), "Текст цієї молитви");
+    await user.click(screen.getByRole("button", { name: "Створити" }));
+
+    expect(mockApi.prayers.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Нова молитва",
+        text: "Текст цієї молитви",
+        calendarDayId: "day-1",
+        language: "uk",
+        status: "draft",
+      }),
+    );
+  });
+
+  it("quick-creates a new Gospel reading pre-linked to this day", async () => {
+    const user = userEvent.setup();
+    mockApi.gospelReadings.create.mockResolvedValue({ id: "gospel-new", title: "Нове читання", calendarDayId: "day-1" });
+    renderForm({ day: baseDay() });
+    await user.click(screen.getByRole("tab", { name: "Зв'язки" }));
+
+    await user.click(screen.getByRole("button", { name: "+ Створити нове" }));
+    await user.type(screen.getByLabelText("Посилання на читання"), "Ів. 1:1-17");
+    await user.type(screen.getByLabelText("Назва читання"), "Нове читання");
+    await user.type(screen.getByLabelText("Текст читання"), "Текст читання тут");
+    await user.click(screen.getByRole("button", { name: "Створити" }));
+
+    expect(mockApi.gospelReadings.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reference: "Ів. 1:1-17",
+        title: "Нове читання",
+        text: "Текст читання тут",
+        calendarDayId: "day-1",
+        language: "uk",
+        status: "draft",
+      }),
+    );
+  });
+
+  it("hides the link/create controls when the day hasn't been saved yet (create mode)", async () => {
+    const user = userEvent.setup();
+    renderForm({ mode: "create" });
+    await user.click(screen.getByRole("tab", { name: "Зв'язки" }));
+    expect(screen.getByText(/Спочатку збережіть день/)).toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "Оберіть існуючий запис" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "+ Створити нову" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "+ Створити нове" })).not.toBeInTheDocument();
   });
 });
 

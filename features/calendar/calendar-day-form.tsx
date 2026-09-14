@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Eye, Sparkles, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -15,18 +15,35 @@ import { TextField } from "@/components/forms/text-field";
 import { TranslationSwitcher, type Completeness } from "@/components/forms/translation-switcher";
 import { useUnsavedChanges } from "@/components/feedback/unsaved-changes-context";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { apiClient } from "@/lib/api";
+import { errorMessageFor } from "@/lib/api/errors";
 import { messages } from "@/lib/i18n";
 import { useBeforeUnloadWarning } from "@/lib/utils/use-before-unload";
 import { resolveMediaPreviewUrl } from "@/lib/media/resolve-preview-url";
 import { calendarDaySchema, type CalendarDayFormValues } from "@/lib/validation/calendar.schema";
+import { gospelReadingSchema } from "@/lib/validation/gospel.schema";
+import { prayerSchema } from "@/lib/validation/prayer.schema";
 import { cn } from "@/lib/utils";
-import type { CalendarDay, CalendarEventType, Language } from "@/types/entities";
+import type { CalendarDay, CalendarEventType, GospelReading, Language, Prayer } from "@/types/entities";
 import { calendarDayCompletenessPercent, calendarDayMissingFieldLabels } from "./calendar-day-status";
 import { gregorianToJulianCalendarDate } from "./julian-calendar";
 import { useCalendarAiActions } from "./use-calendar-ai-actions";
+
+/** Matches the backend's own slugify() character class (see
+ * lib/validation/common.ts's slugSchema doc comment) -- lowercase letters
+ * of any script plus digits, hyphen-separated. Good enough for a quick-
+ * create shortcut; the admin can still open the real record to adjust it. */
+function slugify(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^\p{Ll}\p{N}]+/gu, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 120);
+}
 
 const EVENT_TYPE_LABELS = {
   feast: "Свято",
@@ -84,6 +101,152 @@ function LinkedContentSection({ title, hrefBase, items }: { title: string; hrefB
           ))}
         </ul>
       )}
+    </div>
+  );
+}
+
+/** "Зв'язати існуючу" -- a small dropdown of not-yet-linked prayers/Gospel
+ * readings, right in the calendar form, so linking one doesn't require
+ * navigating away. Still a real write to the CHILD record's own
+ * calendarDayId (via `onLink`), same as editing it directly would do --
+ * this is a shortcut for the existing pattern, not a new one. Only offers
+ * items with no calendarDayId at all; reassigning one already linked to a
+ * *different* day stays a "go edit that record" action. */
+function RelationLinkExisting<T extends { id: string; calendarDayId?: string }>({
+  candidates,
+  getLabel,
+  onLink,
+  pending,
+}: {
+  candidates: T[];
+  getLabel: (item: T) => string;
+  onLink: (item: T) => void;
+  pending: boolean;
+}) {
+  const [selectedId, setSelectedId] = useState("");
+  const unlinked = candidates.filter((item) => !item.calendarDayId);
+  if (!unlinked.length) return null;
+  const options = unlinked.map((item) => ({ value: item.id, label: getLabel(item) }));
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <Select value={selectedId} onValueChange={(value) => setSelectedId(value ?? "")} items={options}>
+        <SelectTrigger className="w-full sm:w-64" aria-label="Оберіть існуючий запис">
+          <SelectValue placeholder="Оберіть існуючий запис" />
+        </SelectTrigger>
+        <SelectContent>
+          {options.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        disabled={!selectedId || pending}
+        onClick={() => {
+          const item = unlinked.find((candidate) => candidate.id === selectedId);
+          if (item) {
+            onLink(item);
+            setSelectedId("");
+          }
+        }}
+      >
+        Зв&apos;язати
+      </Button>
+    </div>
+  );
+}
+
+/** "Створити нову" -- collapsed to a single button until opened, then a
+ * deliberately minimal inline form (no AI authorship, no visualizer/audio
+ * fields -- see handleCreatePrayer's own doc comment). */
+function QuickCreatePrayer({ onCreate, pending }: { onCreate: (values: { title: string; text: string }) => void; pending: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [title, setTitle] = useState("");
+  const [text, setText] = useState("");
+  if (!open) {
+    return (
+      <Button type="button" variant="outline" size="sm" onClick={() => setOpen(true)}>
+        + Створити нову
+      </Button>
+    );
+  }
+  return (
+    <div className="space-y-2 rounded-md border p-3">
+      <Input placeholder="Назва молитви" value={title} onChange={(event) => setTitle(event.target.value)} aria-label="Назва молитви" />
+      <Textarea placeholder="Текст молитви" rows={4} value={text} onChange={(event) => setText(event.target.value)} aria-label="Текст молитви" />
+      <div className="flex gap-2">
+        <Button
+          type="button"
+          size="sm"
+          disabled={pending}
+          onClick={() => {
+            onCreate({ title, text });
+            setTitle("");
+            setText("");
+            setOpen(false);
+          }}
+        >
+          Створити
+        </Button>
+        <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>
+          Скасувати
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/** Same shape as QuickCreatePrayer, for Gospel readings (reference/title/
+ * text/explanation instead of title/text). */
+function QuickCreateGospel({
+  onCreate,
+  pending,
+}: {
+  onCreate: (values: { reference: string; title: string; text: string; explanation: string }) => void;
+  pending: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [reference, setReference] = useState("");
+  const [title, setTitle] = useState("");
+  const [text, setText] = useState("");
+  const [explanation, setExplanation] = useState("");
+  if (!open) {
+    return (
+      <Button type="button" variant="outline" size="sm" onClick={() => setOpen(true)}>
+        + Створити нове
+      </Button>
+    );
+  }
+  return (
+    <div className="space-y-2 rounded-md border p-3">
+      <Input placeholder="Посилання, напр. Ів. 1:1-17" value={reference} onChange={(event) => setReference(event.target.value)} aria-label="Посилання на читання" />
+      <Input placeholder="Назва" value={title} onChange={(event) => setTitle(event.target.value)} aria-label="Назва читання" />
+      <Textarea placeholder="Текст читання" rows={4} value={text} onChange={(event) => setText(event.target.value)} aria-label="Текст читання" />
+      <Textarea placeholder="Пояснення (необов'язково)" rows={2} value={explanation} onChange={(event) => setExplanation(event.target.value)} aria-label="Пояснення" />
+      <div className="flex gap-2">
+        <Button
+          type="button"
+          size="sm"
+          disabled={pending}
+          onClick={() => {
+            onCreate({ reference, title, text, explanation });
+            setReference("");
+            setTitle("");
+            setText("");
+            setExplanation("");
+            setOpen(false);
+          }}
+        >
+          Створити
+        </Button>
+        <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>
+          Скасувати
+        </Button>
+      </div>
     </div>
   );
 }
@@ -196,6 +359,99 @@ export function CalendarDayForm({
   const linkedPrayers = (prayersQuery.data?.items ?? []).filter((p) => p.calendarDayId === day?.id);
   const linkedSaints = (saintsQuery.data?.items ?? []).filter((s) => s.calendarDayId === day?.id);
   const linkedGospel = (gospelQuery.data?.items ?? []).filter((g) => g.calendarDayId === day?.id);
+
+  const queryClient = useQueryClient();
+  const linkPrayerMutation = useMutation({
+    mutationFn: (prayer: Prayer) => apiClient.prayers.update(prayer.id, { ...prayer, calendarDayId: day!.id }),
+    onSuccess: () => {
+      toast.success("Молитву пов'язано з цим днем.");
+      queryClient.invalidateQueries({ queryKey: ["prayers", "options"] });
+    },
+    onError: (error) => toast.error(errorMessageFor(error)),
+  });
+  const linkGospelMutation = useMutation({
+    mutationFn: (reading: GospelReading) => apiClient.gospelReadings.update(reading.id, { ...reading, calendarDayId: day!.id }),
+    onSuccess: () => {
+      toast.success("Читання пов'язано з цим днем.");
+      queryClient.invalidateQueries({ queryKey: ["gospelReadings", "options"] });
+    },
+    onError: (error) => toast.error(errorMessageFor(error)),
+  });
+  const createPrayerMutation = useMutation({
+    mutationFn: (values: Parameters<typeof apiClient.prayers.create>[0]) => apiClient.prayers.create(values),
+    onSuccess: () => {
+      toast.success("Молитву створено й пов'язано з цим днем.");
+      queryClient.invalidateQueries({ queryKey: ["prayers", "options"] });
+    },
+    onError: (error) => toast.error(errorMessageFor(error)),
+  });
+  const createGospelMutation = useMutation({
+    mutationFn: (values: Parameters<typeof apiClient.gospelReadings.create>[0]) => apiClient.gospelReadings.create(values),
+    onSuccess: () => {
+      toast.success("Читання створено й пов'язано з цим днем.");
+      queryClient.invalidateQueries({ queryKey: ["gospelReadings", "options"] });
+    },
+    onError: (error) => toast.error(errorMessageFor(error)),
+  });
+
+  // Quick-create mini-forms are deliberately minimal (no AI authorship --
+  // prayers and Gospel readings are established Church texts, not
+  // freely composable content). Everything beyond these few fields
+  // (audio/visualizer for prayers, etc.) stays for the admin to fill in
+  // later by opening the real record; this is a shortcut, not a
+  // replacement editor.
+  function handleCreatePrayer(values: { title: string; text: string }) {
+    if (!day) return;
+    const parsed = prayerSchema.safeParse({
+      title: values.title,
+      slug: slugify(values.title),
+      text: values.text,
+      language: day.language,
+      prayerType: "general",
+      status: "draft",
+      calendarDayId: day.id,
+      audioUrl: "",
+      qrCodeUrl: "",
+      imageUrl: "",
+      source: "",
+      sourceUrl: "",
+      note: "",
+      visualizerEnabled: false,
+      visualizerImageUrl: "",
+      particleCountDesktop: 1200,
+      particleCountMobile: 400,
+      particleSize: 2,
+      particleColorMode: "theme",
+      backgroundColor: "#0b1220",
+      audioReactivity: 0.4,
+      sceneTimeline: [],
+      subtitleCues: [],
+    });
+    if (!parsed.success) {
+      toast.error(parsed.error.issues[0]?.message ?? "Некоректні дані молитви");
+      return;
+    }
+    createPrayerMutation.mutate(parsed.data);
+  }
+
+  function handleCreateGospel(values: { reference: string; title: string; text: string; explanation: string }) {
+    if (!day) return;
+    const parsed = gospelReadingSchema.safeParse({
+      title: values.title,
+      slug: slugify(values.title),
+      language: day.language,
+      reference: values.reference,
+      text: values.text,
+      explanation: values.explanation.trim() || undefined,
+      status: "draft",
+      calendarDayId: day.id,
+    });
+    if (!parsed.success) {
+      toast.error(parsed.error.issues[0]?.message ?? "Некоректні дані читання");
+      return;
+    }
+    createGospelMutation.mutate(parsed.data);
+  }
 
   const effectiveGroupId = day?.translationGroupId ?? groupId;
 
@@ -475,13 +731,32 @@ export function CalendarDayForm({
             {mode === "edit" && day ? (
               <>
                 <p className="text-xs text-muted-foreground">
-                  Це реальні зв&apos;язки з боку пов&apos;язаних записів (їхнє поле «календарний день»). Щоб додати чи прибрати
-                  зв&apos;язок, відредагуйте відповідний запис — тут це лише перегляд.
+                  Це реальні зв&apos;язки з боку пов&apos;язаних записів (їхнє поле «календарний день»). Для ікон і святих, щоб
+                  додати чи прибрати зв&apos;язок, відредагуйте відповідний запис. Молитви й читання можна зв&apos;язати або
+                  швидко створити прямо тут.
                 </p>
                 <LinkedContentSection title="Пов'язані ікони" hrefBase="/icons" items={linkedIcons.map((i) => ({ id: i.id, label: i.title }))} />
-                <LinkedContentSection title="Пов'язані молитви" hrefBase="/prayers" items={linkedPrayers.map((p) => ({ id: p.id, label: p.title }))} />
+                <div className="space-y-2">
+                  <LinkedContentSection title="Пов'язані молитви" hrefBase="/prayers" items={linkedPrayers.map((p) => ({ id: p.id, label: p.title }))} />
+                  <RelationLinkExisting
+                    candidates={prayersQuery.data?.items ?? []}
+                    getLabel={(p) => `${p.title} (${p.language.toUpperCase()})`}
+                    onLink={(p) => linkPrayerMutation.mutate(p)}
+                    pending={linkPrayerMutation.isPending}
+                  />
+                  <QuickCreatePrayer onCreate={handleCreatePrayer} pending={createPrayerMutation.isPending} />
+                </div>
                 <LinkedContentSection title="Пов'язані святі" hrefBase="/saints" items={linkedSaints.map((s) => ({ id: s.id, label: s.name }))} />
-                <LinkedContentSection title="Пов'язані читання" hrefBase="/gospel" items={linkedGospel.map((g) => ({ id: g.id, label: g.title }))} />
+                <div className="space-y-2">
+                  <LinkedContentSection title="Пов'язані читання" hrefBase="/gospel" items={linkedGospel.map((g) => ({ id: g.id, label: g.title }))} />
+                  <RelationLinkExisting
+                    candidates={gospelQuery.data?.items ?? []}
+                    getLabel={(g) => `${g.title} (${g.language.toUpperCase()})`}
+                    onLink={(g) => linkGospelMutation.mutate(g)}
+                    pending={linkGospelMutation.isPending}
+                  />
+                  <QuickCreateGospel onCreate={handleCreateGospel} pending={createGospelMutation.isPending} />
+                </div>
               </>
             ) : (
               <p className="text-sm text-muted-foreground">Спочатку збережіть день — зв&apos;язки з&apos;являться тут після цього.</p>
