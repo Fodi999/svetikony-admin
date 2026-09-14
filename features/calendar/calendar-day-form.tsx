@@ -418,6 +418,14 @@ export function CalendarDayForm({
     },
     onError: (error) => toast.error(errorMessageFor(error)),
   });
+  const prepareGospelMutation = useMutation({
+    mutationFn: () => apiClient.calendarDays.prepareGospel(day!.id),
+    onSuccess: (reading) => {
+      toast.success(`Створено чернетку читання: ${reading.reference}. Текст додайте вручну.`);
+      queryClient.invalidateQueries({ queryKey: ["gospelReadings", "options"] });
+    },
+    onError: (error) => toast.error(errorMessageFor(error)),
+  });
 
   // Quick-create mini-forms are deliberately minimal (no AI authorship --
   // prayers and Gospel readings are established Church texts, not
@@ -796,6 +804,16 @@ export function CalendarDayForm({
                     onValueChange={setGospelLinkId}
                   />
                   <QuickCreateGospel onCreate={handleCreateGospel} pending={createGospelMutation.isPending} />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={prepareGospelMutation.isPending}
+                    onClick={() => prepareGospelMutation.mutate()}
+                  >
+                    <Sparkles className="size-4" />
+                    {prepareGospelMutation.isPending ? "Готуємо…" : "Підготувати з AI"}
+                  </Button>
                 </div>
               </>
             ) : (

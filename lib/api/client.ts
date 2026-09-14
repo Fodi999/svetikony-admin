@@ -317,6 +317,14 @@ export interface ApiClient {
      * update call). Returns `prayerId: null` when nothing fits or no
      * unlinked candidates exist. */
     recommendPrayer(id: string): Promise<{ prayerId: string | null }>;
+    /** "Підготувати з AI" for the relations tab's Gospel section --
+     * sources the day's ACTUAL canonical Gospel citation from a public
+     * lectionary page and creates a new DRAFT Gospel reading pre-linked
+     * to this day (title/reference only; text/explanation left empty for
+     * the admin to fill in, never reproducing scripture text). Never
+     * lets AI pick which passage is read -- see
+     * lib/church/gospel-reading-preparation.ts in svet-ikony. */
+    prepareGospel(id: string): Promise<GospelReading>;
   };
   icons: CrudResource<Icon, IconFormValues, TranslatableQuery>;
   prayers: CrudResource<Prayer, PrayerFormValues, TranslatableQuery>;

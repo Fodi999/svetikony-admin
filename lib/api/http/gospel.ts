@@ -32,7 +32,7 @@ function safeEnum<T extends string>(schema: z.ZodType<T>, value: string, fallbac
  * relatedCalendarDayIds picker, which the real backend could never fully
  * honor (same fix as Articles' relatedIconIds -> iconId).
  */
-function toEntity(dto: BffGospelDto): GospelReading {
+export function toEntity(dto: BffGospelDto): GospelReading {
   return {
     id: dto.id,
     translationGroupId: dto.translationGroupId,

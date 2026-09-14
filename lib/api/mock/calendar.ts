@@ -1,7 +1,7 @@
 import type { ApiClient } from "@/lib/api/client";
 import { ensureUniqueSlug, loadStore, matchesSearch, mockDelay, notFound, nextId, nowIso, paginate, saveStore } from "@/lib/api/mock-utils";
 import { mockCalendarDays } from "@/lib/mock-data/calendar";
-import type { CalendarAiField, CalendarAiFillResult, CalendarAiWriteResult, CalendarDay } from "@/types/entities";
+import type { CalendarAiField, CalendarAiFillResult, CalendarAiWriteResult, CalendarDay, GospelReading } from "@/types/entities";
 import { ApiError } from "@/types/api";
 
 const STORE_KEY = "calendarDays";
@@ -203,5 +203,13 @@ export const calendarDaysResource: ApiClient["calendarDays"] = {
     // "nothing fits" rather than fabricating a recommendation.
     await mockDelay(400);
     return { prayerId: null };
+  },
+  async prepareGospel(): Promise<GospelReading> {
+    // Mock mode has no real external lectionary source to fetch -- rather
+    // than fabricate a citation, this simply fails the same way a real
+    // unreachable-source error would, so the mock path never invents a
+    // Gospel reading either.
+    await mockDelay(400);
+    throw new ApiError("not_implemented", "Mock mode has no real lectionary source to prepare a Gospel reading from.");
   },
 };

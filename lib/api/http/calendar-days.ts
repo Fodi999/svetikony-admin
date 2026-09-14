@@ -1,13 +1,15 @@
 import { gregorianToJulianCalendarDate } from "@/features/calendar/julian-calendar";
 import type { z } from "zod";
 import type { BffCalendarAiFillResultDto, BffCalendarAiWriteResultDto, BffCalendarDayDto, WorkerCalendarDayWritePayload } from "@/app/api/bff/calendar-days/_contract";
+import type { BffGospelDto } from "@/app/api/bff/gospel/_contract";
 import type { ApiClient, CalendarQuery } from "@/lib/api/client";
 import { BFF_ENDPOINTS } from "@/lib/api/endpoints";
+import { toEntity as gospelReadingFromDto } from "@/lib/api/http/gospel";
 import { createHttpListResource } from "@/lib/api/http/resource-factory";
 import { httpDelete, httpPost, httpPut } from "@/lib/api/http/transport";
 import { contentStatusSchema, languageSchema } from "@/lib/validation/common";
 import { calendarEventTypeSchema, type CalendarDayFormValues } from "@/lib/validation/calendar.schema";
-import type { CalendarAiFillResult, CalendarAiWriteResult, CalendarDay, CalendarEventType, ContentStatus, Language } from "@/types/entities";
+import type { CalendarAiFillResult, CalendarAiWriteResult, CalendarDay, CalendarEventType, ContentStatus, GospelReading, Language } from "@/types/entities";
 
 /**
  * Real local data has `dayType` values mirrored from the old Rust backend
@@ -195,5 +197,8 @@ export const calendarDaysHttpResource: ApiClient["calendarDays"] = {
   },
   async recommendPrayer(id: string): Promise<{ prayerId: string | null }> {
     return httpPost<{ prayerId: string | null }>(aiActionPath(id, "recommend-prayer"), undefined, AI_TEXT_TIMEOUT_MS);
+  },
+  async prepareGospel(id: string): Promise<GospelReading> {
+    return gospelReadingFromDto(await httpPost<BffGospelDto>(aiActionPath(id, "prepare-gospel"), undefined, AI_TEXT_TIMEOUT_MS));
   },
 };

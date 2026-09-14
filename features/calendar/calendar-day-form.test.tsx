@@ -28,6 +28,7 @@ const mockApi = vi.hoisted(() => ({
     generateImageFromPrompt: vi.fn(),
     fillMissing: vi.fn(),
     recommendPrayer: vi.fn(),
+    prepareGospel: vi.fn(),
   },
   media: {},
 }));
@@ -284,6 +285,50 @@ describe("CalendarDayForm relations tab", () => {
         status: "draft",
       }),
     );
+  });
+
+  it("Підготувати з AI creates a linked draft Gospel reading sourced from a real lectionary, not invented", async () => {
+    const user = userEvent.setup();
+    mockApi.gospelReadings.list
+      .mockReturnValueOnce(Promise.resolve({ items: [], total: 0 }))
+      .mockReturnValueOnce(
+        Promise.resolve({
+          items: [{ id: "gospel-ai", title: "Євангельське читання: Ів. 1:1-17", calendarDayId: "day-1" }],
+          total: 1,
+        }),
+      );
+    mockApi.calendarDays.prepareGospel.mockResolvedValue({
+      id: "gospel-ai",
+      title: "Євангельське читання: Ів. 1:1-17",
+      reference: "Ів. 1:1-17",
+      text: "",
+      explanation: "",
+      language: "uk",
+      calendarDayId: "day-1",
+      status: "draft",
+    });
+    renderForm({ day: baseDay() });
+    await user.click(screen.getByRole("tab", { name: "Зв'язки" }));
+
+    await user.click(screen.getByRole("button", { name: "Підготувати з AI" }));
+
+    expect(mockApi.calendarDays.prepareGospel).toHaveBeenCalledWith("day-1");
+    expect(await screen.findByRole("link", { name: "Євангельське читання: Ів. 1:1-17" })).toHaveAttribute(
+      "href",
+      "/gospel/gospel-ai",
+    );
+  });
+
+  it("Підготувати з AI leaves the relations tab usable when no lectionary source is available", async () => {
+    const user = userEvent.setup();
+    mockApi.calendarDays.prepareGospel.mockRejectedValue(new Error("Джерело читань недоступне"));
+    renderForm({ day: baseDay() });
+    await user.click(screen.getByRole("tab", { name: "Зв'язки" }));
+
+    await user.click(screen.getByRole("button", { name: "Підготувати з AI" }));
+
+    expect(mockApi.calendarDays.prepareGospel).toHaveBeenCalledWith("day-1");
+    expect(await screen.findByRole("button", { name: "Підготувати з AI" })).not.toBeDisabled();
   });
 
   it("hides the link/create controls when the day hasn't been saved yet (create mode)", async () => {
