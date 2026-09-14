@@ -124,6 +124,18 @@ export function CalendarListView() {
 
   const existingDates = useMemo(() => new Set(monthDays.filter((day) => language === "all" || day.language === language).map((day) => day.date)), [monthDays, language]);
 
+  // Unfiltered by language/status -- so a card can show which of UK/RU/EN
+  // exist at all (and their own status) regardless of the active filter,
+  // not just whichever single translation the filter happens to select.
+  const translationsByDate = useMemo(() => {
+    const map = new Map<string, CalendarDay[]>();
+    for (const day of monthDays) {
+      const list = map.get(day.date);
+      if (list) list.push(day); else map.set(day.date, [day]);
+    }
+    return map;
+  }, [monthDays]);
+
   const daysInMonth = new Date(cursor.year, cursor.month + 1, 0).getDate();
 
   function goToToday() {
@@ -265,6 +277,7 @@ export function CalendarListView() {
                 year={cursor.year}
                 month={cursor.month}
                 daysByDate={daysByDate}
+                translationsByDate={translationsByDate}
                 existingDates={existingDates}
                 language={language === "all" ? "uk" : language}
                 todayIso={todayStr}

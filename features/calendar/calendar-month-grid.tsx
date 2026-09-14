@@ -17,6 +17,7 @@ export function CalendarMonthGrid({
   year,
   month,
   daysByDate,
+  translationsByDate,
   existingDates,
   language = "uk",
   todayIso,
@@ -27,6 +28,10 @@ export function CalendarMonthGrid({
   year: number;
   month: number; // 0-11
   daysByDate: Map<string, CalendarDay>;
+  /** Every translation for a date (all languages, all statuses), regardless
+   * of the active language/status filter -- lets a card show which of
+   * UK/RU/EN exist and their own status, not just the filtered-in one. */
+  translationsByDate?: Map<string, CalendarDay[]>;
   existingDates: Set<string>;
   language?: CalendarDay["language"];
   todayIso: string;
@@ -62,6 +67,7 @@ export function CalendarMonthGrid({
               key={dateIso}
               dateIso={dateIso}
               day={day}
+              translations={translationsByDate?.get(dateIso)}
               createLanguage={language}
               hiddenByFilter={!day && existingDates.has(dateIso)}
               isToday={dateIso === todayIso}

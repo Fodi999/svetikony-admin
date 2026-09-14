@@ -138,6 +138,29 @@ describe("CalendarListView", () => {
     expect(mockPush).toHaveBeenCalledWith("/calendar/cal-42");
   });
 
+  it("shows a card's RU/EN language badges even though the language filter defaults to only UK", async () => {
+    const { year, month } = currentCursor();
+    const todayDate = `${monthKey(year, month)}-01`;
+    mockList.mockResolvedValue({
+      items: [
+        day({ id: "cal-uk", language: "uk", status: "published", date: todayDate }),
+        day({ id: "cal-ru", language: "ru", status: "draft", date: todayDate }),
+        // en: no row at all for this date -- should read as "missing".
+      ],
+      total: 2,
+      page: 1,
+      pageSize: 500,
+    });
+    renderView();
+    await screen.findAllByText("Пророк Самуїл");
+
+    const user = userEvent.setup();
+    await user.hover(screen.getByRole("button", { name: "ru" }));
+    expect(await screen.findByText("RU — чернетка")).toBeInTheDocument();
+    await user.hover(screen.getByRole("button", { name: "en" }));
+    expect(await screen.findByText("EN — немає перекладу")).toBeInTheDocument();
+  });
+
   it("clicking an existing day in the List table also opens /calendar/[id]", async () => {
     mockList.mockResolvedValue({ items: [day({ id: "cal-99", title: "Преображення" })], total: 1, page: 1, pageSize: 500 });
     const user = userEvent.setup();

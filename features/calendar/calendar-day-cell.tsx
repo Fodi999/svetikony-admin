@@ -14,6 +14,18 @@ const DOT_BASE = "size-1.5 rounded-full border";
 const DOT_FILLED = "border-foreground/60 bg-foreground/70";
 const DOT_EMPTY = "border-muted-foreground/25 bg-transparent";
 
+const ALL_LANGUAGES = ["uk", "ru", "en"] as const;
+const LANGUAGE_BADGE_CLASS: Record<"published" | "draft" | "empty", string> = {
+  published: "border-emerald-500/40 bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
+  draft: "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400",
+  empty: "border-dashed border-muted-foreground/25 text-muted-foreground/45",
+};
+const LANGUAGE_STATE_LABEL: Record<"published" | "draft" | "empty", string> = {
+  published: "опубліковано",
+  draft: "чернетка",
+  empty: "немає перекладу",
+};
+
 /**
  * One month-grid cell. Two shapes:
  * - a real CalendarDay -> the compact "card" from the task spec (day
@@ -36,6 +48,7 @@ const DOT_EMPTY = "border-muted-foreground/25 bg-transparent";
 export function CalendarDayCell({
   dateIso,
   day,
+  translations,
   hiddenByFilter,
   createLanguage = "uk",
   isToday,
@@ -45,6 +58,11 @@ export function CalendarDayCell({
 }: {
   dateIso: string;
   day: CalendarDay | undefined;
+  /** Every translation that exists for this date (all languages, all
+   * statuses) regardless of the active filter -- undefined is treated the
+   * same as "only `day` itself exists", so callers that don't pass it
+   * still render correctly. */
+  translations?: CalendarDay[];
   /** True when a record exists for this date but the active language/status
    * filter hides it -- must not offer "+ Створити" then, or the action
    * would invite creating a duplicate right next to the hidden record. */
@@ -91,6 +109,12 @@ export function CalendarDayCell({
   const oldStyle = activeDay.dateOldStyle ? formatShortUaDate(activeDay.dateOldStyle) : null;
   const flags = calendarDayStatusFlags(activeDay);
   const completenessPercent = calendarDayCompletenessPercent(activeDay);
+  const siblingTranslations = translations ?? [activeDay];
+  const languageStates = ALL_LANGUAGES.map((lang) => {
+    const sibling = siblingTranslations.find((item) => item.language === lang);
+    const state: "published" | "draft" | "empty" = !sibling ? "empty" : sibling.status === "published" ? "published" : "draft";
+    return { lang, state };
+  });
 
   function open() {
     onOpen?.(dateIso);
@@ -130,6 +154,23 @@ export function CalendarDayCell({
         </TooltipTrigger>
         <TooltipContent>Заповнено на {completenessPercent}%</TooltipContent>
       </Tooltip>
+      <div className="flex gap-1" role="group" aria-label="Статус перекладів">
+        {languageStates.map(({ lang, state }) => (
+          <Tooltip key={lang}>
+            <TooltipTrigger
+              className={cn(
+                "h-4 flex-1 rounded border text-[9px] font-semibold uppercase leading-4",
+                LANGUAGE_BADGE_CLASS[state],
+              )}
+            >
+              {lang}
+            </TooltipTrigger>
+            <TooltipContent>
+              {lang.toUpperCase()} — {LANGUAGE_STATE_LABEL[state]}
+            </TooltipContent>
+          </Tooltip>
+        ))}
+      </div>
       <div className="mt-auto flex gap-1">
         {STATUS_DOTS.map(({ key, filledTooltip, emptyTooltip }) => {
           const filled = flags[key];

@@ -105,4 +105,28 @@ describe("CalendarDayCell", () => {
     renderCell({ day });
     expect(screen.getByRole("button", { name: "Заповненість картки: 100%" })).toBeInTheDocument();
   });
+
+  it("falls back to just the displayed day's own language when no sibling list is given", () => {
+    renderCell({ day: baseDay({ status: "published" }) });
+    expect(screen.getByRole("button", { name: "uk" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "ru" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "en" })).toBeInTheDocument();
+  });
+
+  it("shows each language's own status from the full sibling list, independent of the active filter", async () => {
+    const user = userEvent.setup();
+    const uk = baseDay({ id: "day-uk", language: "uk", status: "published" });
+    const ru = baseDay({ id: "day-ru", language: "ru", status: "draft" });
+    // en: no sibling at all -- missing translation.
+    renderCell({ day: uk, translations: [uk, ru] });
+
+    const [ukBadge, ruBadge, enBadge] = ["uk", "ru", "en"].map((lang) => screen.getByRole("button", { name: lang }));
+
+    await user.hover(ukBadge);
+    expect(await screen.findByText("UK — опубліковано")).toBeInTheDocument();
+    await user.hover(ruBadge);
+    expect(await screen.findByText("RU — чернетка")).toBeInTheDocument();
+    await user.hover(enBadge);
+    expect(await screen.findByText("EN — немає перекладу")).toBeInTheDocument();
+  });
 });
