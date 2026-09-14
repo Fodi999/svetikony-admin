@@ -7,7 +7,7 @@ import { GuardedLink } from "@/components/layout/guarded-link";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { CalendarDay } from "@/types/entities";
-import { calendarDayStatusFlags, STATUS_DOTS } from "./calendar-day-status";
+import { calendarDayCompletenessPercent, calendarDayStatusFlags, STATUS_DOTS } from "./calendar-day-status";
 import { formatShortUaDate } from "./date-format";
 
 const DOT_BASE = "size-1.5 rounded-full border";
@@ -90,6 +90,7 @@ export function CalendarDayCell({
   const activeDay = day;
   const oldStyle = activeDay.dateOldStyle ? formatShortUaDate(activeDay.dateOldStyle) : null;
   const flags = calendarDayStatusFlags(activeDay);
+  const completenessPercent = calendarDayCompletenessPercent(activeDay);
 
   function open() {
     onOpen?.(dateIso);
@@ -114,6 +115,21 @@ export function CalendarDayCell({
         {oldStyle ? <span className="truncate text-[10px] text-muted-foreground">ст.ст. {oldStyle}</span> : null}
       </div>
       <p className="line-clamp-2 text-[11px] leading-snug text-foreground">{day.title}</p>
+      <Tooltip>
+        <TooltipTrigger
+          className="block h-1.5 w-full overflow-hidden rounded-full bg-muted p-0"
+          aria-label={`Заповненість картки: ${completenessPercent}%`}
+        >
+          <span
+            className={cn(
+              "block h-full rounded-full transition-[width]",
+              completenessPercent === 100 ? "bg-emerald-500" : completenessPercent > 0 ? "bg-amber-500" : "bg-border",
+            )}
+            style={{ width: `${completenessPercent}%` }}
+          />
+        </TooltipTrigger>
+        <TooltipContent>Заповнено на {completenessPercent}%</TooltipContent>
+      </Tooltip>
       <div className="mt-auto flex gap-1">
         {STATUS_DOTS.map(({ key, filledTooltip, emptyTooltip }) => {
           const filled = flags[key];

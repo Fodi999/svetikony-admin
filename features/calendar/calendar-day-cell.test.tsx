@@ -86,7 +86,23 @@ describe("CalendarDayCell", () => {
 
   it("renders 4 status dots with tooltip labels reflecting filled/empty state", async () => {
     renderCell({ day: baseDay({ shortDescription: "", history: "", imageId: undefined, status: "draft" }) });
-    const dots = screen.getAllByRole("button").filter((el) => el.className.includes("rounded-full"));
+    // "size-1.5" is the dots' own distinguishing class -- the completeness
+    // progress bar below is a different, larger ("h-1.5 w-full") trigger
+    // and must not be swept into this count.
+    const dots = screen.getAllByRole("button").filter((el) => el.className.includes("size-1.5"));
     expect(dots).toHaveLength(4);
+  });
+
+  it("shows a completeness progress bar reflecting how many fields are filled", () => {
+    const day = baseDay({ title: "T", shortDescription: "D", history: "", imageId: undefined, seoTitle: null, seoDescription: null });
+    renderCell({ day });
+    // title + shortDescription filled = 2/6 fields = 33%.
+    expect(screen.getByRole("button", { name: "Заповненість картки: 33%" })).toBeInTheDocument();
+  });
+
+  it("shows the progress bar at 100% once every field is filled", () => {
+    const day = baseDay({ history: "H", imageId: "media-1", seoTitle: "SEO", seoDescription: "SEO опис" });
+    renderCell({ day });
+    expect(screen.getByRole("button", { name: "Заповненість картки: 100%" })).toBeInTheDocument();
   });
 });
