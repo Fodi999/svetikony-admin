@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Eye, Sparkles, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/feedback/confirm-dialog";
@@ -117,19 +117,29 @@ function RelationLinkExisting<T extends { id: string; calendarDayId?: string }>(
   getLabel,
   onLink,
   pending,
+  value,
+  onValueChange,
+  children,
 }: {
   candidates: T[];
   getLabel: (item: T) => string;
   onLink: (item: T) => void;
   pending: boolean;
+  /** Controlled so an "AI підбір" action elsewhere (see recommendPrayerMutation)
+   * can pre-select a suggestion into the same dropdown -- the admin still
+   * has to click "Зв'язати" themselves either way. */
+  value: string;
+  onValueChange: (value: string) => void;
+  /** Extra controls (e.g. an "AI підбір" button) rendered alongside the
+   * dropdown, sharing its layout row. */
+  children?: ReactNode;
 }) {
-  const [selectedId, setSelectedId] = useState("");
   const unlinked = candidates.filter((item) => !item.calendarDayId);
   if (!unlinked.length) return null;
   const options = unlinked.map((item) => ({ value: item.id, label: getLabel(item) }));
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <Select value={selectedId} onValueChange={(value) => setSelectedId(value ?? "")} items={options}>
+      <Select value={value} onValueChange={(next) => onValueChange(next ?? "")} items={options}>
         <SelectTrigger className="w-full sm:w-64" aria-label="Оберіть існуючий запис">
           <SelectValue placeholder="Оберіть існуючий запис" />
         </SelectTrigger>
@@ -145,17 +155,18 @@ function RelationLinkExisting<T extends { id: string; calendarDayId?: string }>(
         type="button"
         variant="outline"
         size="sm"
-        disabled={!selectedId || pending}
+        disabled={!value || pending}
         onClick={() => {
-          const item = unlinked.find((candidate) => candidate.id === selectedId);
+          const item = unlinked.find((candidate) => candidate.id === value);
           if (item) {
             onLink(item);
-            setSelectedId("");
+            onValueChange("");
           }
         }}
       >
         Зв&apos;язати
       </Button>
+      {children}
     </div>
   );
 }
@@ -361,6 +372,20 @@ export function CalendarDayForm({
   const linkedGospel = (gospelQuery.data?.items ?? []).filter((g) => g.calendarDayId === day?.id);
 
   const queryClient = useQueryClient();
+  const [prayerLinkId, setPrayerLinkId] = useState("");
+  const [gospelLinkId, setGospelLinkId] = useState("");
+  const recommendPrayerMutation = useMutation({
+    mutationFn: () => apiClient.calendarDays.recommendPrayer(day!.id),
+    onSuccess: (result) => {
+      if (result.prayerId) {
+        setPrayerLinkId(result.prayerId);
+        toast.success("AI підібрав молитву -- перевірте вибір і натисніть «Зв'язати».");
+      } else {
+        toast.info("AI не знайшов відповідної молитви серед незв'язаних.");
+      }
+    },
+    onError: (error) => toast.error(errorMessageFor(error)),
+  });
   const linkPrayerMutation = useMutation({
     mutationFn: (prayer: Prayer) => apiClient.prayers.update(prayer.id, { ...prayer, calendarDayId: day!.id }),
     onSuccess: () => {
@@ -743,7 +768,20 @@ export function CalendarDayForm({
                     getLabel={(p) => `${p.title} (${p.language.toUpperCase()})`}
                     onLink={(p) => linkPrayerMutation.mutate(p)}
                     pending={linkPrayerMutation.isPending}
-                  />
+                    value={prayerLinkId}
+                    onValueChange={setPrayerLinkId}
+                  >
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      disabled={recommendPrayerMutation.isPending}
+                      onClick={() => recommendPrayerMutation.mutate()}
+                    >
+                      <Sparkles className="size-4" />
+                      {recommendPrayerMutation.isPending ? "Підбираємо…" : "AI підбір"}
+                    </Button>
+                  </RelationLinkExisting>
                   <QuickCreatePrayer onCreate={handleCreatePrayer} pending={createPrayerMutation.isPending} />
                 </div>
                 <LinkedContentSection title="Пов'язані святі" hrefBase="/saints" items={linkedSaints.map((s) => ({ id: s.id, label: s.name }))} />
@@ -754,6 +792,8 @@ export function CalendarDayForm({
                     getLabel={(g) => `${g.title} (${g.language.toUpperCase()})`}
                     onLink={(g) => linkGospelMutation.mutate(g)}
                     pending={linkGospelMutation.isPending}
+                    value={gospelLinkId}
+                    onValueChange={setGospelLinkId}
                   />
                   <QuickCreateGospel onCreate={handleCreateGospel} pending={createGospelMutation.isPending} />
                 </div>

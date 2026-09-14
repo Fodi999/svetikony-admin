@@ -27,6 +27,7 @@ const mockApi = vi.hoisted(() => ({
     assignImage: vi.fn(),
     generateImageFromPrompt: vi.fn(),
     fillMissing: vi.fn(),
+    recommendPrayer: vi.fn(),
   },
   media: {},
 }));
@@ -179,6 +180,45 @@ describe("CalendarDayForm relations tab", () => {
       "prayer-1",
       expect.objectContaining({ id: "prayer-1", title: "Псалом 90", calendarDayId: "day-1" }),
     );
+  });
+
+  it("AI підбір pre-selects the recommended prayer, but still requires a manual click to link it", async () => {
+    const user = userEvent.setup();
+    mockApi.prayers.list.mockReturnValue(
+      Promise.resolve({
+        items: [
+          { id: "prayer-1", title: "Псалом 90", language: "uk" },
+          { id: "prayer-2", title: "Молитва Оптинських старців", language: "uk" },
+        ],
+        total: 2,
+      }),
+    );
+    mockApi.calendarDays.recommendPrayer.mockResolvedValue({ prayerId: "prayer-2" });
+    mockApi.prayers.update.mockReset().mockResolvedValue({ id: "prayer-2", title: "Молитва Оптинських старців", calendarDayId: "day-1" });
+    renderForm({ day: baseDay() });
+    await user.click(screen.getByRole("tab", { name: "Зв'язки" }));
+
+    await user.click(screen.getByRole("button", { name: "AI підбір" }));
+    expect(mockApi.calendarDays.recommendPrayer).toHaveBeenCalledWith("day-1");
+    // Pre-selected, but not yet linked -- no update call until the admin
+    // clicks "Зв'язати" themselves.
+    expect(mockApi.prayers.update).not.toHaveBeenCalled();
+    expect(await screen.findByRole("combobox", { name: "Оберіть існуючий запис" })).toHaveTextContent("Молитва Оптинських старців (UK)");
+
+    await user.click(screen.getByRole("button", { name: "Зв'язати" }));
+    expect(mockApi.prayers.update).toHaveBeenCalledWith("prayer-2", expect.objectContaining({ calendarDayId: "day-1" }));
+  });
+
+  it("AI підбір leaves the picker empty when nothing fits", async () => {
+    const user = userEvent.setup();
+    mockApi.prayers.list.mockReturnValue(Promise.resolve({ items: [{ id: "prayer-1", title: "Псалом 90", language: "uk" }], total: 1 }));
+    mockApi.calendarDays.recommendPrayer.mockResolvedValue({ prayerId: null });
+    renderForm({ day: baseDay() });
+    await user.click(screen.getByRole("tab", { name: "Зв'язки" }));
+
+    await user.click(screen.getByRole("button", { name: "AI підбір" }));
+    expect(mockApi.calendarDays.recommendPrayer).toHaveBeenCalledWith("day-1");
+    expect(await screen.findByRole("combobox", { name: "Оберіть існуючий запис" })).not.toHaveTextContent("Псалом 90");
   });
 
   it("excludes a prayer already linked to a different day from the link picker", async () => {

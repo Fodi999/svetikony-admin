@@ -197,4 +197,11 @@ export const calendarDaysResource: ApiClient["calendarDays"] = {
     }
     return { mode: "direct", day: current, filled, skipped: [] };
   },
+  async recommendPrayer(): Promise<{ prayerId: string | null }> {
+    // Mock mode has no real candidate-matching model to call and no
+    // cross-module access to the mock prayer store here -- always reports
+    // "nothing fits" rather than fabricating a recommendation.
+    await mockDelay(400);
+    return { prayerId: null };
+  },
 };

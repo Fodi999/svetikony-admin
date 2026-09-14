@@ -310,6 +310,13 @@ export interface ApiClient {
     /** "Заповнити відсутнє з AI" -- fills every missing field it safely
      * can; never overwrites existing content. */
     fillMissing(id: string): Promise<CalendarAiFillResult>;
+    /** "AI підбір" for the relations tab's prayer picker -- recommends an
+     * id from the already-existing, not-yet-linked prayer library that
+     * best fits this day; never authors new prayer text and never writes
+     * anything itself (linking still goes through the plain prayers
+     * update call). Returns `prayerId: null` when nothing fits or no
+     * unlinked candidates exist. */
+    recommendPrayer(id: string): Promise<{ prayerId: string | null }>;
   };
   icons: CrudResource<Icon, IconFormValues, TranslatableQuery>;
   prayers: CrudResource<Prayer, PrayerFormValues, TranslatableQuery>;

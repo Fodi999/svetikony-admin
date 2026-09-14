@@ -193,4 +193,7 @@ export const calendarDaysHttpResource: ApiClient["calendarDays"] = {
       ? { mode: "direct", day: calendarDayFromDto(dto.day), filled: dto.filled, skipped: dto.skipped }
       : { mode: "proposal", day: calendarDayFromDto(dto.day), proposalId: dto.proposalId, proposedFields: dto.proposedFields, skipped: dto.skipped };
   },
+  async recommendPrayer(id: string): Promise<{ prayerId: string | null }> {
+    return httpPost<{ prayerId: string | null }>(aiActionPath(id, "recommend-prayer"), undefined, AI_TEXT_TIMEOUT_MS);
+  },
 };
