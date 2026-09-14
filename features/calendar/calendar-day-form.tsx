@@ -22,7 +22,9 @@ import { messages } from "@/lib/i18n";
 import { useBeforeUnloadWarning } from "@/lib/utils/use-before-unload";
 import { resolveMediaPreviewUrl } from "@/lib/media/resolve-preview-url";
 import { calendarDaySchema, type CalendarDayFormValues } from "@/lib/validation/calendar.schema";
+import { cn } from "@/lib/utils";
 import type { CalendarDay, CalendarEventType, Language } from "@/types/entities";
+import { calendarDayCompletenessPercent, calendarDayMissingFieldLabels } from "./calendar-day-status";
 import { gregorianToJulianCalendarDate } from "./julian-calendar";
 import { useCalendarAiActions } from "./use-calendar-ai-actions";
 
@@ -176,6 +178,7 @@ export function CalendarDayForm({
   const [confirmRegenerateHistory, setConfirmRegenerateHistory] = useState(false);
   const [confirmRegenerateSeo, setConfirmRegenerateSeo] = useState(false);
   const [confirmRegenerateImage, setConfirmRegenerateImage] = useState(false);
+  const [confirmPublishIncomplete, setConfirmPublishIncomplete] = useState(false);
   const [customImagePrompt, setCustomImagePrompt] = useState("");
 
   // Read-only reverse lookup for the "Зв'язки" tab: the real relation is
@@ -260,8 +263,34 @@ export function CalendarDayForm({
     await onSaved?.();
   }
 
+  // Publishing with empty fields is allowed (some days genuinely have no
+  // SEO override, say) but should never happen by accident -- surface a
+  // confirmation naming exactly what's missing instead of silently
+  // publishing whatever the admin last saw. Skipped entirely once the
+  // translation is actually complete, so finishing the form stays a
+  // single click.
+  function requestPublish() {
+    if (calendarDayCompletenessPercent(form.getValues()) < 100) {
+      setConfirmPublishIncomplete(true);
+      return;
+    }
+    void handleSave(true);
+  }
+
   const values = form.watch();
   const imagePreviewUrl = resolveMediaPreviewUrl(values.imageId);
+  // Live for the translation currently open in this form (reflects
+  // unsaved edits); the other two languages can only show their
+  // last-fetched sibling snapshot, since their own forms aren't open here.
+  const completenessPercent = useMemo(() => {
+    const result = {} as Record<Language, number>;
+    (["uk", "ru", "en"] as const).forEach((lang) => {
+      result[lang] = lang === values.language
+        ? calendarDayCompletenessPercent(values)
+        : calendarDayCompletenessPercent(siblings.find((day) => day.language === lang));
+    });
+    return result;
+  }, [siblings, values]);
 
   return (
     <div className="flex h-full flex-col">
@@ -271,6 +300,25 @@ export function CalendarDayForm({
           <div className="space-y-1.5">
             <p className="text-xs font-medium text-muted-foreground">Переклади</p>
             <TranslationSwitcher active={values.language} onSelect={handleSwitchLanguage} completeness={completeness} />
+            <div className="flex flex-col gap-1.5 sm:flex-row sm:gap-3">
+              {(["uk", "ru", "en"] as const).map((lang) => {
+                const percent = completenessPercent[lang];
+                return (
+                  <div key={lang} className="flex min-w-0 flex-1 items-center gap-2" title={`${lang.toUpperCase()}: заповнено ${percent}%`}>
+                    <span className="w-6 shrink-0 text-xs font-medium text-muted-foreground">{lang.toUpperCase()}</span>
+                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100} aria-label={`Заповненість перекладу ${lang.toUpperCase()}`}>
+                      <div
+                        className={cn("h-full rounded-full transition-[width]", percent === 100 ? "bg-emerald-500" : percent > 0 ? "bg-amber-500" : "bg-border")}
+                        style={{ width: `${percent}%` }}
+                      />
+                    </div>
+                    <span className={cn("w-9 shrink-0 text-right text-xs font-medium tabular-nums", percent === 100 ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground")}>
+                      {percent}%
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
             <p className="text-sm text-muted-foreground">Публікація перекладів окрема: {(["uk", "ru", "en"] as const).map((lang) => {
               const sibling = siblings.find((day) => day.language === lang);
               return `${lang.toUpperCase()} — ${!sibling ? "немає перекладу" : sibling.status === "published" ? "опубліковано" : sibling.status === "draft" ? "чернетка" : "не опубліковано"}`;
@@ -585,7 +633,7 @@ export function CalendarDayForm({
         {!workingCopy ? <Button type="button" variant="secondary" className="h-11 flex-1" disabled={submitting || ai.isBusy} onClick={() => handleSave(false)}>
           {messages.actions.save}
         </Button> : null}
-        <Button type="button" className="h-11 flex-1" disabled={submitting || ai.isBusy} onClick={() => handleSave(true)}>
+        <Button type="button" className="h-11 flex-1" disabled={submitting || ai.isBusy} onClick={requestPublish}>
           {messages.actions.publish}
         </Button>
       </div>
@@ -649,6 +697,17 @@ export function CalendarDayForm({
         onConfirm={() => {
           ai.regenerateImage();
           setConfirmRegenerateImage(false);
+        }}
+      />
+      <ConfirmDialog
+        open={confirmPublishIncomplete}
+        onOpenChange={setConfirmPublishIncomplete}
+        title={`Опублікувати заповнене лише на ${calendarDayCompletenessPercent(values)}%?`}
+        description={`Не заповнено: ${calendarDayMissingFieldLabels(values).join(", ")}. На сайті з'явиться саме цей переклад як є.`}
+        confirmLabel="Опублікувати попри це"
+        onConfirm={() => {
+          setConfirmPublishIncomplete(false);
+          void handleSave(true);
         }}
       />
     </div>

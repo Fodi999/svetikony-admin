@@ -164,6 +164,78 @@ describe("CalendarDayForm relations tab", () => {
 });
 
 
+describe("CalendarDayForm completeness percentage", () => {
+  it("shows a percentage per language, using the live form for the open translation and siblings for the others", async () => {
+    mockApi.calendarDays.list.mockReturnValue(
+      Promise.resolve({
+        items: [
+          baseDay(), // uk (open): title + shortDescription filled = 2/6 = 33%
+          baseDay({ id: "day-ru", language: "ru", title: "", shortDescription: "" }), // 0/6 = 0%
+          baseDay({
+            id: "day-en",
+            language: "en",
+            history: "History",
+            imageId: "media-1",
+            seoTitle: "SEO",
+            seoDescription: "SEO desc",
+          }), // all 6 fields = 100%
+        ],
+        total: 3,
+      }),
+    );
+    renderForm({ day: baseDay(), groupId: "group-1" });
+
+    expect(await screen.findByTitle("UK: заповнено 33%")).toBeInTheDocument();
+    expect(await screen.findByTitle("RU: заповнено 0%")).toBeInTheDocument();
+    expect(await screen.findByTitle("EN: заповнено 100%")).toBeInTheDocument();
+  });
+});
+
+describe("CalendarDayForm publish confirmation", () => {
+  it("publishes immediately, no dialog, once every field is filled", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    const complete = baseDay({ history: "Історія", imageId: "media-1", seoTitle: "SEO", seoDescription: "SEO опис" });
+    renderForm({ day: complete, onSubmit });
+
+    await userEvent.click(screen.getByRole("button", { name: "Опублікувати" }));
+
+    expect(screen.queryByText(/Опублікувати заповнене лише на/)).not.toBeInTheDocument();
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ status: "published" }));
+  });
+
+  it("asks for confirmation, naming the missing fields, before publishing an incomplete translation", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    renderForm({ day: baseDay(), onSubmit }); // history/image/SEO all empty
+
+    await userEvent.click(screen.getByRole("button", { name: "Опублікувати" }));
+
+    expect(await screen.findByText("Опублікувати заповнене лише на 33%?")).toBeInTheDocument();
+    expect(screen.getByText(/Історична довідка, Фото, SEO title, SEO description/)).toBeInTheDocument();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("publishes only after the admin explicitly confirms past the warning", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    renderForm({ day: baseDay(), onSubmit });
+
+    await userEvent.click(screen.getByRole("button", { name: "Опублікувати" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Опублікувати попри це" }));
+
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ status: "published" }));
+  });
+
+  it("cancelling the warning leaves the record unpublished", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    renderForm({ day: baseDay(), onSubmit });
+
+    await userEvent.click(screen.getByRole("button", { name: "Опублікувати" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Скасувати" }));
+
+    expect(screen.queryByText(/Опублікувати заповнене лише на/)).not.toBeInTheDocument();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+});
+
 describe("AI creation from an empty date", () => {
   it("shows both dates and starts without requiring title/slug/description", async () => {
     const create = vi.fn().mockResolvedValue(undefined);
