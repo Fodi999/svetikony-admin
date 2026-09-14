@@ -21,6 +21,7 @@ export const calendarDaySchema = z.object({
   imageId: z.string().optional(),
   seoTitle: z.string().max(70).nullable().optional(),
   seoDescription: z.string().max(200).nullable().optional(),
+  internalNote: z.string().max(2000).nullable().optional(),
 });
 
 export type CalendarDayFormValues = z.infer<typeof calendarDaySchema>;

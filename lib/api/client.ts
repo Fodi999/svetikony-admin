@@ -34,6 +34,7 @@ import type {
   Order,
   OrderStatus,
   PrepareDayReport,
+  PreparedGospelReading,
   Prayer,
   Product,
   ProductCategory,
@@ -325,6 +326,12 @@ export interface ApiClient {
      * lets AI pick which passage is read -- see
      * lib/church/gospel-reading-preparation.ts in svet-ikony. */
     prepareGospel(id: string): Promise<GospelReading>;
+    /** Read-only counterpart to prepareGospel -- resolves the same
+     * canonical citation but creates nothing, for the AI preparation
+     * review step. Throws the same "source unavailable"/"no Gospel
+     * citation" errors prepareGospel would; the caller shows those as
+     * "⚠ Канонічне читання не визначено" rather than a generic failure. */
+    previewGospelReading(id: string): Promise<PreparedGospelReading>;
   };
   icons: CrudResource<Icon, IconFormValues, TranslatableQuery>;
   prayers: CrudResource<Prayer, PrayerFormValues, TranslatableQuery>;

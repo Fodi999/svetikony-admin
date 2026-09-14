@@ -2,23 +2,17 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Eye, Sparkles, X } from "lucide-react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/feedback/confirm-dialog";
-import { MediaUploadButton } from "@/components/forms/media-upload-button";
 import { SelectField } from "@/components/forms/select-field";
 import { TextField } from "@/components/forms/text-field";
 import { TranslationSwitcher, type Completeness } from "@/components/forms/translation-switcher";
 import { useUnsavedChanges } from "@/components/feedback/unsaved-changes-context";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea";
 import { apiClient } from "@/lib/api";
 import { errorMessageFor } from "@/lib/api/errors";
 import { messages } from "@/lib/i18n";
@@ -28,10 +22,28 @@ import { calendarDaySchema, type CalendarDayFormValues } from "@/lib/validation/
 import { gospelReadingSchema } from "@/lib/validation/gospel.schema";
 import { prayerSchema } from "@/lib/validation/prayer.schema";
 import { cn } from "@/lib/utils";
+import { Sparkles } from "lucide-react";
 import type { CalendarDay, CalendarEventType, GospelReading, Language, Prayer } from "@/types/entities";
-import { calendarDayCompletenessPercent, calendarDayMissingFieldLabels } from "./calendar-day-status";
+import { CalendarDayActionBar } from "./calendar-day-action-bar";
+import { CalendarDayAiPanel } from "./calendar-day-ai-panel";
+import { CalendarDayContentStatus } from "./calendar-day-content-status";
+import { CalendarDayHeader } from "./calendar-day-header";
+import { CalendarDayLinksTab } from "./calendar-day-links-tab";
+import { CalendarDayMediaTab } from "./calendar-day-media-tab";
+import { CalendarDayPublicationTab } from "./calendar-day-publication-tab";
+import { CalendarDayQuickFill } from "./calendar-day-quick-fill";
+import { CalendarDaySeoTab } from "./calendar-day-seo-tab";
+import {
+  calendarDayCompletenessPercent,
+  calendarDayMissingFieldLabels,
+  calendarDayReadiness,
+  validateCalendarDayLinks,
+} from "./calendar-day-status";
+import { CalendarDayTranslationsTab } from "./calendar-day-translations-tab";
 import { gregorianToJulianCalendarDate } from "./julian-calendar";
+import { prepareCalendarLanguages } from "./prepare-calendar-languages";
 import { useCalendarAiActions } from "./use-calendar-ai-actions";
+import { useCalendarDayPreparation } from "./use-calendar-day-preparation";
 
 /** Matches the backend's own slugify() character class (see
  * lib/validation/common.ts's slugSchema doc comment) -- lowercase letters
@@ -65,6 +77,13 @@ const EMPTY_DEFAULTS: CalendarDayFormValues = {
   imageId: undefined,
   seoTitle: null,
   seoDescription: null,
+  internalNote: null,
+};
+
+const TO_READINESS_STATE: Record<Completeness, "ready" | "partial" | "missing"> = {
+  done: "ready",
+  partial: "partial",
+  empty: "missing",
 };
 
 /**
@@ -79,187 +98,6 @@ async function cleanupOrphanUpload(key: string) {
   } catch {
     // Best-effort; nothing to do if it fails.
   }
-}
-
-/** Read-only reverse-lookup row for the "Зв'язки" tab -- see the doc
- * comment above `linkedIcons` etc. for why this is never an editable
- * picker. */
-function LinkedContentSection({ title, hrefBase, items }: { title: string; hrefBase: string; items: { id: string; label: string }[] }) {
-  return (
-    <div className="space-y-1.5">
-      <p className="text-sm font-medium">{title}</p>
-      {items.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Немає пов&apos;язаних записів.</p>
-      ) : (
-        <ul className="space-y-1">
-          {items.map((item) => (
-            <li key={item.id}>
-              <Link href={`${hrefBase}/${item.id}`} className="text-sm text-primary underline-offset-2 hover:underline">
-                {item.label}
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
-
-/** "Зв'язати існуючу" -- a small dropdown of not-yet-linked prayers/Gospel
- * readings, right in the calendar form, so linking one doesn't require
- * navigating away. Still a real write to the CHILD record's own
- * calendarDayId (via `onLink`), same as editing it directly would do --
- * this is a shortcut for the existing pattern, not a new one. Only offers
- * items with no calendarDayId at all; reassigning one already linked to a
- * *different* day stays a "go edit that record" action. */
-function RelationLinkExisting<T extends { id: string; calendarDayId?: string }>({
-  candidates,
-  getLabel,
-  onLink,
-  pending,
-  value,
-  onValueChange,
-  children,
-}: {
-  candidates: T[];
-  getLabel: (item: T) => string;
-  onLink: (item: T) => void;
-  pending: boolean;
-  /** Controlled so an "AI підбір" action elsewhere (see recommendPrayerMutation)
-   * can pre-select a suggestion into the same dropdown -- the admin still
-   * has to click "Зв'язати" themselves either way. */
-  value: string;
-  onValueChange: (value: string) => void;
-  /** Extra controls (e.g. an "AI підбір" button) rendered alongside the
-   * dropdown, sharing its layout row. */
-  children?: ReactNode;
-}) {
-  const unlinked = candidates.filter((item) => !item.calendarDayId);
-  if (!unlinked.length) return null;
-  const options = unlinked.map((item) => ({ value: item.id, label: getLabel(item) }));
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      <Select value={value} onValueChange={(next) => onValueChange(next ?? "")} items={options}>
-        <SelectTrigger className="w-full sm:w-64" aria-label="Оберіть існуючий запис">
-          <SelectValue placeholder="Оберіть існуючий запис" />
-        </SelectTrigger>
-        <SelectContent>
-          {options.map((option) => (
-            <SelectItem key={option.value} value={option.value}>
-              {option.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        disabled={!value || pending}
-        onClick={() => {
-          const item = unlinked.find((candidate) => candidate.id === value);
-          if (item) {
-            onLink(item);
-            onValueChange("");
-          }
-        }}
-      >
-        Зв&apos;язати
-      </Button>
-      {children}
-    </div>
-  );
-}
-
-/** "Створити нову" -- collapsed to a single button until opened, then a
- * deliberately minimal inline form (no AI authorship, no visualizer/audio
- * fields -- see handleCreatePrayer's own doc comment). */
-function QuickCreatePrayer({ onCreate, pending }: { onCreate: (values: { title: string; text: string }) => void; pending: boolean }) {
-  const [open, setOpen] = useState(false);
-  const [title, setTitle] = useState("");
-  const [text, setText] = useState("");
-  if (!open) {
-    return (
-      <Button type="button" variant="outline" size="sm" onClick={() => setOpen(true)}>
-        + Створити нову
-      </Button>
-    );
-  }
-  return (
-    <div className="space-y-2 rounded-md border p-3">
-      <Input placeholder="Назва молитви" value={title} onChange={(event) => setTitle(event.target.value)} aria-label="Назва молитви" />
-      <Textarea placeholder="Текст молитви" rows={4} value={text} onChange={(event) => setText(event.target.value)} aria-label="Текст молитви" />
-      <div className="flex gap-2">
-        <Button
-          type="button"
-          size="sm"
-          disabled={pending}
-          onClick={() => {
-            onCreate({ title, text });
-            setTitle("");
-            setText("");
-            setOpen(false);
-          }}
-        >
-          Створити
-        </Button>
-        <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>
-          Скасувати
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-/** Same shape as QuickCreatePrayer, for Gospel readings (reference/title/
- * text/explanation instead of title/text). */
-function QuickCreateGospel({
-  onCreate,
-  pending,
-}: {
-  onCreate: (values: { reference: string; title: string; text: string; explanation: string }) => void;
-  pending: boolean;
-}) {
-  const [open, setOpen] = useState(false);
-  const [reference, setReference] = useState("");
-  const [title, setTitle] = useState("");
-  const [text, setText] = useState("");
-  const [explanation, setExplanation] = useState("");
-  if (!open) {
-    return (
-      <Button type="button" variant="outline" size="sm" onClick={() => setOpen(true)}>
-        + Створити нове
-      </Button>
-    );
-  }
-  return (
-    <div className="space-y-2 rounded-md border p-3">
-      <Input placeholder="Посилання, напр. Ів. 1:1-17" value={reference} onChange={(event) => setReference(event.target.value)} aria-label="Посилання на читання" />
-      <Input placeholder="Назва" value={title} onChange={(event) => setTitle(event.target.value)} aria-label="Назва читання" />
-      <Textarea placeholder="Текст читання" rows={4} value={text} onChange={(event) => setText(event.target.value)} aria-label="Текст читання" />
-      <Textarea placeholder="Пояснення (необов'язково)" rows={2} value={explanation} onChange={(event) => setExplanation(event.target.value)} aria-label="Пояснення" />
-      <div className="flex gap-2">
-        <Button
-          type="button"
-          size="sm"
-          disabled={pending}
-          onClick={() => {
-            onCreate({ reference, title, text, explanation });
-            setReference("");
-            setTitle("");
-            setText("");
-            setExplanation("");
-            setOpen(false);
-          }}
-        >
-          Створити
-        </Button>
-        <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>
-          Скасувати
-        </Button>
-      </div>
-    </div>
-  );
 }
 
 interface CalendarDayFormProps {
@@ -324,17 +162,19 @@ export function CalendarDayForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const defaultValues = day
+    ? { ...EMPTY_DEFAULTS, ...day }
+    : {
+        ...EMPTY_DEFAULTS,
+        language: initialLanguage ?? "uk",
+        slug: initialSlug ?? "",
+        ...(initialDate ? { date: initialDate } : {}),
+        ...(initialEventType ? { eventType: initialEventType } : {}),
+      };
+
   const form = useForm<CalendarDayFormValues>({
     resolver: zodResolver(calendarDaySchema),
-    defaultValues: day
-      ? { ...EMPTY_DEFAULTS, ...day }
-      : {
-          ...EMPTY_DEFAULTS,
-          language: initialLanguage ?? "uk",
-          slug: initialSlug ?? "",
-          ...(initialDate ? { date: initialDate } : {}),
-          ...(initialEventType ? { eventType: initialEventType } : {}),
-        },
+    defaultValues,
   });
 
   useEffect(() => {
@@ -374,6 +214,8 @@ export function CalendarDayForm({
   const queryClient = useQueryClient();
   const [prayerLinkId, setPrayerLinkId] = useState("");
   const [gospelLinkId, setGospelLinkId] = useState("");
+  const [linkIssues, setLinkIssues] = useState<ReturnType<typeof validateCalendarDayLinks>>([]);
+
   const recommendPrayerMutation = useMutation({
     mutationFn: () => apiClient.calendarDays.recommendPrayer(day!.id),
     onSuccess: (result) => {
@@ -394,10 +236,26 @@ export function CalendarDayForm({
     },
     onError: (error) => toast.error(errorMessageFor(error)),
   });
+  const unlinkPrayerMutation = useMutation({
+    mutationFn: (prayer: Prayer) => apiClient.prayers.update(prayer.id, { ...prayer, calendarDayId: undefined }),
+    onSuccess: () => {
+      toast.success("Молитву відв'язано від цього дня.");
+      queryClient.invalidateQueries({ queryKey: ["prayers", "options"] });
+    },
+    onError: (error) => toast.error(errorMessageFor(error)),
+  });
   const linkGospelMutation = useMutation({
     mutationFn: (reading: GospelReading) => apiClient.gospelReadings.update(reading.id, { ...reading, calendarDayId: day!.id }),
     onSuccess: () => {
       toast.success("Читання пов'язано з цим днем.");
+      queryClient.invalidateQueries({ queryKey: ["gospelReadings", "options"] });
+    },
+    onError: (error) => toast.error(errorMessageFor(error)),
+  });
+  const unlinkGospelMutation = useMutation({
+    mutationFn: (reading: GospelReading) => apiClient.gospelReadings.update(reading.id, { ...reading, calendarDayId: undefined }),
+    onSuccess: () => {
+      toast.success("Читання відв'язано від цього дня.");
       queryClient.invalidateQueries({ queryKey: ["gospelReadings", "options"] });
     },
     onError: (error) => toast.error(errorMessageFor(error)),
@@ -510,6 +368,19 @@ export function CalendarDayForm({
     return result;
   }, [siblings]);
 
+  const missingLanguages = (["uk", "ru", "en"] as Language[]).filter((lang) => completeness[lang] === "empty");
+
+  const [translationsProgress, setTranslationsProgress] = useState<string | undefined>(undefined);
+  const fillTranslationsMutation = useMutation({
+    mutationFn: () => prepareCalendarLanguages(form.getValues("date"), form.getValues("language"), effectiveGroupId, setTranslationsProgress),
+    onSuccess: () => {
+      toast.success("Відсутні переклади створено як чернетки.");
+      queryClient.invalidateQueries({ queryKey: ["calendarDays"] });
+    },
+    onError: (error) => toast.error(errorMessageFor(error)),
+    onSettled: () => setTranslationsProgress(undefined),
+  });
+
   function handleSwitchLanguage(lang: Language) {
     if (lang === day?.language) return;
     const sibling = siblings.find((d) => d.language === lang);
@@ -520,10 +391,6 @@ export function CalendarDayForm({
       // slug) is carried into the new translation -- title/description/
       // history/SEO are deliberately NOT copied, since those are
       // language-specific and must be written fresh for each translation.
-      // `date` in particular used to be dropped here, which made a brand
-      // new "+ create translation" screen look like a broken load of an
-      // existing record (blank Date/Title next to a real, carried-over
-      // slug) -- see calendar-day-form's bug history.
       const params = new URLSearchParams({
         groupId: effectiveGroupId,
         language: lang,
@@ -581,8 +448,44 @@ export function CalendarDayForm({
     return result;
   }, [siblings, values]);
 
+  const readiness = useMemo(
+    () =>
+      calendarDayReadiness({
+        day: { ...values, eventType: values.eventType },
+        hasSaint: linkedSaints.length > 0,
+        hasPrayer: linkedPrayers.length > 0,
+        hasGospel: linkedGospel.length > 0,
+        translations: {
+          uk: TO_READINESS_STATE[completeness.uk],
+          ru: TO_READINESS_STATE[completeness.ru],
+          en: TO_READINESS_STATE[completeness.en],
+        },
+      }),
+    [values, linkedSaints.length, linkedPrayers.length, linkedGospel.length, completeness],
+  );
+
+  const preparation = useCalendarDayPreparation({
+    day,
+    completenessPercent: calendarDayCompletenessPercent(values),
+    hasPrayer: linkedPrayers.length > 0,
+    hasGospel: linkedGospel.length > 0,
+    prayerCandidates: prayersQuery.data?.items ?? [],
+    gospelCandidates: gospelQuery.data?.items ?? [],
+    saintLanguages: linkedSaints.map((s) => s.language),
+    language: values.language,
+    missingLanguages,
+    onFillContent: () => ai.fillMissing(),
+    onLinkPrayer: (prayer) => linkPrayerMutation.mutateAsync(prayer),
+    onPrepareGospel: () => prepareGospelMutation.mutateAsync(),
+    onFillTranslations: () => fillTranslationsMutation.mutateAsync(),
+  });
+
   return (
     <div className="flex h-full flex-col">
+      {mode === "edit" && day ? (
+        <CalendarDayHeader day={day} title={values.title} date={values.date} language={values.language} readiness={readiness} />
+      ) : null}
+
       {ai.isBusy ? <p role="status" className="px-4 pt-3 text-sm text-muted-foreground">AI готує матеріали. Дочекайтеся завершення; публікація виконується окремо.</p> : null}
       <fieldset disabled={ai.isBusy || submitting} aria-busy={ai.isBusy} className="min-w-0 flex-1 space-y-4 overflow-y-auto p-4 pb-28 md:p-6 md:pb-24">
         {effectiveGroupId ? (
@@ -608,10 +511,6 @@ export function CalendarDayForm({
                 );
               })}
             </div>
-            <p className="text-sm text-muted-foreground">Публікація перекладів окрема: {(["uk", "ru", "en"] as const).map((lang) => {
-              const sibling = siblings.find((day) => day.language === lang);
-              return `${lang.toUpperCase()} — ${!sibling ? "немає перекладу" : sibling.status === "published" ? "опубліковано" : sibling.status === "draft" ? "чернетка" : "не опубліковано"}`;
-            }).join(" · ")}. На сайті доступні лише опубліковані версії.</p>
           </div>
         ) : null}
 
@@ -627,20 +526,15 @@ export function CalendarDayForm({
         ) : null}
 
         {mode === "edit" && day ? (
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full"
-            disabled={ai.isPending("fillMissing")}
-            onClick={ai.fillMissing}
-          >
-            <Sparkles className="size-4" />
-            {ai.isPending("fillMissing")
-              ? "Заповнення…"
-              : day.status === "published" && !workingCopy
-                ? "Заповнити відсутнє з AI (запропонувати на розгляд)"
-                : "Заповнити відсутнє з AI"}
-          </Button>
+          <CalendarDayAiPanel
+            statusRow={readiness.items.filter((item) => item.state !== "n/a")}
+            plan={preparation.plan}
+            analyzing={preparation.analyzing}
+            executing={preparation.executing}
+            onAnalyze={preparation.analyze}
+            onConfirm={preparation.execute}
+            onCancel={preparation.cancel}
+          />
         ) : null}
 
         <Tabs value={tab} onValueChange={setTab}>
@@ -649,6 +543,8 @@ export function CalendarDayForm({
             <TabsTrigger value="content">Контент</TabsTrigger>
             <TabsTrigger value="relations">Зв&apos;язки</TabsTrigger>
             <TabsTrigger value="media">Медіа</TabsTrigger>
+            <TabsTrigger value="translations">Переклади</TabsTrigger>
+            <TabsTrigger value="seo">SEO</TabsTrigger>
             <TabsTrigger value="publication">Публікація</TabsTrigger>
           </TabsList>
 
@@ -663,6 +559,26 @@ export function CalendarDayForm({
               label="Тип події"
               options={Object.entries(EVENT_TYPE_LABELS).map(([value, label]) => ({ value, label }))}
             />
+
+            {mode === "edit" && day ? (
+              <>
+                <CalendarDayQuickFill
+                  fillMissingPending={ai.isPending("fillMissing")}
+                  onFillMissing={ai.fillMissing}
+                  onResetChanges={() => form.reset(defaultValues)}
+                />
+                <CalendarDayContentStatus
+                  readiness={readiness.items}
+                  saint={linkedSaints[0] ? { id: linkedSaints[0].id, label: linkedSaints[0].name, hrefBase: "/saints" } : undefined}
+                  prayer={linkedPrayers[0] ? { id: linkedPrayers[0].id, label: linkedPrayers[0].title, hrefBase: "/prayers" } : undefined}
+                  gospel={linkedGospel[0] ? { id: linkedGospel[0].id, label: linkedGospel[0].title, hrefBase: "/gospel" } : undefined}
+                  icon={linkedIcons[0] ? { id: linkedIcons[0].id, label: linkedIcons[0].title, hrefBase: "/icons" } : undefined}
+                  translations={(["uk", "ru", "en"] as const).map((lang) => ({ key: lang, label: lang.toUpperCase(), state: TO_READINESS_STATE[completeness[lang]] }))}
+                  onGoToTab={setTab}
+                />
+                <TextField control={form.control} name="internalNote" label="Примітки" textarea rows={3} description="Лише для адміністраторів. Не показується на сайті." />
+              </>
+            ) : null}
           </TabsContent>
 
           <TabsContent value="content" className="space-y-4">
@@ -721,255 +637,133 @@ export function CalendarDayForm({
                 ) : null}
               </div>
             </div>
-
-            <div className="space-y-2 border-t pt-4">
-              <p className="text-sm font-medium">SEO</p>
-              <div className="space-y-1">
-                <TextField control={form.control} name="seoTitle" label="SEO title" />
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>{values.seoTitle?.length ?? 0}/70 символів</span>
-                </div>
-              </div>
-              <div className="space-y-1">
-                <TextField control={form.control} name="seoDescription" label="SEO description" textarea rows={2} />
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>{values.seoDescription?.length ?? 0}/200 символів</span>
-                  {mode === "edit" && day ? (
-                    <div className="flex gap-2">
-                      {!(values.seoTitle?.trim() && values.seoDescription?.trim()) ? (
-                        <Button type="button" size="sm" variant="ghost" disabled={ai.isPending("generateSeo")} onClick={ai.generateSeo}>
-                          <Sparkles className="size-3.5" />
-                          {ai.isPending("generateSeo") ? "Генерація…" : "Згенерувати SEO"}
-                        </Button>
-                      ) : (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          disabled={ai.isPending("regenerateSeo")}
-                          onClick={() => setConfirmRegenerateSeo(true)}
-                        >
-                          <Sparkles className="size-3.5" />
-                          {ai.isPending("regenerateSeo") ? "Регенерація…" : "Перегенерувати SEO"}
-                        </Button>
-                      )}
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-            </div>
           </TabsContent>
 
           <TabsContent value="relations" className="space-y-4">
             {mode === "edit" && day ? (
-              <>
-                <p className="text-xs text-muted-foreground">
-                  Це реальні зв&apos;язки з боку пов&apos;язаних записів (їхнє поле «календарний день»). Для ікон і святих, щоб
-                  додати чи прибрати зв&apos;язок, відредагуйте відповідний запис. Молитви й читання можна зв&apos;язати або
-                  швидко створити прямо тут.
-                </p>
-                <LinkedContentSection title="Пов'язані ікони" hrefBase="/icons" items={linkedIcons.map((i) => ({ id: i.id, label: i.title }))} />
-                <div className="space-y-2">
-                  <LinkedContentSection title="Пов'язані молитви" hrefBase="/prayers" items={linkedPrayers.map((p) => ({ id: p.id, label: p.title }))} />
-                  <RelationLinkExisting
-                    candidates={prayersQuery.data?.items ?? []}
-                    getLabel={(p) => `${p.title} (${p.language.toUpperCase()})`}
-                    onLink={(p) => linkPrayerMutation.mutate(p)}
-                    pending={linkPrayerMutation.isPending}
-                    value={prayerLinkId}
-                    onValueChange={setPrayerLinkId}
-                  >
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      disabled={recommendPrayerMutation.isPending}
-                      onClick={() => recommendPrayerMutation.mutate()}
-                    >
-                      <Sparkles className="size-4" />
-                      {recommendPrayerMutation.isPending ? "Підбираємо…" : "AI підбір"}
-                    </Button>
-                  </RelationLinkExisting>
-                  <QuickCreatePrayer onCreate={handleCreatePrayer} pending={createPrayerMutation.isPending} />
-                </div>
-                <LinkedContentSection title="Пов'язані святі" hrefBase="/saints" items={linkedSaints.map((s) => ({ id: s.id, label: s.name }))} />
-                <div className="space-y-2">
-                  <LinkedContentSection title="Пов'язані читання" hrefBase="/gospel" items={linkedGospel.map((g) => ({ id: g.id, label: g.title }))} />
-                  <RelationLinkExisting
-                    candidates={gospelQuery.data?.items ?? []}
-                    getLabel={(g) => `${g.title} (${g.language.toUpperCase()})`}
-                    onLink={(g) => linkGospelMutation.mutate(g)}
-                    pending={linkGospelMutation.isPending}
-                    value={gospelLinkId}
-                    onValueChange={setGospelLinkId}
-                  />
-                  <QuickCreateGospel onCreate={handleCreateGospel} pending={createGospelMutation.isPending} />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={prepareGospelMutation.isPending}
-                    onClick={() => prepareGospelMutation.mutate()}
-                  >
-                    <Sparkles className="size-4" />
-                    {prepareGospelMutation.isPending ? "Готуємо…" : "Підготувати з AI"}
-                  </Button>
-                </div>
-              </>
+              <CalendarDayLinksTab
+                linkedIcons={linkedIcons.map((i) => ({ id: i.id, label: i.title }))}
+                linkedSaints={linkedSaints.map((s) => ({ id: s.id, label: s.name }))}
+                linkedPrayers={linkedPrayers.map((p) => ({ ...p, label: p.title }))}
+                linkedGospel={linkedGospel.map((g) => ({ ...g, label: g.title }))}
+                prayerCandidates={prayersQuery.data?.items ?? []}
+                gospelCandidates={gospelQuery.data?.items ?? []}
+                prayerLinkId={prayerLinkId}
+                onPrayerLinkIdChange={setPrayerLinkId}
+                gospelLinkId={gospelLinkId}
+                onGospelLinkIdChange={setGospelLinkId}
+                onLinkPrayer={(p) => linkPrayerMutation.mutate(p)}
+                onUnlinkPrayer={(id) => {
+                  const prayer = linkedPrayers.find((p) => p.id === id);
+                  if (prayer) unlinkPrayerMutation.mutate(prayer);
+                }}
+                linkPrayerPending={linkPrayerMutation.isPending || unlinkPrayerMutation.isPending}
+                onLinkGospel={(g) => linkGospelMutation.mutate(g)}
+                onUnlinkGospel={(id) => {
+                  const reading = linkedGospel.find((g) => g.id === id);
+                  if (reading) unlinkGospelMutation.mutate(reading);
+                }}
+                linkGospelPending={linkGospelMutation.isPending || unlinkGospelMutation.isPending}
+                onCreatePrayer={handleCreatePrayer}
+                createPrayerPending={createPrayerMutation.isPending}
+                onCreateGospel={handleCreateGospel}
+                createGospelPending={createGospelMutation.isPending}
+                onRecommendPrayer={() => recommendPrayerMutation.mutate()}
+                recommendPrayerPending={recommendPrayerMutation.isPending}
+                onPrepareGospel={() => prepareGospelMutation.mutate()}
+                prepareGospelPending={prepareGospelMutation.isPending}
+                linkIssues={linkIssues}
+                onValidateLinks={() =>
+                  setLinkIssues(
+                    validateCalendarDayLinks({
+                      language: values.language,
+                      prayers: linkedPrayers.map((p) => ({ id: p.id, language: p.language })),
+                      gospel: linkedGospel.map((g) => ({ id: g.id, language: g.language })),
+                      saints: linkedSaints.map((s) => ({ id: s.id, language: s.language })),
+                    }),
+                  )
+                }
+              />
             ) : (
               <p className="text-sm text-muted-foreground">Спочатку збережіть день — зв&apos;язки з&apos;являться тут після цього.</p>
             )}
           </TabsContent>
 
           <TabsContent value="media" className="space-y-4">
-            <div className="space-y-2">
-              <TextField control={form.control} name="imageId" label="ID зображення" description="Фото для картки календаря. Посилання на медіатеку (Stage 1: введіть ID вручну)" />
-              <div className="flex flex-wrap gap-2">
-                <MediaUploadButton
-                  kind="image"
-                  module="calendar"
-                  entityId={day?.id ?? "draft"}
-                  purpose="main"
-                  label="Завантажити фото"
-                  onUploaded={({ id }) => {
-                    // Replacing a not-yet-saved upload with another one —
-                    // the previous pending key is now orphaned, clean it up.
-                    const previous = pendingUploadKey;
-                    form.setValue("imageId", id, { shouldDirty: true });
-                    setPendingUploadKey(id);
-                    if (previous) void cleanupOrphanUpload(previous);
-                  }}
-                />
-                {mode === "edit" && day ? (
-                  !values.imageId?.trim() ? (
-                    <Button type="button" variant="outline" size="sm" disabled={ai.isPending("generateImage")} onClick={ai.generateImage}>
-                      <Sparkles className="size-4" />
-                      {ai.isPending("generateImage") ? "Генерація…" : "Згенерувати фото AI"}
-                    </Button>
-                  ) : (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      disabled={ai.isPending("regenerateImage")}
-                      onClick={() => setConfirmRegenerateImage(true)}
-                    >
-                      <Sparkles className="size-4" />
-                      {ai.isPending("regenerateImage") ? "Регенерація…" : "Перегенерувати фото"}
-                    </Button>
-                  )
-                ) : null}
-              </div>
-            </div>
-            {mode === "edit" && day ? (
-              <div className="space-y-2 rounded-md border p-3">
-                <label className="text-sm font-medium">Промпт для AI (англійською)</label>
-                <p className="text-xs text-muted-foreground">
-                  Опишіть зображення власними словами англійською -- AI згенерує саме за цим описом, минаючи автоматичний пошук
-                  референсу. Мова тексту дня відповідає вибраному перекладу (UK/RU/EN).
-                </p>
-                <Textarea
-                  value={customImagePrompt}
-                  onChange={(e) => setCustomImagePrompt(e.target.value)}
-                  rows={3}
-                  placeholder="e.g. Byzantine icon of a bearded martyr saint, golden halo, warm candlelight, traditional Orthodox style"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={ai.isPending("generateImageFromPrompt") || !customImagePrompt.trim()}
-                  onClick={() => ai.generateImageFromPrompt(customImagePrompt)}
-                >
-                  <Sparkles className="size-4" />
-                  {ai.isPending("generateImageFromPrompt") ? "Генерація…" : "Згенерувати за промтом"}
-                </Button>
-              </div>
-            ) : null}
-            {imagePreviewUrl ? (
-              <div className="space-y-2">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={imagePreviewUrl} alt="Попередній перегляд" className="h-40 w-auto rounded-md border object-cover" />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    const previous = pendingUploadKey;
-                    form.setValue("imageId", undefined, { shouldDirty: true });
-                    setPendingUploadKey(undefined);
-                    if (previous) void cleanupOrphanUpload(previous);
-                  }}
-                >
-                  <X className="size-4" />
-                  Прибрати фото
-                </Button>
-                {day?.imageMetadata?.origin === "ai_generated" ? (
-                  <div className="space-y-1 rounded-md border bg-muted/30 p-2 text-xs text-muted-foreground">
-                    <p>
-                      <span className="font-medium text-foreground">Зображення:</span>{" "}
-                      {day.imageMetadata.customPrompt
-                        ? "AI-ілюстрація за власним промтом"
-                        : day.imageMetadata.identityVerified
-                          ? "AI-ілюстрація"
-                          : "AI-ілюстрація · тематичний образ"}
-                    </p>
-                    {day.imageMetadata.customPrompt ? (
-                      <p>
-                        <span className="font-medium text-foreground">Промпт:</span> {day.imageMetadata.customPrompt}
-                      </p>
-                    ) : (
-                      <p>
-                        <span className="font-medium text-foreground">Референс:</span>{" "}
-                        {day.imageMetadata.referenceProvider ? "Wikipedia / Wikimedia Commons" : "Референс не знайдено"}
-                      </p>
-                    )}
-                    {day.imageMetadata.identityVerified ? (
-                      <p>
-                        <span className="font-medium text-foreground">Статус:</span> Особу підтверджено
-                      </p>
-                    ) : null}
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
+            <CalendarDayMediaTab
+              control={form.control}
+              mode={mode}
+              day={day}
+              imageId={values.imageId}
+              imagePreviewUrl={imagePreviewUrl}
+              onSelectImage={(imageId) => {
+                const previous = pendingUploadKey;
+                form.setValue("imageId", imageId, { shouldDirty: true });
+                setPendingUploadKey(undefined);
+                if (previous) void cleanupOrphanUpload(previous);
+              }}
+              onRemoveImage={() => {
+                const previous = pendingUploadKey;
+                form.setValue("imageId", undefined, { shouldDirty: true });
+                setPendingUploadKey(undefined);
+                if (previous) void cleanupOrphanUpload(previous);
+              }}
+              onUploaded={(id) => {
+                // Replacing a not-yet-saved upload with another one — the
+                // previous pending key is now orphaned, clean it up.
+                const previous = pendingUploadKey;
+                form.setValue("imageId", id, { shouldDirty: true });
+                setPendingUploadKey(id);
+                if (previous) void cleanupOrphanUpload(previous);
+              }}
+              generateImagePending={ai.isPending("generateImage") || ai.isPending("regenerateImage")}
+              onGenerateImage={ai.generateImage}
+              onRequestRegenerateImage={() => setConfirmRegenerateImage(true)}
+              customImagePrompt={customImagePrompt}
+              onCustomImagePromptChange={setCustomImagePrompt}
+              generateFromPromptPending={ai.isPending("generateImageFromPrompt")}
+              onGenerateFromPrompt={() => ai.generateImageFromPrompt(customImagePrompt)}
+            />
+          </TabsContent>
+
+          <TabsContent value="translations" className="space-y-4">
+            <CalendarDayTranslationsTab
+              completenessPercent={completenessPercent}
+              siblings={siblings}
+              missingLanguages={missingLanguages}
+              fillMissingPending={fillTranslationsMutation.isPending}
+              fillMissingStatus={translationsProgress}
+              onFillMissing={() => fillTranslationsMutation.mutate()}
+            />
+          </TabsContent>
+
+          <TabsContent value="seo" className="space-y-4">
+            <CalendarDaySeoTab
+              control={form.control}
+              mode={mode}
+              hasDay={Boolean(day)}
+              seoTitle={values.seoTitle}
+              seoDescription={values.seoDescription}
+              generatePending={ai.isPending("generateSeo") || ai.isPending("regenerateSeo")}
+              onGenerate={ai.generateSeo}
+              onRequestRegenerate={() => setConfirmRegenerateSeo(true)}
+            />
           </TabsContent>
 
           <TabsContent value="publication" className="space-y-4">
-            <SelectField
-              control={form.control}
-              name="status"
-              label="Статус"
-              options={[
-                { value: "draft", label: messages.status.draft },
-                { value: "published", label: messages.status.published },
-                { value: "archived", label: messages.status.archived },
-              ]}
-            />
-            {mode === "edit" && onDelete ? (
-              <Button type="button" variant="destructive" onClick={onDelete}>
-                {messages.actions.delete} день
-              </Button>
-            ) : null}
+            <CalendarDayPublicationTab control={form.control} mode={mode} readiness={readiness.items} onDelete={onDelete} />
           </TabsContent>
         </Tabs>
       </fieldset>
 
-      <div
-        className="fixed inset-x-0 bottom-16 z-20 flex gap-2 border-t bg-background p-3 md:sticky md:bottom-0 md:inset-x-auto"
-        style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 0.75rem)" }}
-      >
-        <Button type="button" variant="outline" className="h-11 flex-1" onClick={() => setPreviewOpen(true)}>
-          <Eye className="size-4" />
-          {messages.actions.preview}
-        </Button>
-        {!workingCopy ? <Button type="button" variant="secondary" className="h-11 flex-1" disabled={submitting || ai.isBusy} onClick={() => handleSave(false)}>
-          {messages.actions.save}
-        </Button> : null}
-        <Button type="button" className="h-11 flex-1" disabled={submitting || ai.isBusy} onClick={requestPublish}>
-          {messages.actions.publish}
-        </Button>
-      </div>
+      <CalendarDayActionBar
+        workingCopy={workingCopy}
+        submitting={submitting}
+        busy={ai.isBusy}
+        onPreview={() => setPreviewOpen(true)}
+        onSave={() => handleSave(false)}
+        onPublish={requestPublish}
+      />
 
       {previewOpen ? (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 md:items-center" onClick={() => setPreviewOpen(false)}>

@@ -29,10 +29,16 @@ const mockApi = vi.hoisted(() => ({
     fillMissing: vi.fn(),
     recommendPrayer: vi.fn(),
     prepareGospel: vi.fn(),
+    previewGospelReading: vi.fn(),
   },
-  media: {},
+  media: { listObjects: vi.fn() },
 }));
 vi.mock("@/lib/api", () => ({ apiClient: mockApi }));
+
+const mockPrepareCalendarLanguages = vi.fn();
+vi.mock("@/features/calendar/prepare-calendar-languages", () => ({
+  prepareCalendarLanguages: (...args: unknown[]) => mockPrepareCalendarLanguages(...args),
+}));
 
 function baseDay(overrides: Partial<CalendarDay> = {}): CalendarDay {
   return {
@@ -339,6 +345,154 @@ describe("CalendarDayForm relations tab", () => {
     expect(screen.queryByRole("combobox", { name: "Оберіть існуючий запис" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "+ Створити нову" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "+ Створити нове" })).not.toBeInTheDocument();
+  });
+
+  it("unlinks a linked prayer without touching any other prayer field", async () => {
+    const user = userEvent.setup();
+    mockApi.prayers.list.mockReturnValue(
+      Promise.resolve({ items: [{ id: "prayer-1", title: "Псалом 90", language: "uk", text: "Живий в помочі", calendarDayId: "day-1" }], total: 1 }),
+    );
+    mockApi.prayers.update.mockReset().mockResolvedValue({ id: "prayer-1", title: "Псалом 90", calendarDayId: null });
+    renderForm({ day: baseDay() });
+    await user.click(screen.getByRole("tab", { name: "Зв'язки" }));
+
+    await user.click(await screen.findByRole("button", { name: "Відв'язати" }));
+
+    expect(mockApi.prayers.update).toHaveBeenCalledWith(
+      "prayer-1",
+      expect.objectContaining({ id: "prayer-1", title: "Псалом 90", calendarDayId: undefined }),
+    );
+  });
+
+  it("runs the deterministic links check and surfaces a warning for more than one linked prayer, without calling any API", async () => {
+    const user = userEvent.setup();
+    mockApi.prayers.update.mockReset();
+    mockApi.calendarDays.recommendPrayer.mockReset();
+    mockApi.prayers.list.mockReturnValue(
+      Promise.resolve({
+        items: [
+          { id: "prayer-1", title: "Псалом 90", language: "uk", calendarDayId: "day-1" },
+          { id: "prayer-2", title: "Молитва Господня", language: "uk", calendarDayId: "day-1" },
+        ],
+        total: 2,
+      }),
+    );
+    renderForm({ day: baseDay() });
+    await user.click(screen.getByRole("tab", { name: "Зв'язки" }));
+
+    await user.click(screen.getByRole("button", { name: "AI перевірити зв'язки" }));
+
+    expect(await screen.findByText(/пов'язано кілька записів/)).toBeInTheDocument();
+    expect(mockApi.prayers.update).not.toHaveBeenCalled();
+    expect(mockApi.calendarDays.recommendPrayer).not.toHaveBeenCalled();
+  });
+});
+
+describe("CalendarDayForm translations tab", () => {
+  it("fills only the missing UK/RU/EN translations via the existing prepareCalendarLanguages orchestrator", async () => {
+    const user = userEvent.setup();
+    mockPrepareCalendarLanguages.mockReset().mockResolvedValue("day-1");
+    renderForm({ day: baseDay() });
+
+    await user.click(screen.getByRole("tab", { name: "Переклади" }));
+    await user.click(screen.getByRole("button", { name: "Заповнити відсутнє з AI" }));
+
+    expect(mockPrepareCalendarLanguages).toHaveBeenCalledWith("2026-09-06", "uk", "group-1", expect.any(Function));
+  });
+
+  it("disables the fill-missing button once every language already has a record", async () => {
+    mockApi.calendarDays.list.mockReturnValue(
+      Promise.resolve({
+        items: [
+          baseDay({ id: "day-1", language: "uk" }),
+          baseDay({ id: "day-2", language: "ru" }),
+          baseDay({ id: "day-3", language: "en" }),
+        ],
+        total: 3,
+      }),
+    );
+    const user = userEvent.setup();
+    renderForm({ day: baseDay() });
+    await user.click(screen.getByRole("tab", { name: "Переклади" }));
+
+    expect(await screen.findByRole("button", { name: "Заповнити відсутнє з AI" })).toBeDisabled();
+  });
+});
+
+describe("CalendarDayForm media tab", () => {
+  it("picks an existing upload from the media library instead of typing a raw ID", async () => {
+    const user = userEvent.setup();
+    mockApi.media.listObjects.mockReset().mockResolvedValue({
+      items: [{ key: "media/calendar/day-1/main/photo.png", url: "https://example.com/photo.png", kind: "image", contentType: "image/png", size: 100 }],
+      cursor: null,
+    });
+    renderForm({ day: baseDay() });
+    await user.click(screen.getByRole("tab", { name: "Медіа" }));
+
+    await user.click(screen.getByRole("button", { name: "Вибрати з медіатеки" }));
+    await user.click(await screen.findByRole("button", { name: "" }));
+
+    expect(await screen.findByRole("img", { name: "Попередній перегляд" })).toHaveAttribute("src", "https://example.com/photo.png");
+  });
+});
+
+describe("CalendarDayForm AI preparation panel", () => {
+  it("only analyzes on the main button -- no mutation runs until the admin reviews the plan and confirms", async () => {
+    const user = userEvent.setup();
+    mockApi.calendarDays.recommendPrayer.mockReset().mockResolvedValue({ prayerId: null });
+    mockApi.calendarDays.previewGospelReading.mockReset().mockResolvedValue({
+      title: "Євангельське читання: Ів. 1:1-17",
+      reference: "Ів. 1:1-17",
+      text: "",
+      explanation: "",
+      sourceUrl: "https://www.oca.org/readings/daily/2026/09/06",
+    });
+    mockApi.calendarDays.prepareGospel.mockReset();
+    mockPrepareCalendarLanguages.mockReset();
+    renderForm({ day: baseDay() });
+
+    await user.click(screen.getByRole("button", { name: "Підготувати день з AI" }));
+
+    expect(await screen.findByText(/Ів\. 1:1-17.*OCA/)).toBeInTheDocument();
+    expect(mockApi.calendarDays.prepareGospel).not.toHaveBeenCalled();
+    expect(mockPrepareCalendarLanguages).not.toHaveBeenCalled();
+  });
+
+  it("Створити чернетки links the found prayer and prepares the resolved Gospel reading, but never invents a prayer when none is found", async () => {
+    const user = userEvent.setup();
+    mockApi.prayers.list.mockReturnValue(Promise.resolve({ items: [{ id: "prayer-9", title: "Молитва Оптинських старців", language: "uk" }], total: 1 }));
+    mockApi.prayers.update.mockReset().mockResolvedValue({ id: "prayer-9", calendarDayId: "day-1" });
+    mockApi.calendarDays.recommendPrayer.mockReset().mockResolvedValue({ prayerId: "prayer-9" });
+    mockApi.calendarDays.previewGospelReading.mockReset().mockRejectedValue(new Error("Джерело читань недоступне"));
+    mockApi.calendarDays.prepareGospel.mockReset();
+    mockPrepareCalendarLanguages.mockReset();
+    renderForm({ day: baseDay() });
+
+    await user.click(screen.getByRole("button", { name: "Підготувати день з AI" }));
+    await screen.findByText(/Існуюча молитва: Молитва Оптинських старців/);
+    expect(screen.getByText(/Канонічне читання не визначено/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Створити чернетки" }));
+
+    expect(mockApi.prayers.update).toHaveBeenCalledWith("prayer-9", expect.objectContaining({ calendarDayId: "day-1" }));
+    expect(mockApi.calendarDays.prepareGospel).not.toHaveBeenCalled();
+  });
+
+  it("Скасувати closes the review without calling anything", async () => {
+    const user = userEvent.setup();
+    mockApi.prayers.update.mockReset();
+    mockApi.calendarDays.prepareGospel.mockReset();
+    mockApi.calendarDays.recommendPrayer.mockReset().mockResolvedValue({ prayerId: null });
+    mockApi.calendarDays.previewGospelReading.mockReset().mockRejectedValue(new Error("unavailable"));
+    renderForm({ day: baseDay() });
+
+    await user.click(screen.getByRole("button", { name: "Підготувати день з AI" }));
+    await screen.findByText(/Канонічне читання не визначено/);
+    await user.click(screen.getByRole("button", { name: "Скасувати" }));
+
+    expect(screen.queryByText(/Канонічне читання не визначено/)).not.toBeInTheDocument();
+    expect(mockApi.prayers.update).not.toHaveBeenCalled();
+    expect(mockApi.calendarDays.prepareGospel).not.toHaveBeenCalled();
   });
 });
 

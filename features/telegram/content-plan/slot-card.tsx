@@ -3,12 +3,12 @@
 import { ExternalLink, Music2, MoreHorizontal, X } from "lucide-react";
 import { useState } from "react";
 import { ConfirmDialog } from "@/components/feedback/confirm-dialog";
+import { MediaPickerDialog } from "@/components/forms/media-picker-dialog";
 import { MediaUploadButton } from "@/components/forms/media-upload-button";
 import { GuardedLink } from "@/components/layout/guarded-link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { MediaPickerDialog } from "../media-picker-dialog";
 import { AUTOPOST_CONTENT_TYPE_LABELS, type ContentPlanSlot, type ContentPlanSlotStatus } from "@/types/entities";
 import { PreviewDialog } from "./preview-dialog";
 import { StatusBadge } from "./status-badge";

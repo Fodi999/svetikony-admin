@@ -17,20 +17,33 @@ interface MediaPickerDialogProps {
    * for an audio object). Defaults to "image" so every pre-existing call
    * site (the photo picker) keeps its exact previous behavior unchanged. */
   kind?: "image" | "audio";
+  /** Which media module's uploads to list (see ApiClient.media.listObjects'
+   * own module param) -- defaults to "telegram" so every pre-existing call
+   * site keeps its exact previous behavior unchanged. The Calendar Day
+   * media tab passes "calendar" to browse that module's own uploads
+   * instead of Telegram's. */
+  module?: string;
 }
 
 function fileNameFromKey(key: string): string {
   return key.split("/").pop() ?? key;
 }
 
-/** "Обрати з медіатеки" — lists real R2 objects under the `telegram` module
- * (see ApiClient.media.listObjects). Falls back to an explanatory empty
- * state rather than crashing if the current adapter doesn't implement it
- * (MockApiAdapter's media.listObjects is optional). */
-export function MediaPickerDialog({ open, onOpenChange, onSelect, kind = "image" }: MediaPickerDialogProps) {
+const EMPTY_STATE_TEXT: Record<"image" | "audio", string> = {
+  image: "Ще немає завантажених зображень.",
+  audio: "Ще немає завантажених аудіофайлів.",
+};
+
+/** "Обрати з медіатеки" — lists real R2 objects under the given module (see
+ * ApiClient.media.listObjects). Falls back to an explanatory empty state
+ * rather than crashing if the current adapter doesn't implement it
+ * (MockApiAdapter's media.listObjects is optional). Originally built for
+ * the Telegram post composer; the admin UX redesign generalized it (the
+ * `module` prop) for reuse by the Calendar Day media tab. */
+export function MediaPickerDialog({ open, onOpenChange, onSelect, kind = "image", module = "telegram" }: MediaPickerDialogProps) {
   const query = useQuery({
-    queryKey: ["media", "telegram"],
-    queryFn: () => apiClient.media.listObjects?.({ module: "telegram" }) ?? Promise.resolve({ items: [], cursor: null }),
+    queryKey: ["media", module],
+    queryFn: () => apiClient.media.listObjects?.({ module }) ?? Promise.resolve({ items: [], cursor: null }),
     enabled: open,
   });
 
@@ -54,7 +67,7 @@ export function MediaPickerDialog({ open, onOpenChange, onSelect, kind = "image"
         ) : items.length === 0 ? (
           <div className="flex flex-col items-center gap-2 py-8 text-muted-foreground">
             {kind === "audio" ? <Music className="size-8" aria-hidden /> : <ImageOff className="size-8" aria-hidden />}
-            <p className="text-sm">{kind === "audio" ? "Ще немає завантажених аудіофайлів для Telegram." : "Ще немає завантажених зображень для Telegram."}</p>
+            <p className="text-sm">{EMPTY_STATE_TEXT[kind]}</p>
           </div>
         ) : kind === "audio" ? (
           <div className="max-h-[60vh] space-y-1 overflow-y-auto">

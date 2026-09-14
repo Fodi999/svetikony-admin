@@ -30,8 +30,8 @@ interface BackendErrorBody {
   details?: string;
 }
 
-export async function httpGet<T>(path: string): Promise<T> {
-  const { signal, clear } = createAbortTimeout(REQUEST_TIMEOUT_MS);
+export async function httpGet<T>(path: string, timeoutMs: number = REQUEST_TIMEOUT_MS): Promise<T> {
+  const { signal, clear } = createAbortTimeout(timeoutMs);
 
   let response: Response;
   try {

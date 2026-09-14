@@ -53,6 +53,9 @@ export interface WorkerCalendarDayDto {
   seoTitle: string | null;
   seoDescription: string | null;
   imageMetadata: WorkerCalendarImageMetadata | null;
+  /** Admin-only free-text note (svet-ikony migration 0023) -- shown only in
+   * the admin's own UI, never on the public site. */
+  internalNote: string | null;
   isGlobal: boolean;
   createdAt: string;
   updatedAt: string;
@@ -78,6 +81,7 @@ export interface BffCalendarDayDto {
   seoTitle: string | null;
   seoDescription: string | null;
   imageMetadata: WorkerCalendarImageMetadata | null;
+  internalNote: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -101,6 +105,7 @@ export function toBffCalendarDayDto(worker: WorkerCalendarDayDto): BffCalendarDa
     seoTitle: worker.seoTitle,
     seoDescription: worker.seoDescription,
     imageMetadata: worker.imageMetadata,
+    internalNote: worker.internalNote,
     createdAt: worker.createdAt,
     updatedAt: worker.updatedAt,
   };
@@ -127,6 +132,7 @@ export interface WorkerCalendarDayWritePayload {
   status?: string;
   seoTitle?: string | null;
   seoDescription?: string | null;
+  internalNote?: string | null;
 }
 
 /**
@@ -167,4 +173,19 @@ export function toBffCalendarAiWriteResultDto(worker: WorkerCalendarAiWriteResul
   return worker.mode === "direct"
     ? { mode: "direct", day: toBffCalendarDayDto(worker.day) }
     : { mode: "proposal", day: toBffCalendarDayDto(worker.day), proposalId: worker.proposalId };
+}
+
+/**
+ * Mirrors lib/church/gospel-reading-preparation.ts's PreparedGospelReading
+ * in svet-ikony -- the read-only preview of what "Підготувати з AI" would
+ * create, used by the AI preparation review step. No `toBff*` mapper is
+ * needed: every field is already a plain string, nothing to whitelist or
+ * rename.
+ */
+export interface WorkerPreparedGospelReadingDto {
+  title: string;
+  reference: string;
+  text: string;
+  explanation: string;
+  sourceUrl: string;
 }

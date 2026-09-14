@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/feedback/confirm-dialog";
+import { MediaPickerDialog } from "@/components/forms/media-picker-dialog";
 import { TextField } from "@/components/forms/text-field";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -16,7 +17,6 @@ import { apiClient } from "@/lib/api";
 import { errorMessageFor } from "@/lib/api/errors";
 import { telegramPostSchema, type TelegramPostFormValues } from "@/lib/validation/telegram.schema";
 import type { TelegramPost } from "@/types/entities";
-import { MediaPickerDialog } from "./media-picker-dialog";
 
 interface PostFormProps {
   open: boolean;

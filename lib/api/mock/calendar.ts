@@ -1,7 +1,7 @@
 import type { ApiClient } from "@/lib/api/client";
 import { ensureUniqueSlug, loadStore, matchesSearch, mockDelay, notFound, nextId, nowIso, paginate, saveStore } from "@/lib/api/mock-utils";
 import { mockCalendarDays } from "@/lib/mock-data/calendar";
-import type { CalendarAiField, CalendarAiFillResult, CalendarAiWriteResult, CalendarDay, GospelReading } from "@/types/entities";
+import type { CalendarAiField, CalendarAiFillResult, CalendarAiWriteResult, CalendarDay, GospelReading, PreparedGospelReading } from "@/types/entities";
 import { ApiError } from "@/types/api";
 
 const STORE_KEY = "calendarDays";
@@ -211,5 +211,9 @@ export const calendarDaysResource: ApiClient["calendarDays"] = {
     // Gospel reading either.
     await mockDelay(400);
     throw new ApiError("not_implemented", "Mock mode has no real lectionary source to prepare a Gospel reading from.");
+  },
+  async previewGospelReading(): Promise<PreparedGospelReading> {
+    await mockDelay(400);
+    throw new ApiError("not_implemented", "Mock mode has no real lectionary source to preview a Gospel reading from.");
   },
 };

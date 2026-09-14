@@ -2,14 +2,15 @@ import { gregorianToJulianCalendarDate } from "@/features/calendar/julian-calend
 import type { z } from "zod";
 import type { BffCalendarAiFillResultDto, BffCalendarAiWriteResultDto, BffCalendarDayDto, WorkerCalendarDayWritePayload } from "@/app/api/bff/calendar-days/_contract";
 import type { BffGospelDto } from "@/app/api/bff/gospel/_contract";
+import type { WorkerPreparedGospelReadingDto } from "@/app/api/bff/calendar-days/_contract";
 import type { ApiClient, CalendarQuery } from "@/lib/api/client";
 import { BFF_ENDPOINTS } from "@/lib/api/endpoints";
 import { toEntity as gospelReadingFromDto } from "@/lib/api/http/gospel";
 import { createHttpListResource } from "@/lib/api/http/resource-factory";
-import { httpDelete, httpPost, httpPut } from "@/lib/api/http/transport";
+import { httpDelete, httpGet, httpPost, httpPut } from "@/lib/api/http/transport";
 import { contentStatusSchema, languageSchema } from "@/lib/validation/common";
 import { calendarEventTypeSchema, type CalendarDayFormValues } from "@/lib/validation/calendar.schema";
-import type { CalendarAiFillResult, CalendarAiWriteResult, CalendarDay, CalendarEventType, ContentStatus, GospelReading, Language } from "@/types/entities";
+import type { CalendarAiFillResult, CalendarAiWriteResult, CalendarDay, CalendarEventType, ContentStatus, GospelReading, Language, PreparedGospelReading } from "@/types/entities";
 
 /**
  * Real local data has `dayType` values mirrored from the old Rust backend
@@ -53,6 +54,7 @@ export function calendarDayFromDto(dto: BffCalendarDayDto): CalendarDay {
     seoTitle: dto.seoTitle,
     seoDescription: dto.seoDescription,
     imageMetadata: dto.imageMetadata,
+    internalNote: dto.internalNote,
     createdAt: dto.createdAt,
     updatedAt: dto.updatedAt,
   };
@@ -76,6 +78,7 @@ function toPayload(values: CalendarDayFormValues): WorkerCalendarDayWritePayload
     status: values.status,
     seoTitle: values.seoTitle ?? null,
     seoDescription: values.seoDescription ?? null,
+    internalNote: values.internalNote ?? null,
   };
 }
 
@@ -200,5 +203,8 @@ export const calendarDaysHttpResource: ApiClient["calendarDays"] = {
   },
   async prepareGospel(id: string): Promise<GospelReading> {
     return gospelReadingFromDto(await httpPost<BffGospelDto>(aiActionPath(id, "prepare-gospel"), undefined, AI_TEXT_TIMEOUT_MS));
+  },
+  async previewGospelReading(id: string): Promise<PreparedGospelReading> {
+    return httpGet<WorkerPreparedGospelReadingDto>(aiActionPath(id, "gospel-preview"), AI_TEXT_TIMEOUT_MS);
   },
 };

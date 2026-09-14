@@ -125,12 +125,14 @@ export async function proxyAndMap<TIn, TOut>(
  * boundary string by hand.
  */
 /**
- * Forwards a JSON write (POST/PUT/DELETE) to an upstream Worker admin
+ * Forwards a JSON write (POST/PUT/DELETE) — or a GET that needs a longer
+ * timeout than proxyAndMap()'s fixed 10s allows (e.g. a read-only AI
+ * preview that hits a slow external source) — to an upstream Worker admin
  * endpoint. Same auth/timeout/no-store conventions as fetchUpstream()
  * above, and — like proxyAndMap() — replaces the raw Worker DTO with
  * `mapFn(raw)` on success, so write responses stay on the same stable BFF
  * contract as reads. Non-2xx responses pass through unchanged. A `body`
- * of `undefined` sends no request body (used by DELETE).
+ * of `undefined` sends no request body (used by DELETE and GET).
  *
  * `timeoutMs` defaults to REQUEST_TIMEOUT_MS (10s), right for ordinary CRUD
  * writes. AI generation routes (Calendar/Telegram) must pass a much larger
@@ -143,7 +145,7 @@ export async function proxyAndMap<TIn, TOut>(
  */
 export async function proxyJsonWrite<TIn, TOut>(
   upstreamPath: string,
-  method: "POST" | "PUT" | "DELETE",
+  method: "GET" | "POST" | "PUT" | "DELETE",
   body: unknown,
   mapFn: (raw: TIn) => TOut,
   timeoutMs: number = REQUEST_TIMEOUT_MS,

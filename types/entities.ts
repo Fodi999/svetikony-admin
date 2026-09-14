@@ -335,6 +335,8 @@ export interface CalendarDay extends Identifiable, Timestamps, Translatable {
   seoTitle?: string | null;
   seoDescription?: string | null;
   imageMetadata?: CalendarImageMetadata | null;
+  /** Admin-only free-text note -- never shown on the public site. */
+  internalNote?: string | null;
 }
 
 /**
@@ -488,6 +490,19 @@ export interface GospelReading extends Identifiable, Timestamps, Translatable {
   explanation?: string;
   status: ContentStatus;
   calendarDayId?: string;
+}
+
+/** Read-only preview of what "Підготувати з AI" would create for a
+ * calendar day's Gospel reading -- the AI preparation review step's
+ * "here's the resolved citation, nothing written yet" result. Not an
+ * Identifiable/Timestamps entity: it names no record, since none exists
+ * until the admin confirms. */
+export interface PreparedGospelReading {
+  title: string;
+  reference: string;
+  text: string;
+  explanation: string;
+  sourceUrl: string;
 }
 
 // ---------------------------------------------------------------------------
