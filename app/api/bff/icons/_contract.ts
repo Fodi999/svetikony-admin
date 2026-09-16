@@ -31,6 +31,10 @@ export interface WorkerIconDto {
   priceCents: number | null;
   currency: string;
   consecrationAvailable: boolean;
+  history: string | null;
+  saintImageDescription: string | null;
+  materials: string | null;
+  dimensions: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -47,7 +51,10 @@ export interface WorkerIconDto {
  * pattern). `calendarDayId` IS forwarded (same treatment as Prayers/
  * Gospel's own calendarDayId) — it's the real, singular relation the
  * Worker actually has; the admin no longer pretends this is a many-valued
- * `relatedCalendarDayIds` picker.
+ * `relatedCalendarDayIds` picker. `history`/`saintImageDescription`/
+ * `materials`/`dimensions` (migration 0024) ARE forwarded now — the admin
+ * form has always had inputs for these; they previously vanished on save
+ * because nothing round-tripped them past this contract.
  */
 export interface BffIconDto {
   id: string;
@@ -60,6 +67,10 @@ export interface BffIconDto {
   translationGroupId: string;
   status: string;
   calendarDayId: string | null;
+  history: string | null;
+  saintImageDescription: string | null;
+  materials: string | null;
+  dimensions: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -76,6 +87,10 @@ export function toBffIconDto(worker: WorkerIconDto): BffIconDto {
     translationGroupId: worker.translationGroupId,
     status: worker.status,
     calendarDayId: worker.calendarDayId,
+    history: worker.history,
+    saintImageDescription: worker.saintImageDescription,
+    materials: worker.materials,
+    dimensions: worker.dimensions,
     createdAt: worker.createdAt,
     updatedAt: worker.updatedAt,
   };
@@ -96,4 +111,8 @@ export interface WorkerIconWritePayload {
   language?: string;
   status?: string;
   calendarDayId?: string | null;
+  history?: string | null;
+  saintImageDescription?: string | null;
+  materials?: string | null;
+  dimensions?: string | null;
 }

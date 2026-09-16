@@ -25,11 +25,12 @@ function safeEnum<T extends string>(schema: z.ZodType<T>, value: string, fallbac
  * around — same deferral as Calendar Day's related* fields in Stage 2H.
  * `calendarDayId` (singular) IS real and maps straight through, same
  * treatment as Prayers/Gospel's own calendarDayId. `history`/
- * `saintImageDescription`/`materials`/`dimensions` have no matching Worker
- * column and stay mock-only/UI-only, matching Product's `dimensions`/
- * `materials` precedent in Stage 2J.
+ * `saintImageDescription`/`materials`/`dimensions` (migration 0024) now
+ * have a real Worker column each and round-trip like every other field
+ * here — previously these were hardcoded to `undefined`, which silently
+ * discarded anything typed into those form fields on save.
  */
-function toEntity(dto: BffIconDto): Icon {
+export function toEntity(dto: BffIconDto): Icon {
   return {
     id: dto.id,
     translationGroupId: dto.translationGroupId,
@@ -37,10 +38,10 @@ function toEntity(dto: BffIconDto): Icon {
     slug: dto.slug,
     title: dto.title,
     description: dto.description,
-    history: undefined,
-    saintImageDescription: undefined,
-    materials: undefined,
-    dimensions: undefined,
+    history: dto.history ?? undefined,
+    saintImageDescription: dto.saintImageDescription ?? undefined,
+    materials: dto.materials ?? undefined,
+    dimensions: dto.dimensions ?? undefined,
     mainImageId: dto.imageUrl || undefined,
     galleryImageIds: dto.galleryUrls,
     relatedPrayerIds: [],
@@ -55,7 +56,7 @@ function toEntity(dto: BffIconDto): Icon {
 /** Admin form -> Worker write payload. Only fields the Worker's
  * ChurchIconPayload accepts that the admin form actually edits — see
  * toEntity()'s doc comment for what's deliberately not sent. */
-function toPayload(values: IconFormValues): WorkerIconWritePayload {
+export function toPayload(values: IconFormValues): WorkerIconWritePayload {
   return {
     title: values.title,
     slug: values.slug,
@@ -65,6 +66,10 @@ function toPayload(values: IconFormValues): WorkerIconWritePayload {
     galleryUrls: values.galleryImageIds,
     status: values.status,
     calendarDayId: values.calendarDayId || null,
+    history: values.history ?? null,
+    saintImageDescription: values.saintImageDescription ?? null,
+    materials: values.materials ?? null,
+    dimensions: values.dimensions ?? null,
   };
 }
 
