@@ -1,8 +1,9 @@
-import type { CrudResource, ProductQuery } from "@/lib/api/client";
+import type { ApiClient } from "@/lib/api/client";
 import { ensureUniqueSlug, loadStore, matchesSearch, mockDelay, notFound, nextId, nowIso, paginate, saveStore } from "@/lib/api/mock-utils";
 import { mockProducts } from "@/lib/mock-data/products";
+import { ApiError } from "@/types/api";
 import type { ProductFormValues } from "@/lib/validation/product.schema";
-import type { Language, Product, ProductTranslation } from "@/types/entities";
+import type { Language, Product, ProductAiField, ProductAiFillResult, ProductAiWriteResult, ProductTranslation } from "@/types/entities";
 
 const STORE_KEY = "products";
 const store: Product[] = loadStore(STORE_KEY, mockProducts);
@@ -37,7 +38,58 @@ function normalizeTranslations(values: ProductFormValues): Record<Language, Prod
   };
 }
 
-export const productsResource: CrudResource<Product, ProductFormValues, ProductQuery> = {
+function getOrThrow(id: string): Product {
+  const found = store.find((p) => p.id === id);
+  if (!found) notFound("Товар");
+  return found;
+}
+
+function saveField(id: string, language: Language, field: ProductAiField, value: string): Product {
+  const index = store.findIndex((p) => p.id === id);
+  if (index === -1) notFound("Товар");
+  const current = store[index];
+  const updated: Product = {
+    ...current,
+    translations: { ...current.translations, [language]: { ...current.translations[language], [field]: value } },
+    updatedAt: nowIso(),
+  };
+  store[index] = updated;
+  persist();
+  return updated;
+}
+
+/** Mock mode has no real proposal system -- every generate/regenerate/
+ * fill-missing action here always simulates the direct-write outcome,
+ * matching Calendar Day/Icon's own mock adapter convention (Stage 1 dev
+ * fallback only). */
+function direct(product: Product): ProductAiWriteResult {
+  return { mode: "direct", product };
+}
+
+const MOCK_TEXT: Record<ProductAiField, string> = {
+  fullDescription: "Мок-повний опис товару",
+  seoTitle: "Мок-SEO заголовок",
+  seoDescription: "Мок-SEO опис",
+};
+const FIELDS: ProductAiField[] = ["fullDescription", "seoTitle", "seoDescription"];
+const LANGUAGES: Language[] = ["uk", "ru", "en"];
+
+function requireLinkedIcon(product: Product): void {
+  if (!product.linkedIconId) {
+    throw new ApiError("validation_error", "Цей товар не пов'язаний з жодною іконою -- AI не має фактів для генерації.");
+  }
+}
+
+async function generateField(id: string, language: Language, field: ProductAiField, overwrite: boolean): Promise<ProductAiWriteResult> {
+  await mockDelay(400);
+  const product = getOrThrow(id);
+  requireLinkedIcon(product);
+  const current = product.translations[language][field];
+  if (!overwrite && current.trim()) throw new ApiError("conflict", "Це поле вже заповнене -- скористайтеся регенерацією, щоб замінити текст.");
+  return direct(saveField(id, language, field, `${MOCK_TEXT[field]} (${product.title}, ${language}).`));
+}
+
+export const productsResource: ApiClient["products"] = {
   async list(query) {
     await mockDelay();
     let items = [...store];
@@ -104,5 +156,39 @@ export const productsResource: CrudResource<Product, ProductFormValues, ProductQ
     if (index === -1) notFound("Товар");
     store.splice(index, 1);
     persist();
+  },
+
+  async generateFullDescription(id, language) {
+    return generateField(id, language as Language, "fullDescription", false);
+  },
+  async regenerateFullDescription(id, language) {
+    return generateField(id, language as Language, "fullDescription", true);
+  },
+  async generateSeoTitle(id, language) {
+    return generateField(id, language as Language, "seoTitle", false);
+  },
+  async regenerateSeoTitle(id, language) {
+    return generateField(id, language as Language, "seoTitle", true);
+  },
+  async generateSeoDescription(id, language) {
+    return generateField(id, language as Language, "seoDescription", false);
+  },
+  async regenerateSeoDescription(id, language) {
+    return generateField(id, language as Language, "seoDescription", true);
+  },
+  async fillMissing(id): Promise<ProductAiFillResult> {
+    await mockDelay(800);
+    let product = getOrThrow(id);
+    requireLinkedIcon(product);
+    const filled: { language: Language; field: ProductAiField }[] = [];
+    for (const language of LANGUAGES) {
+      for (const field of FIELDS) {
+        if (!product.translations[language][field].trim()) {
+          product = saveField(id, language, field, `${MOCK_TEXT[field]} (${product.title}, ${language}).`);
+          filled.push({ language, field });
+        }
+      }
+    }
+    return { mode: "direct", product, filled, skipped: [] };
   },
 };

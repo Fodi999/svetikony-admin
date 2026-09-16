@@ -2,10 +2,11 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, ArrowRight, Eye, ImageIcon, Plus, Star, Trash2, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Eye, ImageIcon, Plus, Sparkles, Star, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { ConfirmDialog } from "@/components/feedback/confirm-dialog";
 import { MediaUploadButton } from "@/components/forms/media-upload-button";
 import { NumberField } from "@/components/forms/number-field";
 import { SelectField } from "@/components/forms/select-field";
@@ -23,10 +24,32 @@ import { resolveMediaPreviewUrl } from "@/lib/media/resolve-preview-url";
 import { useBeforeUnloadWarning } from "@/lib/utils/use-before-unload";
 import { cn } from "@/lib/utils";
 import { productSchema, type ProductFormValues } from "@/lib/validation/product.schema";
-import type { Language, Product } from "@/types/entities";
+import type { Icon, Language, Product } from "@/types/entities";
+import { useProductAiActions } from "./use-product-ai-actions";
 
 function newVariantId(): string {
   return `var-${Date.now().toString(36)}-${Math.round(Math.random() * 1000)}`;
+}
+
+const ICON_LANGUAGE_LABEL_PRIORITY: Record<Language, number> = { uk: 0, ru: 1, en: 2 };
+
+/**
+ * `linkedIconId` stores an icon's translationGroupId, not a row id (see
+ * Product's own doc comment in types/entities.ts), so the picker needs ONE
+ * option per group, not one per uk/ru/en row -- otherwise every icon would
+ * appear 3x with the same underlying value. Prefers the uk-language title
+ * as the label when a group has one, matching the rest of the admin's
+ * uk-primary convention. Exported (pure, no component/hook state) so this
+ * dedup logic has direct test coverage without driving the Select UI.
+ */
+export function dedupeIconOptionsByGroup(icons: Pick<Icon, "translationGroupId" | "language" | "title">[]): { value: string; label: string }[] {
+  const groups = new Map<string, { label: string; priority: number }>();
+  for (const icon of icons) {
+    const priority = ICON_LANGUAGE_LABEL_PRIORITY[icon.language];
+    const existing = groups.get(icon.translationGroupId);
+    if (!existing || priority < existing.priority) groups.set(icon.translationGroupId, { label: icon.title, priority });
+  }
+  return Array.from(groups, ([value, { label }]) => ({ value, label }));
 }
 
 /** Best-effort orphan cleanup for a not-yet-saved upload. No-op in mock
@@ -94,6 +117,14 @@ export function ProductForm({ mode, product, onSubmit, onDelete, submitting }: P
     defaultValues: product ? { ...EMPTY_DEFAULTS, ...product } : EMPTY_DEFAULTS,
   });
 
+  // Always called (never conditionally) -- `product?.id` is only undefined
+  // in "create" mode, where every AI button below stays hidden since
+  // there's no saved record yet for the backend actions to operate on.
+  const ai = useProductAiActions(product?.id, form, translationTab);
+  const [confirmRegenerateFullDescription, setConfirmRegenerateFullDescription] = useState(false);
+  const [confirmRegenerateSeoTitle, setConfirmRegenerateSeoTitle] = useState(false);
+  const [confirmRegenerateSeoDescription, setConfirmRegenerateSeoDescription] = useState(false);
+
   useEffect(() => {
     const subscription = form.watch(() => setDirty(form.formState.isDirty));
     return () => subscription.unsubscribe();
@@ -118,7 +149,8 @@ export function ProductForm({ mode, product, onSubmit, onDelete, submitting }: P
   const categoriesQuery = useQuery({ queryKey: ["categories", "all"], queryFn: () => apiClient.categories.list({ pageSize: 200 }) });
   const iconsQuery = useQuery({ queryKey: ["icons", "options"], queryFn: () => apiClient.icons.list({ pageSize: 200 }) });
   const categoryOptions = (categoriesQuery.data?.items ?? []).map((c) => ({ value: c.id, label: c.name }));
-  const iconOptions = [{ value: "", label: "Без зв'язку" }, ...(iconsQuery.data?.items ?? []).map((i) => ({ value: i.id, label: i.title }))];
+  const iconGroupOptions = useMemo(() => dedupeIconOptionsByGroup(iconsQuery.data?.items ?? []), [iconsQuery.data]);
+  const iconOptions = [{ value: "", label: "Без зв'язку" }, ...iconGroupOptions];
 
   async function handleSave(publish: boolean) {
     if (publish) form.setValue("active", true, { shouldDirty: true });
@@ -163,11 +195,24 @@ export function ProductForm({ mode, product, onSubmit, onDelete, submitting }: P
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex-1 space-y-4 overflow-y-auto p-4 pb-28 md:p-6 md:pb-24">
+      {ai.isBusy ? <p role="status" className="px-4 pt-3 text-sm text-muted-foreground">AI готує матеріали. Дочекайтеся завершення; публікація виконується окремо.</p> : null}
+      <fieldset disabled={ai.isBusy || submitting} aria-busy={ai.isBusy} className="min-w-0 flex-1 space-y-4 overflow-y-auto p-4 pb-28 md:p-6 md:pb-24">
         <div className="space-y-1.5">
           <p className="text-xs font-medium text-muted-foreground">Переклади</p>
           <TranslationSwitcher active={translationTab} onSelect={setTranslationTab} completeness={completeness} />
         </div>
+
+        {mode === "edit" && product ? (
+          <div className="space-y-1">
+            <Button type="button" variant="outline" className="w-full" disabled={!values.linkedIconId || ai.isPending("fillMissing")} onClick={ai.fillMissing}>
+              <Sparkles className="size-4" />
+              {ai.isPending("fillMissing") ? "Заповнення…" : "Заповнити відсутнє з AI"}
+            </Button>
+            {!values.linkedIconId ? (
+              <p className="text-xs text-muted-foreground">Оберіть пов&apos;язану ікону на вкладці «Основне», щоб AI мав факти для генерації.</p>
+            ) : null}
+          </div>
+        ) : null}
 
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="w-full overflow-x-auto">
@@ -183,16 +228,33 @@ export function ProductForm({ mode, product, onSubmit, onDelete, submitting }: P
             <TextField control={form.control} name={`translations.${translationTab}.title`} label="Назва" />
             <TextField control={form.control} name="slug" label="Slug" description="Латиниця, цифри, дефіси" />
             <TextField control={form.control} name="description" label="Опис" textarea rows={5} description="Короткий опис — єдиний, без мовних варіантів (немає окремих RU/EN колонок у БД)." />
-            <TextField
-              control={form.control}
-              name={`translations.${translationTab}.fullDescription`}
-              label="Повний опис"
-              textarea
-              rows={6}
-              description="Розширений опис товару для сторінки товару, окремо для кожної мови."
-            />
+            <div className="space-y-1">
+              <TextField
+                control={form.control}
+                name={`translations.${translationTab}.fullDescription`}
+                label="Повний опис"
+                textarea
+                rows={6}
+                description="Розширений опис товару для сторінки товару, окремо для кожної мови."
+              />
+              {mode === "edit" && product ? (
+                <div className="flex justify-end">
+                  {!values.translations?.[translationTab]?.fullDescription?.trim() ? (
+                    <Button type="button" size="sm" variant="ghost" disabled={!values.linkedIconId || ai.isPending("generateFullDescription")} onClick={ai.generateFullDescription}>
+                      <Sparkles className="size-3.5" />
+                      {ai.isPending("generateFullDescription") ? "Генерація…" : "Згенерувати"}
+                    </Button>
+                  ) : (
+                    <Button type="button" size="sm" variant="ghost" disabled={!values.linkedIconId || ai.isPending("regenerateFullDescription")} onClick={() => setConfirmRegenerateFullDescription(true)}>
+                      <Sparkles className="size-3.5" />
+                      {ai.isPending("regenerateFullDescription") ? "Регенерація…" : "Перегенерувати"}
+                    </Button>
+                  )}
+                </div>
+              ) : null}
+            </div>
             <SelectField control={form.control} name="categoryId" label="Категорія" options={categoryOptions} />
-            <SelectField control={form.control} name="linkedIconId" label="Пов'язана ікона" options={iconOptions} />
+            <SelectField control={form.control} name="linkedIconId" label="Пов'язана ікона" options={iconOptions} description="Джерело фактів для AI-генерації опису та SEO цього товару." />
           </TabsContent>
 
           <TabsContent value="media" className="space-y-4">
@@ -419,11 +481,41 @@ export function ProductForm({ mode, product, onSubmit, onDelete, submitting }: P
             <p className={cn("text-xs", (values.translations?.[translationTab]?.seoTitle?.length ?? 0) > 70 ? "text-destructive" : "text-muted-foreground")}>
               {values.translations?.[translationTab]?.seoTitle?.length ?? 0}/70 символів
             </p>
+            {mode === "edit" && product ? (
+              <div className="flex justify-end">
+                {!values.translations?.[translationTab]?.seoTitle?.trim() ? (
+                  <Button type="button" size="sm" variant="ghost" disabled={!values.linkedIconId || ai.isPending("generateSeoTitle")} onClick={ai.generateSeoTitle}>
+                    <Sparkles className="size-3.5" />
+                    {ai.isPending("generateSeoTitle") ? "Генерація…" : "Згенерувати"}
+                  </Button>
+                ) : (
+                  <Button type="button" size="sm" variant="ghost" disabled={!values.linkedIconId || ai.isPending("regenerateSeoTitle")} onClick={() => setConfirmRegenerateSeoTitle(true)}>
+                    <Sparkles className="size-3.5" />
+                    {ai.isPending("regenerateSeoTitle") ? "Регенерація…" : "Перегенерувати"}
+                  </Button>
+                )}
+              </div>
+            ) : null}
             <div className="pt-2">
               <TextField control={form.control} name={`translations.${translationTab}.seoDescription`} label="SEO-опис" textarea rows={3} />
               <p className={cn("text-xs", (values.translations?.[translationTab]?.seoDescription?.length ?? 0) > 160 ? "text-destructive" : "text-muted-foreground")}>
                 {values.translations?.[translationTab]?.seoDescription?.length ?? 0}/160 символів
               </p>
+              {mode === "edit" && product ? (
+                <div className="flex justify-end">
+                  {!values.translations?.[translationTab]?.seoDescription?.trim() ? (
+                    <Button type="button" size="sm" variant="ghost" disabled={!values.linkedIconId || ai.isPending("generateSeoDescription")} onClick={ai.generateSeoDescription}>
+                      <Sparkles className="size-3.5" />
+                      {ai.isPending("generateSeoDescription") ? "Генерація…" : "Згенерувати"}
+                    </Button>
+                  ) : (
+                    <Button type="button" size="sm" variant="ghost" disabled={!values.linkedIconId || ai.isPending("regenerateSeoDescription")} onClick={() => setConfirmRegenerateSeoDescription(true)}>
+                      <Sparkles className="size-3.5" />
+                      {ai.isPending("regenerateSeoDescription") ? "Регенерація…" : "Перегенерувати"}
+                    </Button>
+                  )}
+                </div>
+              ) : null}
             </div>
           </TabsContent>
 
@@ -437,7 +529,7 @@ export function ProductForm({ mode, product, onSubmit, onDelete, submitting }: P
             ) : null}
           </TabsContent>
         </Tabs>
-      </div>
+      </fieldset>
 
       <div
         className="fixed inset-x-0 bottom-16 z-20 flex gap-2 border-t bg-background p-3 md:sticky md:bottom-0 md:inset-x-auto"
@@ -447,10 +539,10 @@ export function ProductForm({ mode, product, onSubmit, onDelete, submitting }: P
           <Eye className="size-4" />
           {messages.actions.preview}
         </Button>
-        <Button type="button" variant="secondary" className="h-11 flex-1" disabled={submitting} onClick={() => handleSave(false)}>
+        <Button type="button" variant="secondary" className="h-11 flex-1" disabled={submitting || ai.isBusy} onClick={() => handleSave(false)}>
           {messages.actions.save}
         </Button>
-        <Button type="button" className="h-11 flex-1" disabled={submitting} onClick={() => handleSave(true)}>
+        <Button type="button" className="h-11 flex-1" disabled={submitting || ai.isBusy} onClick={() => handleSave(true)}>
           {messages.actions.publish}
         </Button>
       </div>
@@ -470,6 +562,40 @@ export function ProductForm({ mode, product, onSubmit, onDelete, submitting }: P
           </div>
         </div>
       ) : null}
+
+      <ConfirmDialog
+        open={confirmRegenerateFullDescription}
+        onOpenChange={setConfirmRegenerateFullDescription}
+        title="Перегенерувати повний опис?"
+        description="Поточний текст буде замінено новою AI-версією."
+        confirmLabel="Перегенерувати"
+        onConfirm={() => {
+          ai.regenerateFullDescription();
+          setConfirmRegenerateFullDescription(false);
+        }}
+      />
+      <ConfirmDialog
+        open={confirmRegenerateSeoTitle}
+        onOpenChange={setConfirmRegenerateSeoTitle}
+        title="Перегенерувати SEO-заголовок?"
+        description="Поточний заголовок буде замінено новою AI-версією."
+        confirmLabel="Перегенерувати"
+        onConfirm={() => {
+          ai.regenerateSeoTitle();
+          setConfirmRegenerateSeoTitle(false);
+        }}
+      />
+      <ConfirmDialog
+        open={confirmRegenerateSeoDescription}
+        onOpenChange={setConfirmRegenerateSeoDescription}
+        title="Перегенерувати SEO-опис?"
+        description="Поточний опис буде замінено новою AI-версією."
+        confirmLabel="Перегенерувати"
+        onConfirm={() => {
+          ai.regenerateSeoDescription();
+          setConfirmRegenerateSeoDescription(false);
+        }}
+      />
     </div>
   );
 }

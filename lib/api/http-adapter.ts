@@ -47,14 +47,16 @@ import { visualizerModelsHttpResource } from "@/lib/api/http/visualizer-models";
  * `calendarDays` (Stage 2H), `prayers` (Stage 2I), `categories`/`products`
  * (Stage 2J), `icons` (Stage 2K), and `saints` (Stage 2L) have full real
  * CRUD — list/get/create/update/remove all reach real D1 (and, via their
- * image fields, real R2). `products` intentionally leaves
- * `linkedIconId`/`dimensions`/`materials`/`variants` UI-only — no matching
- * real D1 column/table exists yet (see lib/api/http/products.ts). `icons`
- * intentionally leaves `relatedPrayerIds`/`relatedArticleIds`/`history`/
- * `saintImageDescription`/`materials`/`dimensions` UI-only for the same
- * reason (`galleryImageIds` IS real — migration 0005 added a proper
- * gallery column; `calendarDayId`, singular, is also real) (see
- * lib/api/http/icons.ts). `saints` leaves `relatedIconIds` UI-only — the
+ * image fields, real R2). `products` intentionally leaves `dimensions`/
+ * `materials`/`variants` UI-only — no matching real D1 column/table exists
+ * yet (see lib/api/http/products.ts); `linkedIconId` WAS UI-only for the
+ * same reason but is now real (Phase D prerequisite) — it round-trips to
+ * the Worker's `linked_icon_translation_group_id`. `icons` leaves
+ * `relatedPrayerIds`/`relatedArticleIds` UI-only (that relation is
+ * inverted — church_prayers/church_articles carry their own icon_id FK);
+ * `history`/`saintImageDescription`/`materials`/`dimensions`/
+ * `galleryImageIds`/`calendarDayId` are all real (migrations 0005 and
+ * 0024) (see lib/api/http/icons.ts). `saints` leaves `relatedIconIds` UI-only — the
  * Worker only has a single `icon_id` FK per saint, not the many-to-many
  * shape the admin's relation picker needs (`calendarDayId`, singular, is
  * real — see lib/api/http/saints.ts).

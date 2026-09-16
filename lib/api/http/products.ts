@@ -1,10 +1,16 @@
-import type { BffProductDto, WorkerProductWritePayload } from "@/app/api/bff/products/_contract";
+import type {
+  BffProductAiFillResultDto,
+  BffProductAiWriteResultDto,
+  BffProductDto,
+  BffProductTextField,
+  WorkerProductWritePayload,
+} from "@/app/api/bff/products/_contract";
 import type { ApiClient, ProductQuery } from "@/lib/api/client";
 import { BFF_ENDPOINTS } from "@/lib/api/endpoints";
 import { createHttpListResource } from "@/lib/api/http/resource-factory";
 import { httpDelete, httpPost, httpPut } from "@/lib/api/http/transport";
 import type { ProductFormValues } from "@/lib/validation/product.schema";
-import type { Product, StockStatus } from "@/types/entities";
+import type { Language, Product, ProductAiField, ProductAiFillResult, ProductAiWriteResult, StockStatus } from "@/types/entities";
 
 /**
  * Real local data (church_orders.rs-mirrored `icon_order_options`) uses
@@ -44,13 +50,22 @@ const STOCK_STATUS_FROM_WORKER: Record<string, StockStatus> = {
  * languages (including the new `fullDescription`, which had no admin field
  * at all before this phase) for product-form.tsx's UK/RU/EN tabs.
  *
- * Deliberately NOT mapped this stage (no real D1 column/table exists, or —
- * for the icon link — the only thing available to map from is a mock Icon
- * id, not a real translationGroupId): `linkedIconId`, `dimensions`,
- * `materials`, `variants`. These stay admin-UI-only, same treatment as
- * Calendar Day's `relatedIconIds` etc. in Stage 2H.
+ * Deliberately NOT mapped this stage (no real D1 column/table exists):
+ * `dimensions`, `materials`, `variants`. These stay admin-UI-only, same
+ * treatment as Calendar Day's `relatedIconIds` etc. in Stage 2H — a
+ * product's real dimensions/materials facts, when needed (e.g. for AI shop
+ * copy), come from its LINKED ICON's own persisted materials/dimensions
+ * (migration 0024), not from these unpersisted admin-only fields.
+ *
+ * `linkedIconId` <-> `linkedIconTranslationGroupId` (Phase D prerequisite,
+ * fixed after being hardcoded to `undefined`): stores the linked icon's
+ * translationGroupId, NOT a specific icon row id — a product links to an
+ * icon's whole translation group (all its languages), matching the
+ * Worker's real relation exactly. product-form.tsx's picker options are
+ * deduplicated by translationGroupId for this reason (see its own
+ * comment).
  */
-function toEntity(dto: BffProductDto): Product {
+export function toEntity(dto: BffProductDto): Product {
   const parsedProductionDays = Number.parseInt(dto.productionTime, 10);
   return {
     id: dto.id,
@@ -64,7 +79,7 @@ function toEntity(dto: BffProductDto): Product {
     active: dto.isActive,
     imageIds: dto.galleryUrls.length ? dto.galleryUrls : dto.photoUrl ? [dto.photoUrl] : [],
     categoryId: dto.categoryId ?? "",
-    linkedIconId: undefined,
+    linkedIconId: dto.linkedIconTranslationGroupId ?? undefined,
     dimensions: undefined,
     materials: undefined,
     productionTimeDays: Number.isFinite(parsedProductionDays) ? parsedProductionDays : undefined,
@@ -94,7 +109,7 @@ function toEntity(dto: BffProductDto): Product {
  * products.write-isolation.test.ts). The plain `description` field has no
  * per-language column and is sent as before, unrelated to `translations`.
  */
-function toPayload(values: ProductFormValues): WorkerProductWritePayload {
+export function toPayload(values: ProductFormValues): WorkerProductWritePayload {
   return {
     slug: values.slug,
     nameUk: values.translations.uk.title,
@@ -102,6 +117,7 @@ function toPayload(values: ProductFormValues): WorkerProductWritePayload {
     nameEn: values.translations.en.title ?? "",
     description: values.description,
     categoryId: values.categoryId || "",
+    linkedIconTranslationGroupId: values.linkedIconId || "",
     fullDescriptionUk: values.translations.uk.fullDescription ?? "",
     fullDescriptionRu: values.translations.ru.fullDescription ?? "",
     fullDescriptionEn: values.translations.en.fullDescription ?? "",
@@ -122,6 +138,47 @@ function toPayload(values: ProductFormValues): WorkerProductWritePayload {
     isActive: values.active,
     sortOrder: 0,
   };
+}
+
+/**
+ * Splits a flat Worker field key ("fullDescriptionRu") into the admin's
+ * `{language, field}` shape (types/entities.ts's ProductAiField) -- the
+ * one semantic decision the BFF contract deliberately leaves to this
+ * layer (see its own doc comment).
+ */
+const FIELD_KEY_MAP: Record<BffProductTextField, { language: Language; field: ProductAiField }> = {
+  fullDescriptionUk: { language: "uk", field: "fullDescription" },
+  fullDescriptionRu: { language: "ru", field: "fullDescription" },
+  fullDescriptionEn: { language: "en", field: "fullDescription" },
+  seoTitleUk: { language: "uk", field: "seoTitle" },
+  seoTitleRu: { language: "ru", field: "seoTitle" },
+  seoTitleEn: { language: "en", field: "seoTitle" },
+  seoDescriptionUk: { language: "uk", field: "seoDescription" },
+  seoDescriptionRu: { language: "ru", field: "seoDescription" },
+  seoDescriptionEn: { language: "en", field: "seoDescription" },
+};
+const ACTION_SEGMENT: Record<ProductAiField, string> = {
+  fullDescription: "full-description",
+  seoTitle: "seo-title",
+  seoDescription: "seo-description",
+};
+
+function aiActionPath(id: string, action: string): string {
+  return `${BFF_ENDPOINTS.products}/${encodeURIComponent(id)}/${action}`;
+}
+
+function toAiWriteResult(dto: BffProductAiWriteResultDto): ProductAiWriteResult {
+  return dto.mode === "direct" ? { mode: "direct", product: toEntity(dto.product) } : { mode: "proposal", product: toEntity(dto.product), proposalId: dto.proposalId };
+}
+
+/** Same reasoning as Icon/Calendar Day's own AI_TEXT_TIMEOUT_MS: the BFF's
+ * own matching timeout (see app/api/bff/products/[id]/*\/route.ts) is
+ * 120s, so this must stay slightly above it. */
+const AI_TEXT_TIMEOUT_MS = 125_000;
+
+async function runFieldAction(id: string, language: string, field: ProductAiField, verb: "generate" | "regenerate"): Promise<ProductAiWriteResult> {
+  const dto = await httpPost<BffProductAiWriteResultDto>(aiActionPath(id, `${verb}-${ACTION_SEGMENT[field]}`), { language }, AI_TEXT_TIMEOUT_MS);
+  return toAiWriteResult(dto);
 }
 
 /**
@@ -153,5 +210,32 @@ export const productsHttpResource: ApiClient["products"] = {
   },
   async remove(id: string): Promise<void> {
     await httpDelete(`${BFF_ENDPOINTS.products}/${encodeURIComponent(id)}`);
+  },
+  async generateFullDescription(id: string, language: string): Promise<ProductAiWriteResult> {
+    return runFieldAction(id, language, "fullDescription", "generate");
+  },
+  async regenerateFullDescription(id: string, language: string): Promise<ProductAiWriteResult> {
+    return runFieldAction(id, language, "fullDescription", "regenerate");
+  },
+  async generateSeoTitle(id: string, language: string): Promise<ProductAiWriteResult> {
+    return runFieldAction(id, language, "seoTitle", "generate");
+  },
+  async regenerateSeoTitle(id: string, language: string): Promise<ProductAiWriteResult> {
+    return runFieldAction(id, language, "seoTitle", "regenerate");
+  },
+  async generateSeoDescription(id: string, language: string): Promise<ProductAiWriteResult> {
+    return runFieldAction(id, language, "seoDescription", "generate");
+  },
+  async regenerateSeoDescription(id: string, language: string): Promise<ProductAiWriteResult> {
+    return runFieldAction(id, language, "seoDescription", "regenerate");
+  },
+  async fillMissing(id: string): Promise<ProductAiFillResult> {
+    const dto = await httpPost<BffProductAiFillResultDto>(aiActionPath(id, "fill-missing"), undefined, AI_TEXT_TIMEOUT_MS);
+    const splitAll = (fields: BffProductTextField[]) => fields.map((field) => FIELD_KEY_MAP[field]);
+    const splitSkipped = (skipped: { field: BffProductTextField; reason: "failed" }[]) =>
+      skipped.map((s) => ({ ...FIELD_KEY_MAP[s.field], reason: s.reason }));
+    return dto.mode === "direct"
+      ? { mode: "direct", product: toEntity(dto.product), filled: splitAll(dto.filled), skipped: splitSkipped(dto.skipped) }
+      : { mode: "proposal", product: toEntity(dto.product), proposalId: dto.proposalId, proposedFields: splitAll(dto.proposedFields), skipped: splitSkipped(dto.skipped) };
   },
 };

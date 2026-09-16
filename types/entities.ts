@@ -801,6 +801,15 @@ export interface Product extends Identifiable, Timestamps {
   active: boolean;
   imageIds: string[];
   categoryId: string;
+  /** The linked icon's `translationGroupId` (church_icons), NOT a specific
+   * icon row id -- a product links to an icon's whole translation group
+   * (all its languages), matching the Worker's real
+   * `linked_icon_translation_group_id` relation exactly. product-form.tsx's
+   * picker deduplicates icon rows by group for this reason. Round-trips
+   * via lib/api/http/products.ts's toEntity/toPayload (Phase D
+   * prerequisite -- previously hardcoded to undefined on both read and
+   * write). Used by AI shop-copy generation as the required factual
+   * source; generation refuses when this is unset. */
   linkedIconId?: string;
   dimensions?: string;
   materials?: string;
@@ -811,6 +820,31 @@ export interface Product extends Identifiable, Timestamps {
   seoDescription?: string;
   translations: Record<Language, ProductTranslation>;
 }
+
+/**
+ * AI shop-copy fields (Phase D) -- the only ones AI ever generates for a
+ * Product: `translations.{lang}.fullDescription`/`seoTitle`/
+ * `seoDescription`, mirrored per-language since icon_order_options is one
+ * row holding all three languages as columns (unlike Icon's row-per-
+ * language). Never `title`/`description`/price/stock/production time/
+ * consecration/category/photos -- see lib/church/product-ai-actions.ts
+ * (svet-ikony) and CATALOG.products (lib/ai-access/catalog.ts) for the
+ * two independent places this is enforced.
+ */
+export type ProductAiField = "fullDescription" | "seoTitle" | "seoDescription";
+type ProductAiFieldSkip = { language: Language; field: ProductAiField; reason: "failed" };
+export type ProductAiFillResult =
+  | { mode: "direct"; product: Product; filled: { language: Language; field: ProductAiField }[]; skipped: ProductAiFieldSkip[] }
+  | { mode: "proposal"; product: Product; proposalId: string | null; proposedFields: { language: Language; field: ProductAiField }[]; skipped: ProductAiFieldSkip[] };
+
+/**
+ * Outcome of every generate/regenerate Product AI action. `mode: "direct"`
+ * -- the product was inactive (draft-like), `product` already reflects
+ * the written field. `mode: "proposal"` -- the product was active
+ * (published); `product` is the still-unchanged record, and `proposalId`
+ * names the pending AI proposal a human must review.
+ */
+export type ProductAiWriteResult = { mode: "direct"; product: Product } | { mode: "proposal"; product: Product; proposalId: string };
 
 // ---------------------------------------------------------------------------
 // Orders

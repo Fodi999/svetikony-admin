@@ -10,6 +10,11 @@ const now = new Date().toISOString();
  * is derived from each entry's own flat `title`/`seoTitle`/
  * `seoDescription` below rather than duplicated by hand, so the two can
  * never drift.
+ *
+ * `linkedIconId` values below (e.g. "icon-spasitel") are icon
+ * translationGroupIds, matching lib/mock-data/icons.ts's `groupId` field —
+ * NOT a specific icon row id like "icon-spasitel-uk" (see Product's own
+ * doc comment in types/entities.ts for why).
  */
 const rawProducts: Omit<Product, "translations">[] = [
   {
@@ -24,7 +29,7 @@ const rawProducts: Omit<Product, "translations">[] = [
     active: true,
     imageIds: ["media-product-icon-small"],
     categoryId: "cat-icons",
-    linkedIconId: "icon-spasitel-uk",
+    linkedIconId: "icon-spasitel",
     dimensions: "15 × 20 см",
     materials: "Липа, левкас, темпера",
     productionTimeDays: 0,
@@ -50,7 +55,7 @@ const rawProducts: Omit<Product, "translations">[] = [
     active: true,
     imageIds: ["media-product-icon-large"],
     categoryId: "cat-icons",
-    linkedIconId: "icon-bogomater-uk",
+    linkedIconId: "icon-bogomater",
     dimensions: "30 × 40 см",
     materials: "Дерево, левкас, темпера, позолота",
     productionTimeDays: 21,
@@ -71,7 +76,7 @@ const rawProducts: Omit<Product, "translations">[] = [
     active: true,
     imageIds: ["media-product-icon-small"],
     categoryId: "cat-icons",
-    linkedIconId: "icon-mykolai-uk",
+    linkedIconId: "icon-mykolai",
     dimensions: "20 × 25 см",
     materials: "Дерево, друк",
     productionTimeDays: 0,
@@ -182,7 +187,7 @@ const rawProducts: Omit<Product, "translations">[] = [
     active: false,
     imageIds: [],
     categoryId: "cat-icons",
-    linkedIconId: "icon-troitsa-uk",
+    linkedIconId: "icon-troitsa",
     consecrated: false,
     variants: [],
     createdAt: now,

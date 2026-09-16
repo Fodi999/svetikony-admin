@@ -41,6 +41,8 @@ import type {
   PreparedGospelReading,
   Prayer,
   Product,
+  ProductAiFillResult,
+  ProductAiWriteResult,
   ProductCategory,
   Saint,
   TelegramAutopostSettings,
@@ -365,7 +367,21 @@ export interface ApiClient {
     reorderGroups(orderedGroupIds: string[]): Promise<void>;
   };
   categories: CrudResource<ProductCategory, ProductCategoryFormValues>;
-  products: CrudResource<Product, ProductFormValues, ProductQuery>;
+  products: CrudResource<Product, ProductFormValues, ProductQuery> & {
+    /** "Повний опис" (per language) -- never overwrites existing content;
+     * refuses when the product has no linkedIconId (task: "AI generation
+     * must refuse with a clear UI message"). */
+    generateFullDescription(id: string, language: string): Promise<ProductAiWriteResult>;
+    regenerateFullDescription(id: string, language: string): Promise<ProductAiWriteResult>;
+    generateSeoTitle(id: string, language: string): Promise<ProductAiWriteResult>;
+    regenerateSeoTitle(id: string, language: string): Promise<ProductAiWriteResult>;
+    generateSeoDescription(id: string, language: string): Promise<ProductAiWriteResult>;
+    regenerateSeoDescription(id: string, language: string): Promise<ProductAiWriteResult>;
+    /** "Заповнити відсутнє з AI" -- fills every missing marketing/SEO
+     * field across all three languages it safely can; never overwrites
+     * existing content; refuses when there is no linked icon. */
+    fillMissing(id: string): Promise<ProductAiFillResult>;
+  };
   visualizerEvents: CrudResource<VisualizerEvent, VisualizerEventFormValues, TranslatableQuery>;
   /**
    * Not a CrudResource — GLB metadata has no per-language translations, no
