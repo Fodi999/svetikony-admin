@@ -2,11 +2,12 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, ArrowRight, Eye, ImageIcon, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Eye, ImageIcon, Sparkles, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { ConfirmDialog } from "@/components/feedback/confirm-dialog";
 import { MediaUploadButton } from "@/components/forms/media-upload-button";
 import { RelationPickerField } from "@/components/forms/relation-picker-field";
 import { SelectField } from "@/components/forms/select-field";
@@ -22,6 +23,7 @@ import { resolveMediaPreviewUrl } from "@/lib/media/resolve-preview-url";
 import { cn } from "@/lib/utils";
 import { iconSchema, type IconFormValues } from "@/lib/validation/icon.schema";
 import type { Icon, Language } from "@/types/entities";
+import { useIconAiActions } from "./use-icon-ai-actions";
 
 /** Best-effort orphan cleanup for a not-yet-saved upload. No-op in mock
  * mode (nothing real to clean up) — same real-mode detection
@@ -92,6 +94,14 @@ export function IconForm({ mode, icon, groupId, initialLanguage, initialSlug, on
   }, [form, setDirty]);
 
   useBeforeUnloadWarning(form.formState.isDirty);
+
+  // Always called (never conditionally) -- `icon?.id` is only undefined in
+  // "create" mode, where every AI button below stays hidden since there's
+  // no saved record yet for the backend actions to operate on.
+  const ai = useIconAiActions(icon?.id, form);
+  const [confirmRegenerateDescription, setConfirmRegenerateDescription] = useState(false);
+  const [confirmRegenerateHistory, setConfirmRegenerateHistory] = useState(false);
+  const [confirmRegenerateSaintImageDescription, setConfirmRegenerateSaintImageDescription] = useState(false);
 
   useEffect(() => {
     pendingUploadKeyRef.current = pendingUploadKey;
@@ -173,12 +183,20 @@ export function IconForm({ mode, icon, groupId, initialLanguage, initialSlug, on
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex-1 space-y-4 overflow-y-auto p-4 pb-28 md:p-6 md:pb-24">
+      {ai.isBusy ? <p role="status" className="px-4 pt-3 text-sm text-muted-foreground">AI готує матеріали. Дочекайтеся завершення; публікація виконується окремо.</p> : null}
+      <fieldset disabled={ai.isBusy || submitting} aria-busy={ai.isBusy} className="min-w-0 flex-1 space-y-4 overflow-y-auto p-4 pb-28 md:p-6 md:pb-24">
         {effectiveGroupId ? (
           <div className="space-y-1.5">
             <p className="text-xs font-medium text-muted-foreground">Переклади</p>
             <TranslationSwitcher active={values.language} onSelect={handleSwitchLanguage} completeness={completeness} />
           </div>
+        ) : null}
+
+        {mode === "edit" && icon ? (
+          <Button type="button" variant="outline" className="w-full" disabled={ai.isPending("fillMissing")} onClick={ai.fillMissing}>
+            <Sparkles className="size-4" />
+            {ai.isPending("fillMissing") ? "Заповнення…" : "Заповнити відсутнє з AI"}
+          </Button>
         ) : null}
 
         <Tabs value={tab} onValueChange={setTab}>
@@ -192,9 +210,64 @@ export function IconForm({ mode, icon, groupId, initialLanguage, initialSlug, on
           <TabsContent value="main" className="space-y-4">
             <TextField control={form.control} name="title" label="Назва" />
             <TextField control={form.control} name="slug" label="Slug" description="Латиниця, цифри, дефіси" />
-            <TextField control={form.control} name="description" label="Опис" textarea rows={5} />
-            <TextField control={form.control} name="history" label="Історія" textarea rows={5} />
-            <TextField control={form.control} name="saintImageDescription" label="Опис образу святого" textarea rows={3} />
+
+            <div className="space-y-1">
+              <TextField control={form.control} name="description" label="Опис" textarea rows={5} />
+              {mode === "edit" && icon ? (
+                <div className="flex justify-end">
+                  {!values.description?.trim() ? (
+                    <Button type="button" size="sm" variant="ghost" disabled={ai.isPending("generateDescription")} onClick={ai.generateDescription}>
+                      <Sparkles className="size-3.5" />
+                      {ai.isPending("generateDescription") ? "Генерація…" : "Згенерувати"}
+                    </Button>
+                  ) : (
+                    <Button type="button" size="sm" variant="ghost" disabled={ai.isPending("regenerateDescription")} onClick={() => setConfirmRegenerateDescription(true)}>
+                      <Sparkles className="size-3.5" />
+                      {ai.isPending("regenerateDescription") ? "Регенерація…" : "Перегенерувати"}
+                    </Button>
+                  )}
+                </div>
+              ) : null}
+            </div>
+
+            <div className="space-y-1">
+              <TextField control={form.control} name="history" label="Історія" textarea rows={5} />
+              {mode === "edit" && icon ? (
+                <div className="flex justify-end">
+                  {!values.history?.trim() ? (
+                    <Button type="button" size="sm" variant="ghost" disabled={ai.isPending("generateHistory")} onClick={ai.generateHistory}>
+                      <Sparkles className="size-3.5" />
+                      {ai.isPending("generateHistory") ? "Генерація…" : "Згенерувати"}
+                    </Button>
+                  ) : (
+                    <Button type="button" size="sm" variant="ghost" disabled={ai.isPending("regenerateHistory")} onClick={() => setConfirmRegenerateHistory(true)}>
+                      <Sparkles className="size-3.5" />
+                      {ai.isPending("regenerateHistory") ? "Регенерація…" : "Перегенерувати"}
+                    </Button>
+                  )}
+                </div>
+              ) : null}
+            </div>
+
+            <div className="space-y-1">
+              <TextField control={form.control} name="saintImageDescription" label="Опис образу святого" textarea rows={3} />
+              {mode === "edit" && icon ? (
+                <div className="flex justify-end">
+                  {!values.saintImageDescription?.trim() ? (
+                    <Button type="button" size="sm" variant="ghost" disabled={ai.isPending("generateSaintImageDescription")} onClick={ai.generateSaintImageDescription}>
+                      <Sparkles className="size-3.5" />
+                      {ai.isPending("generateSaintImageDescription") ? "Генерація…" : "Згенерувати"}
+                    </Button>
+                  ) : (
+                    <Button type="button" size="sm" variant="ghost" disabled={ai.isPending("regenerateSaintImageDescription")} onClick={() => setConfirmRegenerateSaintImageDescription(true)}>
+                      <Sparkles className="size-3.5" />
+                      {ai.isPending("regenerateSaintImageDescription") ? "Регенерація…" : "Перегенерувати"}
+                    </Button>
+                  )}
+                </div>
+              ) : null}
+            </div>
+
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <TextField control={form.control} name="materials" label="Матеріали" />
               <TextField control={form.control} name="dimensions" label="Розміри" />
@@ -376,7 +449,7 @@ export function IconForm({ mode, icon, groupId, initialLanguage, initialSlug, on
             ) : null}
           </TabsContent>
         </Tabs>
-      </div>
+      </fieldset>
 
       <div
         className="fixed inset-x-0 bottom-16 z-20 flex gap-2 border-t bg-background p-3 md:sticky md:bottom-0 md:inset-x-auto"
@@ -386,10 +459,10 @@ export function IconForm({ mode, icon, groupId, initialLanguage, initialSlug, on
           <Eye className="size-4" />
           {messages.actions.preview}
         </Button>
-        <Button type="button" variant="secondary" className="h-11 flex-1" disabled={submitting} onClick={() => handleSave(false)}>
+        <Button type="button" variant="secondary" className="h-11 flex-1" disabled={submitting || ai.isBusy} onClick={() => handleSave(false)}>
           {messages.actions.save}
         </Button>
-        <Button type="button" className="h-11 flex-1" disabled={submitting} onClick={() => handleSave(true)}>
+        <Button type="button" className="h-11 flex-1" disabled={submitting || ai.isBusy} onClick={() => handleSave(true)}>
           {messages.actions.publish}
         </Button>
       </div>
@@ -406,6 +479,40 @@ export function IconForm({ mode, icon, groupId, initialLanguage, initialSlug, on
           </div>
         </div>
       ) : null}
+
+      <ConfirmDialog
+        open={confirmRegenerateDescription}
+        onOpenChange={setConfirmRegenerateDescription}
+        title="Перегенерувати опис?"
+        description="Поточний опис буде замінено новою AI-версією."
+        confirmLabel="Перегенерувати"
+        onConfirm={() => {
+          ai.regenerateDescription();
+          setConfirmRegenerateDescription(false);
+        }}
+      />
+      <ConfirmDialog
+        open={confirmRegenerateHistory}
+        onOpenChange={setConfirmRegenerateHistory}
+        title="Перегенерувати історію?"
+        description="Поточний текст історії буде замінено новою AI-версією."
+        confirmLabel="Перегенерувати"
+        onConfirm={() => {
+          ai.regenerateHistory();
+          setConfirmRegenerateHistory(false);
+        }}
+      />
+      <ConfirmDialog
+        open={confirmRegenerateSaintImageDescription}
+        onOpenChange={setConfirmRegenerateSaintImageDescription}
+        title="Перегенерувати опис образу святого?"
+        description="Поточний опис образу буде замінено новою AI-версією."
+        confirmLabel="Перегенерувати"
+        onConfirm={() => {
+          ai.regenerateSaintImageDescription();
+          setConfirmRegenerateSaintImageDescription(false);
+        }}
+      />
     </div>
   );
 }

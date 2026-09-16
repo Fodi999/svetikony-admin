@@ -385,6 +385,30 @@ export interface Icon extends Identifiable, Timestamps, Translatable {
   status: ContentStatus;
 }
 
+/**
+ * Outcome of "Заповнити відсутнє з AI" for an Icon -- mirrors
+ * CalendarAiFillResult exactly, minus "seo"/"image" (icons have neither an
+ * AI-generated SEO pair nor an AI-generated photo yet). `mode: "direct"`
+ * -- the icon was DRAFT, missing fields were written straight to it.
+ * `mode: "proposal"` -- the icon was PUBLISHED, nothing was written;
+ * `proposalId` names the pending AI proposal a human must review (null
+ * when nothing was missing).
+ */
+export type IconAiField = "description" | "history" | "saintImageDescription";
+type IconAiSkip = { field: IconAiField; reason: "failed" };
+export type IconAiFillResult =
+  | { mode: "direct"; icon: Icon; filled: IconAiField[]; skipped: IconAiSkip[] }
+  | { mode: "proposal"; icon: Icon; proposalId: string | null; proposedFields: IconAiField[]; skipped: IconAiSkip[] };
+
+/**
+ * Outcome of every generate/regenerate Icon AI action (description/
+ * history/saint-image description). `mode: "direct"` -- the icon was
+ * DRAFT, `icon` already reflects the written field. `mode: "proposal"` --
+ * the icon was PUBLISHED; `icon` is the still-unchanged record, and
+ * `proposalId` names the pending AI proposal a human must review.
+ */
+export type IconAiWriteResult = { mode: "direct"; icon: Icon } | { mode: "proposal"; icon: Icon; proposalId: string };
+
 // ---------------------------------------------------------------------------
 // Prayers
 // ---------------------------------------------------------------------------

@@ -1,12 +1,12 @@
 import type { z } from "zod";
-import type { BffIconDto, WorkerIconWritePayload } from "@/app/api/bff/icons/_contract";
+import type { BffIconAiFillResultDto, BffIconAiWriteResultDto, BffIconDto, WorkerIconWritePayload } from "@/app/api/bff/icons/_contract";
 import type { ApiClient, TranslatableQuery } from "@/lib/api/client";
 import { BFF_ENDPOINTS } from "@/lib/api/endpoints";
 import { createHttpListResource } from "@/lib/api/http/resource-factory";
 import { httpDelete, httpPost, httpPut } from "@/lib/api/http/transport";
 import { contentStatusSchema, languageSchema } from "@/lib/validation/common";
 import type { IconFormValues } from "@/lib/validation/icon.schema";
-import type { ContentStatus, Icon, Language } from "@/types/entities";
+import type { ContentStatus, Icon, IconAiFillResult, IconAiWriteResult, Language } from "@/types/entities";
 
 /** Same defensive pattern as Calendar Day/Prayers: fall back rather than
  * an unchecked cast if the Worker's value doesn't match the admin's enum. */
@@ -73,6 +73,24 @@ export function toPayload(values: IconFormValues): WorkerIconWritePayload {
   };
 }
 
+function aiActionPath(id: string, action: string): string {
+  return `${BFF_ENDPOINTS.icons}/${encodeURIComponent(id)}/${action}`;
+}
+
+/** Shared by every generate/regenerate Icon AI action: a DRAFT icon's
+ * result carries the written entity; a PUBLISHED icon's carries the
+ * still-unchanged entity plus a pending proposal id -- see
+ * IconAiWriteResult's own doc comment. */
+function toAiWriteResult(dto: BffIconAiWriteResultDto): IconAiWriteResult {
+  return dto.mode === "direct" ? { mode: "direct", icon: toEntity(dto.icon) } : { mode: "proposal", icon: toEntity(dto.icon), proposalId: dto.proposalId };
+}
+
+/** Same reasoning as Calendar Day's own AI_TEXT_TIMEOUT_MS: the BFF's own
+ * matching timeout (see app/api/bff/icons/[id]/*\/route.ts) is 120s, so
+ * this must stay slightly above it so the BFF's clean timeout response
+ * always wins over the browser's fetch aborting first. */
+const AI_TEXT_TIMEOUT_MS = 125_000;
+
 const baseResource = createHttpListResource<BffIconDto, Icon, TranslatableQuery>({
   listPath: BFF_ENDPOINTS.icons,
   itemPath: (id) => `${BFF_ENDPOINTS.icons}/${encodeURIComponent(id)}`,
@@ -106,5 +124,29 @@ export const iconsHttpResource: ApiClient["icons"] = {
   async createTranslation(_groupId: string, language: string, values: IconFormValues): Promise<Icon> {
     const dto = await httpPost<BffIconDto>(BFF_ENDPOINTS.icons, toPayload({ ...values, language: language as IconFormValues["language"] }));
     return toEntity(dto);
+  },
+  async generateDescription(id: string): Promise<IconAiWriteResult> {
+    return toAiWriteResult(await httpPost<BffIconAiWriteResultDto>(aiActionPath(id, "generate-description"), undefined, AI_TEXT_TIMEOUT_MS));
+  },
+  async regenerateDescription(id: string): Promise<IconAiWriteResult> {
+    return toAiWriteResult(await httpPost<BffIconAiWriteResultDto>(aiActionPath(id, "regenerate-description"), undefined, AI_TEXT_TIMEOUT_MS));
+  },
+  async generateHistory(id: string): Promise<IconAiWriteResult> {
+    return toAiWriteResult(await httpPost<BffIconAiWriteResultDto>(aiActionPath(id, "generate-history"), undefined, AI_TEXT_TIMEOUT_MS));
+  },
+  async regenerateHistory(id: string): Promise<IconAiWriteResult> {
+    return toAiWriteResult(await httpPost<BffIconAiWriteResultDto>(aiActionPath(id, "regenerate-history"), undefined, AI_TEXT_TIMEOUT_MS));
+  },
+  async generateSaintImageDescription(id: string): Promise<IconAiWriteResult> {
+    return toAiWriteResult(await httpPost<BffIconAiWriteResultDto>(aiActionPath(id, "generate-saint-image-description"), undefined, AI_TEXT_TIMEOUT_MS));
+  },
+  async regenerateSaintImageDescription(id: string): Promise<IconAiWriteResult> {
+    return toAiWriteResult(await httpPost<BffIconAiWriteResultDto>(aiActionPath(id, "regenerate-saint-image-description"), undefined, AI_TEXT_TIMEOUT_MS));
+  },
+  async fillMissing(id: string): Promise<IconAiFillResult> {
+    const dto = await httpPost<BffIconAiFillResultDto>(aiActionPath(id, "fill-missing"), undefined, AI_TEXT_TIMEOUT_MS);
+    return dto.mode === "direct"
+      ? { mode: "direct", icon: toEntity(dto.icon), filled: dto.filled, skipped: dto.skipped }
+      : { mode: "proposal", icon: toEntity(dto.icon), proposalId: dto.proposalId, proposedFields: dto.proposedFields, skipped: dto.skipped };
   },
 };

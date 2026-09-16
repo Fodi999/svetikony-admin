@@ -30,6 +30,8 @@ import type {
   ContentStatus,
   GospelReading,
   Icon,
+  IconAiFillResult,
+  IconAiWriteResult,
   MediaAsset,
   Order,
   OrderStatus,
@@ -328,7 +330,22 @@ export interface ApiClient {
      * "⚠ Канонічне читання не визначено" rather than a generic failure. */
     previewGospelReading(id: string): Promise<PreparedGospelReading>;
   };
-  icons: CrudResource<Icon, IconFormValues, TranslatableQuery>;
+  icons: CrudResource<Icon, IconFormValues, TranslatableQuery> & {
+    /** "Опис" -- never overwrites an existing description; use regenerate for that. */
+    generateDescription(id: string): Promise<IconAiWriteResult>;
+    regenerateDescription(id: string): Promise<IconAiWriteResult>;
+    /** "Історія" -- never overwrites existing history text. */
+    generateHistory(id: string): Promise<IconAiWriteResult>;
+    regenerateHistory(id: string): Promise<IconAiWriteResult>;
+    /** "Опис образу святого" -- never overwrites an existing description. */
+    generateSaintImageDescription(id: string): Promise<IconAiWriteResult>;
+    regenerateSaintImageDescription(id: string): Promise<IconAiWriteResult>;
+    /** "Заповнити відсутнє з AI" -- fills every missing field it safely
+     * can (description/history/saint-image description only -- never
+     * materials/dimensions, which are physical facts an AI can't safely
+     * infer); never overwrites existing content. */
+    fillMissing(id: string): Promise<IconAiFillResult>;
+  };
   prayers: CrudResource<Prayer, PrayerFormValues, TranslatableQuery>;
   saints: CrudResource<Saint, SaintFormValues, TranslatableQuery>;
   gospelReadings: CrudResource<GospelReading, GospelReadingFormValues, TranslatableQuery>;

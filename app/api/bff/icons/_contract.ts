@@ -100,6 +100,39 @@ export function toBffIconDtoList(workers: WorkerIconDto[]): BffIconDto[] {
   return workers.map(toBffIconDto);
 }
 
+/**
+ * Outcome of "Заповнити відсутнє з AI" for an Icon -- mirrors Calendar
+ * Day's WorkerCalendarAiFillResultDto/BffCalendarAiFillResultDto exactly,
+ * minus "seo"/"image" (icons have neither yet). See
+ * lib/church/icon-ai-actions.ts's FillMissingIconResult in svet-ikony.
+ */
+export type WorkerIconAiField = "description" | "history" | "saintImageDescription";
+type WorkerIconAiSkip = { field: WorkerIconAiField; reason: "failed" };
+export type WorkerIconAiFillResultDto =
+  | { mode: "direct"; icon: WorkerIconDto; filled: WorkerIconAiField[]; skipped: WorkerIconAiSkip[] }
+  | { mode: "proposal"; icon: WorkerIconDto; proposalId: string | null; proposedFields: WorkerIconAiField[]; skipped: WorkerIconAiSkip[] };
+export type BffIconAiFillResultDto =
+  | { mode: "direct"; icon: BffIconDto; filled: WorkerIconAiField[]; skipped: WorkerIconAiSkip[] }
+  | { mode: "proposal"; icon: BffIconDto; proposalId: string | null; proposedFields: WorkerIconAiField[]; skipped: WorkerIconAiSkip[] };
+export function toBffIconAiFillResultDto(worker: WorkerIconAiFillResultDto): BffIconAiFillResultDto {
+  return worker.mode === "direct"
+    ? { mode: "direct", icon: toBffIconDto(worker.icon), filled: worker.filled, skipped: worker.skipped }
+    : { mode: "proposal", icon: toBffIconDto(worker.icon), proposalId: worker.proposalId, proposedFields: worker.proposedFields, skipped: worker.skipped };
+}
+
+/**
+ * Outcome of every generate/regenerate Icon AI action (description/
+ * history/saint-image description). Mirrors Calendar Day's
+ * WorkerCalendarAiWriteResultDto/BffCalendarAiWriteResultDto exactly.
+ */
+export type WorkerIconAiWriteResultDto = { mode: "direct"; icon: WorkerIconDto } | { mode: "proposal"; icon: WorkerIconDto; proposalId: string };
+export type BffIconAiWriteResultDto = { mode: "direct"; icon: BffIconDto } | { mode: "proposal"; icon: BffIconDto; proposalId: string };
+export function toBffIconAiWriteResultDto(worker: WorkerIconAiWriteResultDto): BffIconAiWriteResultDto {
+  return worker.mode === "direct"
+    ? { mode: "direct", icon: toBffIconDto(worker.icon) }
+    : { mode: "proposal", icon: toBffIconDto(worker.icon), proposalId: worker.proposalId };
+}
+
 /** Admin -> Worker payload for create/update. Same whitelist in reverse —
  * see BffIconDto's doc comment for what's deliberately never sent. */
 export interface WorkerIconWritePayload {
