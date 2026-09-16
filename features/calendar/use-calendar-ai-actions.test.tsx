@@ -17,7 +17,6 @@ const mockApi = vi.hoisted(() => ({
   generateImage: vi.fn(),
   regenerateImage: vi.fn(),
   assignImage: vi.fn(),
-  generateImageFromPrompt: vi.fn(),
   fillMissing: vi.fn(),
 }));
 vi.mock("@/lib/api", () => ({ apiClient: { calendarDays: mockApi } }));
@@ -86,9 +85,6 @@ function Harness({ dayId }: { dayId?: string }) {
       <button onClick={ai.generateDescription} disabled={ai.isPending("generateDescription")}>
         generate-description
       </button>
-      <button onClick={() => ai.generateImageFromPrompt("A test prompt")} disabled={ai.isPending("generateImageFromPrompt")}>
-        generate-image-from-prompt
-      </button>
       <button onClick={ai.fillMissing} disabled={ai.isPending("fillMissing")}>
         fill-missing
       </button>
@@ -148,35 +144,6 @@ describe("useCalendarAiActions", () => {
 
     await waitFor(() => expect(mockToastError).toHaveBeenCalled());
     expect(screen.getByTestId("shortDescription")).toHaveTextContent("");
-  });
-
-  it("generateImageFromPrompt calls the API with the id and prompt, and patches imageId on success for a DRAFT day", async () => {
-    const user = userEvent.setup();
-    mockApi.generateImageFromPrompt.mockResolvedValue({
-      mode: "direct",
-      day: calendarDay({ imageId: "media/calendar/day-1/main/custom.png" }),
-    } satisfies CalendarAiWriteResult);
-    renderHarness();
-
-    await user.click(screen.getByRole("button", { name: "generate-image-from-prompt" }));
-
-    await waitFor(() => expect(screen.getByTestId("imageId")).toHaveTextContent("media/calendar/day-1/main/custom.png"));
-    expect(mockApi.generateImageFromPrompt).toHaveBeenCalledWith("day-1", "A test prompt");
-  });
-
-  it("generateImageFromPrompt on a PUBLISHED day never patches imageId -- it reports a pending proposal instead", async () => {
-    const user = userEvent.setup();
-    mockApi.generateImageFromPrompt.mockResolvedValue({
-      mode: "proposal",
-      day: calendarDay({ status: "published" }),
-      proposalId: "proposal-2",
-    } satisfies CalendarAiWriteResult);
-    renderHarness();
-
-    await user.click(screen.getByRole("button", { name: "generate-image-from-prompt" }));
-
-    await waitFor(() => expect(mockToastSuccess).toHaveBeenCalledWith(expect.stringMatching(/Підготовлено|робочу версію/)));
-    expect(screen.getByTestId("imageId")).toHaveTextContent("");
   });
 
   it("fillMissing patches every returned field and summarizes what was filled", async () => {

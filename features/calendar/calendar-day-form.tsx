@@ -193,7 +193,6 @@ export function CalendarDayForm({
   const [confirmRegenerateSeo, setConfirmRegenerateSeo] = useState(false);
   const [confirmRegenerateImage, setConfirmRegenerateImage] = useState(false);
   const [confirmPublishIncomplete, setConfirmPublishIncomplete] = useState(false);
-  const [customImagePrompt, setCustomImagePrompt] = useState("");
 
   // Read-only reverse lookup for the "Зв'язки" tab: the real relation is
   // owned by the CHILD record's own calendarDayId (icons/prayers/saints/
@@ -719,10 +718,6 @@ export function CalendarDayForm({
               generateImagePending={ai.isPending("generateImage") || ai.isPending("regenerateImage")}
               onGenerateImage={ai.generateImage}
               onRequestRegenerateImage={() => setConfirmRegenerateImage(true)}
-              customImagePrompt={customImagePrompt}
-              onCustomImagePromptChange={setCustomImagePrompt}
-              generateFromPromptPending={ai.isPending("generateImageFromPrompt")}
-              onGenerateFromPrompt={() => ai.generateImageFromPrompt(customImagePrompt)}
             />
           </TabsContent>
 

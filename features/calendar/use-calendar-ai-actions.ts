@@ -17,7 +17,6 @@ type AiActionName =
   | "generateImage"
   | "regenerateImage"
   | "assignImage"
-  | "generateImageFromPrompt"
   | "fillMissing";
 
 export type CalendarAiActions = {
@@ -30,7 +29,6 @@ export type CalendarAiActions = {
   generateImage: () => void;
   regenerateImage: () => void;
   assignImage: (imageUrl: string) => void;
-  generateImageFromPrompt: (prompt: string) => void;
   fillMissing: () => void;
   isBusy: boolean;
   isPending: (action: AiActionName) => boolean;
@@ -155,12 +153,6 @@ export function useCalendarAiActions(dayId: string | undefined, form: UseFormRet
     onSuccess: (day) => applyDay(day, ["image"]),
     onError,
   });
-  const generateImageFromPrompt = useMutation({
-    mutationKey: ["calendar-ai", id],
-    mutationFn: (prompt: string) => run(() => apiClient.calendarDays.generateImageFromPrompt(id, prompt)),
-    onSuccess: (result) => handleAiWriteResult(result, "image"),
-    onError,
-  });
   const fillMissing = useMutation({
     mutationKey: ["calendar-ai", id],
     mutationFn: () => run(() => apiClient.calendarDays.fillMissing(id)),
@@ -214,8 +206,6 @@ export function useCalendarAiActions(dayId: string | undefined, form: UseFormRet
         return regenerateImage.isPending;
       case "assignImage":
         return assignImage.isPending;
-      case "generateImageFromPrompt":
-        return generateImageFromPrompt.isPending;
       case "fillMissing":
         return fillMissing.isPending;
     }
@@ -231,9 +221,8 @@ export function useCalendarAiActions(dayId: string | undefined, form: UseFormRet
     generateImage: () => generateImage.mutate(),
     regenerateImage: () => regenerateImage.mutate(),
     assignImage: (imageUrl) => assignImage.mutate(imageUrl),
-    generateImageFromPrompt: (prompt) => generateImageFromPrompt.mutate(prompt),
     fillMissing: () => fillMissing.mutate(),
-    isBusy: generateDescription.isPending || regenerateDescription.isPending || generateHistory.isPending || regenerateHistory.isPending || generateSeo.isPending || regenerateSeo.isPending || generateImage.isPending || regenerateImage.isPending || generateImageFromPrompt.isPending || fillMissing.isPending,
+    isBusy: generateDescription.isPending || regenerateDescription.isPending || generateHistory.isPending || regenerateHistory.isPending || generateSeo.isPending || regenerateSeo.isPending || generateImage.isPending || regenerateImage.isPending || fillMissing.isPending,
     isPending,
   };
 }

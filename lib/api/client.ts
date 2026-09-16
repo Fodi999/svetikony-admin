@@ -303,11 +303,6 @@ export interface ApiClient {
      * directly, regardless of status. Not an AI action (no generation, no
      * review step) -- see assignCalendarImage's own doc comment. */
     assignImage(id: string, imageUrl: string): Promise<CalendarDay>;
-    /** "Промпт для AI" -- generates directly from an admin-authored English
-     * prompt, bypassing the automatic saint-reference resolver. Always
-     * overwrites any existing image; follows the same draft-direct/
-     * published-proposal policy as regenerateImage. */
-    generateImageFromPrompt(id: string, prompt: string): Promise<CalendarAiWriteResult>;
     /** "Заповнити відсутнє з AI" -- fills every missing field it safely
      * can; never overwrites existing content. */
     fillMissing(id: string): Promise<CalendarAiFillResult>;

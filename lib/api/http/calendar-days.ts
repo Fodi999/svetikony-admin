@@ -189,9 +189,6 @@ export const calendarDaysHttpResource: ApiClient["calendarDays"] = {
   async assignImage(id: string, imageUrl: string): Promise<CalendarDay> {
     return calendarDayFromDto(await httpPut<BffCalendarDayDto>(aiActionPath(id, "image"), { imageUrl }));
   },
-  async generateImageFromPrompt(id: string, prompt: string): Promise<CalendarAiWriteResult> {
-    return toAiWriteResult(await httpPost<BffCalendarAiWriteResultDto>(aiActionPath(id, "generate-image-prompt"), { prompt }, AI_IMAGE_TIMEOUT_MS));
-  },
   async fillMissing(id: string): Promise<CalendarAiFillResult> {
     const dto = await httpPost<BffCalendarAiFillResultDto>(aiActionPath(id, "fill-missing"), undefined, AI_FILL_MISSING_TIMEOUT_MS);
     return dto.mode === "direct"

@@ -161,16 +161,6 @@ export const calendarDaysResource: ApiClient["calendarDays"] = {
     getOrThrow(id);
     return save(id, { imageId: imageUrl, imageMetadata: null });
   },
-  async generateImageFromPrompt(id, prompt) {
-    await mockDelay(400);
-    getOrThrow(id);
-    return direct(
-      save(id, {
-        imageId: `https://placehold.co/600x400?text=${encodeURIComponent(prompt.slice(0, 20))}`,
-        imageMetadata: { origin: "ai_generated", identityVerified: false, customPrompt: prompt },
-      }),
-    );
-  },
   async fillMissing(id): Promise<CalendarAiFillResult> {
     await mockDelay(800);
     const day = getOrThrow(id);

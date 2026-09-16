@@ -25,7 +25,6 @@ const mockApi = vi.hoisted(() => ({
     generateImage: vi.fn(),
     regenerateImage: vi.fn(),
     assignImage: vi.fn(),
-    generateImageFromPrompt: vi.fn(),
     fillMissing: vi.fn(),
     recommendPrayer: vi.fn(),
     prepareGospel: vi.fn(),

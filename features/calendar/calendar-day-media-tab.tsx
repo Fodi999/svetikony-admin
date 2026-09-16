@@ -7,7 +7,6 @@ import { MediaPickerDialog } from "@/components/forms/media-picker-dialog";
 import { MediaUploadButton } from "@/components/forms/media-upload-button";
 import { TextField } from "@/components/forms/text-field";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import type { CalendarDayFormValues } from "@/lib/validation/calendar.schema";
 import type { CalendarDay } from "@/types/entities";
 
@@ -23,10 +22,6 @@ interface CalendarDayMediaTabProps {
   generateImagePending: boolean;
   onGenerateImage: () => void;
   onRequestRegenerateImage: () => void;
-  customImagePrompt: string;
-  onCustomImagePromptChange: (value: string) => void;
-  generateFromPromptPending: boolean;
-  onGenerateFromPrompt: () => void;
 }
 
 /**
@@ -48,10 +43,6 @@ export function CalendarDayMediaTab({
   generateImagePending,
   onGenerateImage,
   onRequestRegenerateImage,
-  customImagePrompt,
-  onCustomImagePromptChange,
-  generateFromPromptPending,
-  onGenerateFromPrompt,
 }: CalendarDayMediaTabProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -102,26 +93,6 @@ export function CalendarDayMediaTab({
           ) : null}
         </div>
       </div>
-
-      {mode === "edit" && day ? (
-        <div className="space-y-2 rounded-md border p-3">
-          <label className="text-sm font-medium">Власний промпт (англійською)</label>
-          <p className="text-xs text-muted-foreground">
-            Опишіть зображення власними словами англійською -- AI згенерує саме за цим описом, минаючи автоматичний пошук
-            референсу. Мова тексту дня відповідає вибраному перекладу (UK/RU/EN).
-          </p>
-          <Textarea
-            value={customImagePrompt}
-            onChange={(e) => onCustomImagePromptChange(e.target.value)}
-            rows={3}
-            placeholder="e.g. Byzantine icon of a bearded martyr saint, golden halo, warm candlelight, traditional Orthodox style"
-          />
-          <Button type="button" variant="outline" size="sm" disabled={generateFromPromptPending || !customImagePrompt.trim()} onClick={onGenerateFromPrompt}>
-            <Sparkles className="size-4" />
-            {generateFromPromptPending ? "Генерація…" : "Згенерувати за промтом"}
-          </Button>
-        </div>
-      ) : null}
 
       {day?.imageMetadata?.origin === "ai_generated" ? (
         <div className="space-y-1 rounded-md border bg-muted/30 p-2 text-xs text-muted-foreground">
