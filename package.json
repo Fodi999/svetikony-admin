@@ -15,7 +15,11 @@
     "verify:production-auth-bundle": "node scripts/verify-production-auth-bundle.mjs",
     "verify:production-api-bundle": "node scripts/verify-production-api-bundle.mjs",
     "test:e2e:mock": "playwright test",
-    "test:e2e:real": "RUN_REAL_API_E2E=true playwright test"
+    "test:e2e:real": "RUN_REAL_API_E2E=true playwright test",
+    "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
+    "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
+    "upload": "opennextjs-cloudflare build && opennextjs-cloudflare upload",
+    "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
@@ -43,6 +47,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@opennextjs/cloudflare": "1.19.11",
     "@playwright/test": "^1.62.0",
     "@tailwindcss/postcss": "^4",
     "@testing-library/jest-dom": "^7.0.0",
@@ -62,6 +67,7 @@
     "prettier-plugin-tailwindcss": "^0.8.1",
     "tailwindcss": "^4",
     "typescript": "^5",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.10",
+    "wrangler": "4.116.0"
   }
 }

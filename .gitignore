@@ -48,3 +48,9 @@ next-env.d.ts
 /playwright-report/
 /test-results/
 /blob-report/
+
+# OpenNext
+.open-next
+
+# wrangler
+.wrangler

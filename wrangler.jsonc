@@ -1,0 +1,45 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "svetikony-admin",
+  "main": ".open-next/worker.js",
+  // Pinned to the EXACT value read back from the live Worker's settings API
+  // during the 2026-09-16 audit (GET /accounts/{id}/workers/scripts/svetikony-admin/settings).
+  // Do not bump this without a deliberate decision -- compatibility_date
+  // changes can silently change runtime behavior even with identical code.
+  "compatibility_date": "2026-09-15",
+  // Verified exactly from production. Notably does NOT include
+  // "nodejs_compat" (unlike svet-ikony's own wrangler.jsonc) -- preserved
+  // as-is, not "fixed"/harmonized between the two projects.
+  "compatibility_flags": ["global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "images": {
+    "binding": "IMAGES"
+  },
+  "r2_buckets": [
+    {
+      "binding": "NEXT_INC_CACHE_R2_BUCKET",
+      "bucket_name": "svetikony-admin-opennext-cache"
+    }
+  ],
+  "services": [
+    {
+      "binding": "WORKER_SELF_REFERENCE",
+      "service": "svetikony-admin"
+    }
+  ],
+  "observability": {
+    "enabled": true
+  }
+  // Deliberately NOT listed here: GATE_PASSWORD, GATE_USERNAME,
+  // NEXT_PUBLIC_SVET_IKONY_SITE_URL, NEXT_PUBLIC_USE_REAL_API,
+  // SVET_IKONY_ADMIN_TOKEN, SVET_IKONY_API_BASE_URL -- all six are
+  // `secret_text` bindings on the live Worker (confirmed via the
+  // settings API), never plain `vars`. Secrets are not stored in this
+  // file and are NOT affected by deploying with it: they persist on the
+  // Worker independently of wrangler.jsonc content across deploys, and
+  // are only ever changed via `wrangler secret put <NAME>` or the
+  // dashboard -- neither of which this file does.
+}
