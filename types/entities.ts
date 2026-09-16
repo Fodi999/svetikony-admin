@@ -409,6 +409,33 @@ export type IconAiFillResult =
  */
 export type IconAiWriteResult = { mode: "direct"; icon: Icon } | { mode: "proposal"; icon: Icon; proposalId: string };
 
+/**
+ * Portfolio/lifestyle photo generation (Phase C) -- a candidate generated
+ * from the icon's own existing photo, not yet part of its public gallery.
+ * `sourceImageUrl` is the icon's main photo key AT GENERATION TIME, kept
+ * for provenance even if the main photo is later replaced.
+ */
+export type IconPortfolioPreset = "table_candle" | "in_hand" | "framed_wall";
+export interface GeneratedIconPortfolioPhoto {
+  preset: IconPortfolioPreset;
+  imageUrl: string;
+  sourceImageUrl: string;
+  generatedAt: string;
+}
+export type IconPortfolioGenerationSkip = { preset: IconPortfolioPreset; reason: "failed" };
+/**
+ * generateIconPortfolio() never writes to the icon -- `icon` is the
+ * unchanged record, included so the review UI has its current
+ * imageUrl/galleryUrls without a second fetch. `generated` are candidates
+ * for the admin to review and select from; nothing here is part of the
+ * icon's public media until addPortfolioImages() confirms a subset.
+ */
+export interface GenerateIconPortfolioResult {
+  icon: Icon;
+  generated: GeneratedIconPortfolioPhoto[];
+  skipped: IconPortfolioGenerationSkip[];
+}
+
 // ---------------------------------------------------------------------------
 // Prayers
 // ---------------------------------------------------------------------------

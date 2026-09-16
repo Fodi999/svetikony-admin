@@ -19,6 +19,8 @@ const mockApi = vi.hoisted(() => ({
     generateSaintImageDescription: vi.fn(),
     regenerateSaintImageDescription: vi.fn(),
     fillMissing: vi.fn(),
+    generatePortfolio: vi.fn(),
+    addPortfolioImages: vi.fn(),
   },
   prayers: { list: vi.fn() },
   articles: { list: vi.fn() },
@@ -136,5 +138,82 @@ describe("IconForm AI content generation", () => {
     expect(mockApi.icons.generateDescription).toHaveBeenCalledWith("icon-1");
     // The record was never touched -- the field the admin sees stays empty.
     expect(await screen.findByLabelText("Опис")).toHaveValue("");
+  });
+});
+
+describe("IconForm AI portfolio generation", () => {
+  it("never lets the admin generate a portfolio for a create-mode (unsaved) icon", () => {
+    renderForm({ mode: "create", icon: undefined });
+    expect(screen.queryByRole("button", { name: /Згенерувати портфоліо/ })).not.toBeInTheDocument();
+  });
+
+  it("disables the generate button when the icon has no main photo yet", async () => {
+    const user = userEvent.setup();
+    renderForm({ icon: baseIcon({ mainImageId: undefined }) });
+
+    await user.click(screen.getByRole("tab", { name: "Медіа" }));
+
+    expect(screen.getByRole("button", { name: /Згенерувати портфоліо/ })).toBeDisabled();
+  });
+
+  it("generates candidates for review and only adds the admin-selected ones to the gallery", async () => {
+    const user = userEvent.setup();
+    mockApi.icons.generatePortfolio.mockResolvedValue({
+      icon: baseIcon({ mainImageId: "media/icons/icon-1/main/photo.png" }),
+      generated: [
+        { preset: "table_candle", imageUrl: "media/icons/icon-1/portfolio/a.png", sourceImageUrl: "media/icons/icon-1/main/photo.png", generatedAt: "2026-01-01T00:00:00.000Z" },
+        { preset: "in_hand", imageUrl: "media/icons/icon-1/portfolio/b.png", sourceImageUrl: "media/icons/icon-1/main/photo.png", generatedAt: "2026-01-01T00:00:00.000Z" },
+      ],
+      skipped: [],
+    });
+    mockApi.icons.addPortfolioImages.mockResolvedValue({
+      mode: "direct",
+      icon: baseIcon({ galleryImageIds: ["media/icons/icon-1/portfolio/a.png"] }),
+    });
+    renderForm({ icon: baseIcon({ mainImageId: "media/icons/icon-1/main/photo.png" }) });
+
+    await user.click(screen.getByRole("tab", { name: "Медіа" }));
+    await user.click(screen.getByRole("button", { name: /Згенерувати портфоліо/ }));
+
+    expect(mockApi.icons.generatePortfolio).toHaveBeenCalledWith("icon-1");
+    const candidateButtons = await screen.findAllByRole("button", { name: /На столі зі свічкою|В руках/ });
+    expect(candidateButtons).toHaveLength(2);
+
+    // Deselect the second candidate before confirming.
+    await user.click(screen.getByRole("button", { name: /В руках/ }));
+    await user.click(screen.getByRole("button", { name: "Додати обрані до галереї" }));
+
+    expect(mockApi.icons.addPortfolioImages).toHaveBeenCalledWith("icon-1", [
+      { preset: "table_candle", imageUrl: "media/icons/icon-1/portfolio/a.png", sourceImageUrl: "media/icons/icon-1/main/photo.png", generatedAt: "2026-01-01T00:00:00.000Z" },
+    ]);
+  });
+
+  it("on a PUBLISHED icon, confirming never patches the gallery directly -- reports a pending proposal instead", async () => {
+    const user = userEvent.setup();
+    mockApi.icons.generatePortfolio.mockResolvedValue({
+      icon: baseIcon({ status: "published", mainImageId: "media/icons/icon-1/main/photo.png" }),
+      generated: [
+        { preset: "framed_wall", imageUrl: "media/icons/icon-1/portfolio/c.png", sourceImageUrl: "media/icons/icon-1/main/photo.png", generatedAt: "2026-01-01T00:00:00.000Z" },
+      ],
+      skipped: [],
+    });
+    mockApi.icons.addPortfolioImages.mockResolvedValue({
+      mode: "proposal",
+      icon: baseIcon({ status: "published", galleryImageIds: [] }),
+      proposalId: "proposal-1",
+    });
+    renderForm({ icon: baseIcon({ status: "published", mainImageId: "media/icons/icon-1/main/photo.png" }) });
+
+    await user.click(screen.getByRole("tab", { name: "Медіа" }));
+    await user.click(screen.getByRole("button", { name: /Згенерувати портфоліо/ }));
+    await screen.findByRole("button", { name: /У рамці на стіні/ });
+    await user.click(screen.getByRole("button", { name: "Додати обрані до галереї" }));
+
+    expect(mockApi.icons.addPortfolioImages).toHaveBeenCalledWith("icon-1", [
+      { preset: "framed_wall", imageUrl: "media/icons/icon-1/portfolio/c.png", sourceImageUrl: "media/icons/icon-1/main/photo.png", generatedAt: "2026-01-01T00:00:00.000Z" },
+    ]);
+    // The gallery the admin sees stays exactly as it was -- nothing was
+    // silently added to a PUBLISHED icon's public media.
+    expect(screen.getByText("Немає фото")).toBeInTheDocument();
   });
 });

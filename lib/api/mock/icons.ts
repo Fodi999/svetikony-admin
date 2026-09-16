@@ -2,7 +2,7 @@ import type { ApiClient } from "@/lib/api/client";
 import { ensureUniqueSlug, loadStore, matchesSearch, mockDelay, notFound, nextId, nowIso, paginate, saveStore } from "@/lib/api/mock-utils";
 import { mockIcons } from "@/lib/mock-data/icons";
 import { ApiError } from "@/types/api";
-import type { Icon, IconAiField, IconAiFillResult, IconAiWriteResult } from "@/types/entities";
+import type { GeneratedIconPortfolioPhoto, Icon, IconAiField, IconAiFillResult, IconAiWriteResult, IconPortfolioPreset } from "@/types/entities";
 
 const STORE_KEY = "icons";
 const store: Icon[] = loadStore(STORE_KEY, mockIcons);
@@ -151,5 +151,28 @@ export const iconsResource: ApiClient["icons"] = {
       filled.push("saintImageDescription");
     }
     return { mode: "direct", icon: current, filled, skipped: [] };
+  },
+  async generatePortfolio(id) {
+    await mockDelay(600);
+    const icon = getOrThrow(id);
+    if (!icon.mainImageId) throw new ApiError("validation_error", "Спочатку завантажте фото ікони");
+    const sourceImageUrl = icon.mainImageId;
+    const generatedAt = nowIso();
+    const presets: IconPortfolioPreset[] = ["table_candle", "in_hand", "framed_wall"];
+    const generated: GeneratedIconPortfolioPhoto[] = presets.map((preset) => ({
+      preset,
+      imageUrl: `${sourceImageUrl}#mock-portfolio-${preset}-${nextId("portfolio")}`,
+      sourceImageUrl,
+      generatedAt,
+    }));
+    return { icon, generated, skipped: [] };
+  },
+  async addPortfolioImages(id, images) {
+    await mockDelay(300);
+    const icon = getOrThrow(id);
+    if (!images.length) throw new ApiError("validation_error", "Немає фото для додавання");
+    const galleryImageIds = [...icon.galleryImageIds];
+    for (const image of images) if (!galleryImageIds.includes(image.imageUrl)) galleryImageIds.push(image.imageUrl);
+    return direct(save(id, { galleryImageIds }));
   },
 };

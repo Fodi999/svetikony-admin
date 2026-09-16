@@ -1,12 +1,18 @@
 import type { z } from "zod";
-import type { BffIconAiFillResultDto, BffIconAiWriteResultDto, BffIconDto, WorkerIconWritePayload } from "@/app/api/bff/icons/_contract";
+import type {
+  BffGenerateIconPortfolioResultDto,
+  BffIconAiFillResultDto,
+  BffIconAiWriteResultDto,
+  BffIconDto,
+  WorkerIconWritePayload,
+} from "@/app/api/bff/icons/_contract";
 import type { ApiClient, TranslatableQuery } from "@/lib/api/client";
 import { BFF_ENDPOINTS } from "@/lib/api/endpoints";
 import { createHttpListResource } from "@/lib/api/http/resource-factory";
 import { httpDelete, httpPost, httpPut } from "@/lib/api/http/transport";
 import { contentStatusSchema, languageSchema } from "@/lib/validation/common";
 import type { IconFormValues } from "@/lib/validation/icon.schema";
-import type { ContentStatus, Icon, IconAiFillResult, IconAiWriteResult, Language } from "@/types/entities";
+import type { ContentStatus, GenerateIconPortfolioResult, GeneratedIconPortfolioPhoto, Icon, IconAiFillResult, IconAiWriteResult, Language } from "@/types/entities";
 
 /** Same defensive pattern as Calendar Day/Prayers: fall back rather than
  * an unchecked cast if the Worker's value doesn't match the admin's enum. */
@@ -148,5 +154,12 @@ export const iconsHttpResource: ApiClient["icons"] = {
     return dto.mode === "direct"
       ? { mode: "direct", icon: toEntity(dto.icon), filled: dto.filled, skipped: dto.skipped }
       : { mode: "proposal", icon: toEntity(dto.icon), proposalId: dto.proposalId, proposedFields: dto.proposedFields, skipped: dto.skipped };
+  },
+  async generatePortfolio(id: string): Promise<GenerateIconPortfolioResult> {
+    const dto = await httpPost<BffGenerateIconPortfolioResultDto>(aiActionPath(id, "generate-portfolio"), undefined, AI_TEXT_TIMEOUT_MS);
+    return { icon: toEntity(dto.icon), generated: dto.generated, skipped: dto.skipped };
+  },
+  async addPortfolioImages(id: string, images: GeneratedIconPortfolioPhoto[]): Promise<IconAiWriteResult> {
+    return toAiWriteResult(await httpPost<BffIconAiWriteResultDto>(aiActionPath(id, "add-portfolio-images"), { images }));
   },
 };

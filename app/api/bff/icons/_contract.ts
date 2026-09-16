@@ -133,6 +133,43 @@ export function toBffIconAiWriteResultDto(worker: WorkerIconAiWriteResultDto): B
     : { mode: "proposal", icon: toBffIconDto(worker.icon), proposalId: worker.proposalId };
 }
 
+/**
+ * Portfolio/lifestyle photo generation (Phase C) -- mirrors
+ * lib/church/icon-portfolio-actions.ts's GeneratedPortfolioPhoto/
+ * GenerateIconPortfolioResult exactly (svet-ikony). Identical
+ * Worker/Bff shapes (no semantic differences to whitelist away), kept as
+ * distinct types anyway for the same reason every other pair here is —
+ * this is the ONE place allowed to notice if that ever changes.
+ */
+export type WorkerIconPortfolioPreset = "table_candle" | "in_hand" | "framed_wall";
+export interface WorkerGeneratedPortfolioPhotoDto {
+  preset: WorkerIconPortfolioPreset;
+  imageUrl: string;
+  sourceImageUrl: string;
+  generatedAt: string;
+}
+export type BffGeneratedPortfolioPhotoDto = WorkerGeneratedPortfolioPhotoDto;
+
+export type WorkerPortfolioGenerationSkipDto = { preset: WorkerIconPortfolioPreset; reason: "failed" };
+export type BffPortfolioGenerationSkipDto = WorkerPortfolioGenerationSkipDto;
+
+/** generateIconPortfolio() never writes to the icon row -- `icon` here is
+ * just the (unchanged) icon read back, included so the admin UI has the
+ * icon's current imageUrl/galleryUrls without a second round trip. */
+export interface WorkerGenerateIconPortfolioResultDto {
+  icon: WorkerIconDto;
+  generated: WorkerGeneratedPortfolioPhotoDto[];
+  skipped: WorkerPortfolioGenerationSkipDto[];
+}
+export interface BffGenerateIconPortfolioResultDto {
+  icon: BffIconDto;
+  generated: BffGeneratedPortfolioPhotoDto[];
+  skipped: BffPortfolioGenerationSkipDto[];
+}
+export function toBffGenerateIconPortfolioResultDto(worker: WorkerGenerateIconPortfolioResultDto): BffGenerateIconPortfolioResultDto {
+  return { icon: toBffIconDto(worker.icon), generated: worker.generated, skipped: worker.skipped };
+}
+
 /** Admin -> Worker payload for create/update. Same whitelist in reverse —
  * see BffIconDto's doc comment for what's deliberately never sent. */
 export interface WorkerIconWritePayload {

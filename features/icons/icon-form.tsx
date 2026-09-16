@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, ArrowRight, Eye, ImageIcon, Sparkles, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Eye, ImageIcon, Sparkles, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils";
 import { iconSchema, type IconFormValues } from "@/lib/validation/icon.schema";
 import type { Icon, Language } from "@/types/entities";
 import { useIconAiActions } from "./use-icon-ai-actions";
+import { useIconPortfolio } from "./use-icon-portfolio";
 
 /** Best-effort orphan cleanup for a not-yet-saved upload. No-op in mock
  * mode (nothing real to clean up) — same real-mode detection
@@ -99,6 +100,8 @@ export function IconForm({ mode, icon, groupId, initialLanguage, initialSlug, on
   // "create" mode, where every AI button below stays hidden since there's
   // no saved record yet for the backend actions to operate on.
   const ai = useIconAiActions(icon?.id, form);
+  const portfolio = useIconPortfolio(icon?.id, form);
+  const busy = ai.isBusy || portfolio.isGenerating || portfolio.isConfirming;
   const [confirmRegenerateDescription, setConfirmRegenerateDescription] = useState(false);
   const [confirmRegenerateHistory, setConfirmRegenerateHistory] = useState(false);
   const [confirmRegenerateSaintImageDescription, setConfirmRegenerateSaintImageDescription] = useState(false);
@@ -183,8 +186,8 @@ export function IconForm({ mode, icon, groupId, initialLanguage, initialSlug, on
 
   return (
     <div className="flex h-full flex-col">
-      {ai.isBusy ? <p role="status" className="px-4 pt-3 text-sm text-muted-foreground">AI готує матеріали. Дочекайтеся завершення; публікація виконується окремо.</p> : null}
-      <fieldset disabled={ai.isBusy || submitting} aria-busy={ai.isBusy} className="min-w-0 flex-1 space-y-4 overflow-y-auto p-4 pb-28 md:p-6 md:pb-24">
+      {busy ? <p role="status" className="px-4 pt-3 text-sm text-muted-foreground">AI готує матеріали. Дочекайтеся завершення; публікація виконується окремо.</p> : null}
+      <fieldset disabled={busy || submitting} aria-busy={busy} className="min-w-0 flex-1 space-y-4 overflow-y-auto p-4 pb-28 md:p-6 md:pb-24">
         {effectiveGroupId ? (
           <div className="space-y-1.5">
             <p className="text-xs font-medium text-muted-foreground">Переклади</p>
@@ -417,6 +420,75 @@ export function IconForm({ mode, icon, groupId, initialLanguage, initialSlug, on
                 }}
               />
             </div>
+
+            {mode === "edit" && icon ? (
+              <div className="space-y-3 border-t pt-4">
+                <div>
+                  <p className="text-sm font-medium">AI-портфоліо</p>
+                  <p className="text-xs text-muted-foreground">
+                    Генерує кілька фото на основі головного знімка ікони (на столі зі свічкою, в руках, у рамці). Нові фото не потрапляють у галерею автоматично — оберіть, які додати.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={!values.mainImageId || portfolio.isGenerating}
+                  onClick={portfolio.generate}
+                >
+                  <Sparkles className="size-4" />
+                  {portfolio.isGenerating ? "Генерація…" : "Згенерувати портфоліо"}
+                </Button>
+                {!values.mainImageId ? <p className="text-xs text-muted-foreground">Спочатку завантажте головне фото.</p> : null}
+
+                {portfolio.candidates.length > 0 ? (
+                  <div className="space-y-3 rounded-lg border p-3">
+                    <p className="text-xs text-muted-foreground">Перегляньте варіанти та оберіть, які додати до галереї.</p>
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                      {portfolio.candidates.map((candidate) => {
+                        const previewUrl = resolveMediaPreviewUrl(candidate.imageUrl);
+                        const selected = portfolio.isSelected(candidate.imageUrl);
+                        return (
+                          <button
+                            key={candidate.imageUrl}
+                            type="button"
+                            onClick={() => portfolio.toggle(candidate.imageUrl)}
+                            className={cn(
+                              "relative overflow-hidden rounded-lg border-2 bg-muted/30 text-left",
+                              selected ? "border-primary" : "border-transparent",
+                            )}
+                          >
+                            <div className="aspect-square w-full">
+                              {previewUrl ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={previewUrl} alt="" className="h-full w-full object-cover" />
+                              ) : (
+                                <div className="flex h-full w-full items-center justify-center">
+                                  <ImageIcon className="size-6 text-muted-foreground" />
+                                </div>
+                              )}
+                            </div>
+                            {selected ? (
+                              <div className="absolute right-1 top-1 rounded-full bg-primary p-0.5 text-primary-foreground">
+                                <Check className="size-3" />
+                              </div>
+                            ) : null}
+                            <p className="truncate border-t bg-background/80 p-1 text-center text-[11px]">{portfolio.presetLabel(candidate.preset)}</p>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="flex gap-2">
+                      <Button type="button" size="sm" variant="ghost" disabled={portfolio.isConfirming} onClick={portfolio.cancel}>
+                        Скасувати
+                      </Button>
+                      <Button type="button" size="sm" disabled={portfolio.isConfirming} onClick={portfolio.confirm}>
+                        {portfolio.isConfirming ? "Додавання…" : "Додати обрані до галереї"}
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
           </TabsContent>
 
           <TabsContent value="relations" className="space-y-4">
@@ -459,10 +531,10 @@ export function IconForm({ mode, icon, groupId, initialLanguage, initialSlug, on
           <Eye className="size-4" />
           {messages.actions.preview}
         </Button>
-        <Button type="button" variant="secondary" className="h-11 flex-1" disabled={submitting || ai.isBusy} onClick={() => handleSave(false)}>
+        <Button type="button" variant="secondary" className="h-11 flex-1" disabled={submitting || busy} onClick={() => handleSave(false)}>
           {messages.actions.save}
         </Button>
-        <Button type="button" className="h-11 flex-1" disabled={submitting || ai.isBusy} onClick={() => handleSave(true)}>
+        <Button type="button" className="h-11 flex-1" disabled={submitting || busy} onClick={() => handleSave(true)}>
           {messages.actions.publish}
         </Button>
       </div>

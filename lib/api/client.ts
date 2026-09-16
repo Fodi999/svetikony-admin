@@ -28,6 +28,8 @@ import type {
   ContentPlanQuery,
   ContentPlanReport,
   ContentStatus,
+  GenerateIconPortfolioResult,
+  GeneratedIconPortfolioPhoto,
   GospelReading,
   Icon,
   IconAiFillResult,
@@ -345,6 +347,14 @@ export interface ApiClient {
      * materials/dimensions, which are physical facts an AI can't safely
      * infer); never overwrites existing content. */
     fillMissing(id: string): Promise<IconAiFillResult>;
+    /** Generates portfolio/lifestyle photo candidates from the icon's own
+     * existing photo -- never writes to the icon; review + select, then
+     * confirm with addPortfolioImages(). Requires an existing photo. */
+    generatePortfolio(id: string): Promise<GenerateIconPortfolioResult>;
+    /** Confirm step: merges the admin-selected candidates into the
+     * gallery via the same draft-direct/published-proposal routing as
+     * every other Icon AI action. */
+    addPortfolioImages(id: string, images: GeneratedIconPortfolioPhoto[]): Promise<IconAiWriteResult>;
   };
   prayers: CrudResource<Prayer, PrayerFormValues, TranslatableQuery>;
   saints: CrudResource<Saint, SaintFormValues, TranslatableQuery>;
