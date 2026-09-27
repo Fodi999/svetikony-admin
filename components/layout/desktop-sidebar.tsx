@@ -31,6 +31,7 @@ const SECTIONS: Section[] = [
       "/articles",
       "/alphabet",
       "/church-info",
+      "/churches",
     ],
   },
   { heading: "Каталог", hrefs: ["/catalog/categories", "/catalog/products"] },

@@ -29,6 +29,11 @@ function renderSidebar() {
 }
 
 describe("DesktopSidebar -- unread order badge", () => {
+  it("exposes the globe marker editor in the content navigation", async () => {
+    mockUnreadCount.mockResolvedValue(0);
+    renderSidebar();
+    expect(await screen.findByRole("link", {name: "Місця · метки глобуса"})).toHaveAttribute("href", "/churches");
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     canViewOrders = true;

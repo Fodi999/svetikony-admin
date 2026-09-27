@@ -38,7 +38,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/articles", label: messages.nav.articles, icon: SquareLibrary, area: "content" },
   { href: "/alphabet", label: messages.nav.alphabet, icon: LibraryBig, area: "content" },
   { href: "/church-info", label: messages.nav.churchInfo, icon: Church, area: "content" },
-  { href: "/churches", label: "Храми · метки", icon: Church, area: "content" },
+  { href: "/churches", label: "Місця · метки глобуса", icon: Church, area: "content" },
   { href: "/visualizer", label: messages.nav.visualizer, icon: Globe, area: "content" },
   { href: "/catalog/categories", label: messages.nav.categories, icon: Package, area: "catalog" },
   { href: "/catalog/products", label: messages.nav.products, icon: Package, area: "catalog" },
