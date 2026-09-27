@@ -8,6 +8,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { MediaUploadButton } from "@/components/forms/media-upload-button";
+import { MarkerImageEditor } from './marker-image-editor';
 import { RelationPickerField } from "@/components/forms/relation-picker-field";
 import { SelectField } from "@/components/forms/select-field";
 import { TextField } from "@/components/forms/text-field";
@@ -171,6 +172,7 @@ export function SaintForm({ mode, saint, groupId, initialLanguage, initialSlug, 
           </TabsList>
 
           <TabsContent value="main" className="space-y-4">
+            {saint?.translationGroupId?<MarkerImageEditor key={saint.translationGroupId} groupId={saint.translationGroupId} mainImage={values.imageId}/>:null}
             <TextField control={form.control} name="name" label="Ім'я" />
             <TextField control={form.control} name="slug" label="Slug" description="Латиниця, цифри, дефіси" />
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

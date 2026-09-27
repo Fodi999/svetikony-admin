@@ -30,6 +30,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/", label: messages.nav.dashboard, icon: LayoutDashboard, area: "content" },
   { href: "/orders", label: messages.nav.orders, icon: ShoppingBag, area: "orders" },
   { href: "/calendar", label: messages.nav.calendar, icon: CalendarDays, area: "content" },
+  ...(process.env.NODE_ENV === 'development' ? [{href:'/calendar-geo',label:'Calendar Geo Review',icon:Globe,area:'content' as const}] : []),
   { href: "/icons", label: messages.nav.icons, icon: Images, area: "content" },
   { href: "/prayers", label: messages.nav.prayers, icon: NotebookText, area: "content" },
   { href: "/saints", label: messages.nav.saints, icon: Users, area: "content" },

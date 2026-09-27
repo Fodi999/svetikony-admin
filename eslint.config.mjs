@@ -9,6 +9,8 @@ const eslintConfig = defineConfig([
   globalIgnores([
     // Default ignores of eslint-config-next:
     ".next/**",
+    // Generated OpenNext worker bundles contain compiled third-party code.
+    ".open-next/**",
     "out/**",
     "build/**",
     "next-env.d.ts",

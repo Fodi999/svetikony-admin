@@ -150,8 +150,20 @@ type Handler<Args extends unknown[]> = (request: NextRequest, session: { user: S
 export function withAuth<Args extends unknown[] = []>(
   options: { area: PermissionArea; level: AccessLevel },
   handler: Handler<Args>,
+  restrictions?: { localUpstreamOnly: true },
 ) {
   return async (request: NextRequest, ...args: Args): Promise<Response> => {
+    // Local workflows must reject remote upstreams before resolving a session.
+    if (restrictions?.localUpstreamOnly) {
+      const loopback = ['localhost', '127.0.0.1', '[::1]'];
+      let allowed = false;
+      try {
+        const upstream = new URL(process.env.SVET_IKONY_API_BASE_URL ?? '');
+        allowed = process.env.NODE_ENV === 'development' && loopback.includes(request.nextUrl.hostname)
+          && upstream.protocol === 'http:' && loopback.includes(upstream.hostname);
+      } catch { /* Invalid configuration fails closed. */ }
+      if (!allowed) return jsonError(404, 'NOT_FOUND', 'Local calendar only');
+    }
     if (isCrossSiteMutation(request)) {
       return csrfRejection();
     }

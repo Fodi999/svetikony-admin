@@ -258,12 +258,12 @@ export async function proxyMultipartUpload(upstreamPath: string, formData: FormD
 }
 
 /** Stream a trusted upstream media path through the authenticated BFF. */
-export async function proxyBinary(upstreamPath: string): Promise<Response> {
+export async function proxyBinary(upstreamPath: string, image = false): Promise<Response> {
   const result = await fetchUpstream(upstreamPath);
   if ('error' in result) return result.error;
   const response = result.response;
   if (!response.ok) return new Response(null, { status: response.status, headers: NO_STORE_HEADERS });
   return new Response(response.body, {
-    headers: { 'content-type': 'model/gltf-binary', 'x-content-type-options': 'nosniff', ...NO_STORE_HEADERS },
+    headers: { 'content-type': image ? response.headers.get('content-type') ?? 'application/octet-stream' : 'model/gltf-binary', 'x-content-type-options': 'nosniff', ...NO_STORE_HEADERS },
   });
 }

@@ -7,10 +7,18 @@
   // Do not bump this without a deliberate decision -- compatibility_date
   // changes can silently change runtime behavior even with identical code.
   "compatibility_date": "2026-09-15",
-  // Verified exactly from production. Notably does NOT include
-  // "nodejs_compat" (unlike svet-ikony's own wrangler.jsonc) -- preserved
-  // as-is, not "fixed"/harmonized between the two projects.
-  "compatibility_flags": ["global_fetch_strictly_public"],
+  // "global_fetch_strictly_public" is verified exactly from production.
+  // "nodejs_compat" was added afterward (2026-09-16, deliberate deviation
+  // from the audit) -- the live Worker's settings API reported it absent,
+  // but a real local `opennextjs-cloudflare build` with the audited flags
+  // failed outright: @opennextjs/cloudflare 1.19.11 + Next 16.2.12 emit a
+  // worker bundle that requires node builtins (fs, path, crypto, http,
+  // async_hooks, and 10 others -- core Next.js server runtime, not an
+  // optional feature) that esbuild refuses to resolve without this flag.
+  // svet-ikony's own wrangler.jsonc already has it for the same reason.
+  // The discrepancy with the audited production flags is unresolved --
+  // see the audit report -- but a build cannot proceed without this.
+  "compatibility_flags": ["global_fetch_strictly_public", "nodejs_compat"],
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS"
